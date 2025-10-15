@@ -40,6 +40,12 @@ if (!/\/(testapp|serviceapp)(\/|$)/.test(CLOVA_BASE)) {
 const CLOVA_KEY = getEnv("CLOVA_API_KEY");
 const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 
+// 디버깅용 로그
+console.log("CLOVA API Debug:");
+console.log("CLOVA_BASE:", CLOVA_BASE);
+console.log("CLOVA_KEY:", CLOVA_KEY ? "SET" : "NOT SET");
+console.log("CLOVA_MODEL:", CLOVA_MODEL);
+
 // 파일 경로
   const VECTORS_JSON = path.join(process.cwd(), "public", "vectors.json");
 const systemPromptPath = path.join(process.cwd(), "public", "LLM", "system_prompt.txt");
@@ -147,6 +153,11 @@ function extractEmbedding(json: any) {
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
+  
+  console.log("CLOVA API Call Debug:");
+  console.log("URL:", url);
+  console.log("CLOVA_BASE:", CLOVA_BASE);
+  console.log("CLOVA_MODEL:", CLOVA_MODEL);
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
