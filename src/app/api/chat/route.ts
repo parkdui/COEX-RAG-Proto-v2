@@ -330,11 +330,31 @@ export async function POST(request: NextRequest) {
 
     // 구글 스프레드시트에 로그 저장 (비동기, 에러 무시)
     try {
+      // 대화 히스토리를 올바른 형식으로 변환
+      const conversation = [];
+      
+      // 이전 대화 히스토리 추가 (사용자 메시지와 AI 응답 쌍)
+      for (let i = 0; i < (body?.history || []).length; i += 2) {
+        const userMsg = body.history[i];
+        const aiMsg = body.history[i + 1];
+        if (userMsg && aiMsg) {
+          conversation.push({
+            userMessage: userMsg.content || userMsg,
+            aiMessage: aiMsg.content || aiMsg
+          });
+        }
+      }
+      
+      // 현재 대화 추가
+      conversation.push({
+        userMessage: question,
+        aiMessage: cleanedAnswer
+      });
+
       const logData = {
         timestamp: new Date().toISOString(),
         systemPrompt: activeSystemPrompt,
-        userQuestion: question,
-        aiAnswer: cleanedAnswer,
+        conversation: conversation,
         tokens: result.tokens
       };
 
