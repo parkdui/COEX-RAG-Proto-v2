@@ -152,21 +152,16 @@ function extractEmbedding(json: any) {
 
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
-  const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
+  const url = `${CLOVA_BASE}/v1/chat-completions/${CLOVA_MODEL}`;
   
   console.log("CLOVA API Call Debug:");
   console.log("URL:", url);
   console.log("CLOVA_BASE:", CLOVA_BASE);
   console.log("CLOVA_MODEL:", CLOVA_MODEL);
 
-  // 메시지 포맷 변환
-  const wrappedMessages = messages.map((m) => ({
-    role: m.role,
-    content: [{ type: "text", text: m.content }],
-  }));
-
+  // 메시지 포맷 변환 (CLOVA v1 형식)
   const body = {
-    messages: wrappedMessages,
+    messages: messages,
     temperature: opts.temperature ?? 0.3,
     topP: opts.topP ?? 0.8,
     topK: opts.topK ?? 0,
