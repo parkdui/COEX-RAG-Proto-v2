@@ -41,5 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 # vector data
-data/vectors.json
 data/vectors.json.tmp
