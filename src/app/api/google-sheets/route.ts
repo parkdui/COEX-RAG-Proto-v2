@@ -11,7 +11,7 @@ const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
 // 디버깅용 로그
 console.log("Environment variables check:");
 console.log("GOOGLE_SHEET_ID:", GOOGLE_SHEET_ID ? "SET" : "NOT SET");
-console.log("GOOGLE_SHEET_RANGE:", GOOGLE_SHEET_RANGE ? "SET" : "NOT SET");
+console.log("GOOGLE_SHEET_RANGE:", GOOGLE_SHEET_RANGE);
 console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
 console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
 

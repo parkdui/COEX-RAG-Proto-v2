@@ -156,6 +156,9 @@ async function buildVectors() {
   const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
+  console.log("Pre-processing environment variables:");
+  console.log("GOOGLE_SHEET_RANGE:", GOOGLE_SHEET_RANGE);
+
   if (!GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
   }
