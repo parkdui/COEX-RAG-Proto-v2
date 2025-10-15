@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getEnv, mapRow } from '@/lib/utils';
+import { mapRow } from '@/lib/utils';
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 
 // ENV 로드
-const APP_ID = getEnv("APP_ID", "testapp");
-let HLX_BASE = getEnv(
-  "HYPERCLOVAX_API_BASE",
-  "https://clovastudio.apigw.ntruss.com"
-);
-const HLX_KEY = getEnv("HYPERCLOVAX_API_KEY");
-const EMB_MODEL = getEnv("HYPERCLOVAX_EMBED_MODEL", "clir-emb-dolphin");
+const APP_ID = process.env.APP_ID || "testapp";
+let HLX_BASE = process.env.HYPERCLOVAX_API_BASE || "https://clovastudio.apigw.ntruss.com";
+const HLX_KEY = process.env.HYPERCLOVAX_API_KEY;
+const EMB_MODEL = process.env.HYPERCLOVAX_EMBED_MODEL || "clir-emb-dolphin";
 
 // stream 도메인이면 apigw로 교체
 if (/clovastudio\.stream\.ntruss\.com/.test(HLX_BASE)) {
@@ -200,11 +197,11 @@ async function buildVectors() {
     embedding: number[];
   }> = [];
   
-  console.log(`Starting to build vectors for ${rows.length} rows...`);
+  console.log(`Starting to build vectors for ${data.length} rows...`);
 
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 0; i < data.length; i++) {
     try {
-      const m = mapRow(rows[i]);
+      const m = mapRow(data[i]);
       if (!m.baseText || m.baseText.length < 2) continue;
       const segments =
         m.baseText.length > 2000 ? await segmentText(m.baseText) : [m.baseText];
