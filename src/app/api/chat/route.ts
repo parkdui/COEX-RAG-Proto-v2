@@ -328,13 +328,37 @@ export async function POST(request: NextRequest) {
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
 
+    // 구글 스프레드시트에 로그 저장 (비동기, 에러 무시)
+    try {
+      const logData = {
+        timestamp: new Date().toISOString(),
+        systemPrompt: activeSystemPrompt,
+        userQuestion: question,
+        aiAnswer: cleanedAnswer,
+        tokens: result.tokens
+      };
+
+      // 비동기로 로그 저장 (응답을 블록하지 않음)
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/log-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(logData),
+      }).catch(error => {
+        console.error('Failed to log chat to Google Sheets:', error);
+      });
+    } catch (error) {
+      console.error('Error preparing chat log:', error);
+    }
+
+    logTokenSummary("after query");
+
     return NextResponse.json({
       answer: cleanedAnswer,
       hits: slimHits,
       tokens: result.tokens,
     });
-    
-    logTokenSummary("after query");
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
