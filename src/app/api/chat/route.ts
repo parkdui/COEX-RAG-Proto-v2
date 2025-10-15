@@ -41,7 +41,7 @@ const CLOVA_KEY = getEnv("CLOVA_API_KEY");
 const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 
 // 파일 경로
-const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
+  const VECTORS_JSON = path.join(process.cwd(), "public", "vectors.json");
 const systemPromptPath = path.join(process.cwd(), "public", "LLM", "system_prompt.txt");
 
 // ==== Token counters ====
