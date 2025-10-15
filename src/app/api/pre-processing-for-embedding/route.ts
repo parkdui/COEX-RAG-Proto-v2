@@ -153,7 +153,10 @@ async function buildVectors() {
   console.log("Fetching data from Google Sheets...");
   
   // Google Sheets에서 데이터 가져오기
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/google-sheets`);
+  const baseUrl = process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const response = await fetch(`${baseUrl}/api/google-sheets`);
   const result = await response.json();
   
   if (!result.ok) {
