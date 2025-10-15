@@ -307,6 +307,20 @@ export async function POST(request: NextRequest) {
       },
     ];
 
+    // 디버깅 로그: 히스토리와 메시지 구조 확인
+    console.log("=== CHAT API DEBUG ===");
+    console.log("Question:", question);
+    console.log("History length:", body?.history?.length || 0);
+    console.log("History content:", JSON.stringify(body?.history || [], null, 2));
+    console.log("Total messages:", messages.length);
+    console.log("Messages structure:", messages.map((m, i) => ({
+      index: i,
+      role: m.role,
+      contentLength: m.content?.length || 0,
+      contentPreview: m.content?.substring(0, 100) + (m.content?.length > 100 ? "..." : "")
+    })));
+    console.log("=====================");
+
     const result = await callClovaChat(messages, {
       temperature: 0.3,
       maxTokens: 700,

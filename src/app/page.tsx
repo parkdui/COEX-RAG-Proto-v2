@@ -109,6 +109,14 @@ export default function Home() {
     setIsLoading(true);
 
     try {
+      // 디버깅 로그: 전송할 히스토리 확인
+      const historyToSend = chatHistory.slice(-10);
+      console.log("=== FRONTEND DEBUG ===");
+      console.log("Question:", text);
+      console.log("History length:", historyToSend.length);
+      console.log("History content:", JSON.stringify(historyToSend, null, 2));
+      console.log("=====================");
+
       // 서버로 질문 전송
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -118,7 +126,7 @@ export default function Home() {
         body: JSON.stringify({
           question: text,
           systemPrompt: systemPrompt,
-          history: chatHistory.slice(-10), // 최근 10개 메시지만 전송
+          history: historyToSend, // 최근 10개 메시지만 전송
         }),
       });
 
@@ -158,6 +166,12 @@ export default function Home() {
     setIsLoading(true);
 
     try {
+      // 디버깅 로그: 초기 대화 시작
+      console.log("=== GO BUTTON DEBUG ===");
+      console.log("Initial question: 안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?");
+      console.log("History length: 0 (initial)");
+      console.log("=====================");
+
       // CLOVA API를 통해 실제 대화 시작 메시지 생성
       const response = await fetch('/api/chat', {
         method: 'POST',
