@@ -310,6 +310,8 @@ export async function POST(request: NextRequest) {
     // 디버깅 로그: 히스토리와 메시지 구조 확인
     console.log("=== CHAT API DEBUG ===");
     console.log("Question:", question);
+    console.log("System Prompt Length:", activeSystemPrompt.length);
+    console.log("System Prompt Preview:", activeSystemPrompt.substring(0, 200) + "...");
     console.log("History length:", body?.history?.length || 0);
     console.log("History content:", JSON.stringify(body?.history || [], null, 2));
     console.log("Total messages:", messages.length);
