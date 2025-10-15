@@ -202,7 +202,11 @@ async function buildVectors() {
   
   console.log(`Starting to build vectors for ${data.length} rows...`);
 
-  for (let i = 0; i < data.length; i++) {
+  // 테스트를 위해 처음 5개 행만 처리
+  const testData = data.slice(0, 5);
+  console.log(`Processing only first ${testData.length} rows for testing`);
+
+  for (let i = 0; i < testData.length; i++) {
     try {
       const m = mapRow(data[i]);
       if (!m.baseText || m.baseText.length < 2) continue;
