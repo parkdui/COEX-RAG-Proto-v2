@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getEnv } from '@/lib/utils';
 
-const GOOGLE_SHEET_ID = getEnv("GOOGLE_SHEET_ID");
-const GOOGLE_SHEET_RANGE = getEnv("GOOGLE_SHEET_RANGE");
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-const GOOGLE_PRIVATE_KEY = getEnv("GOOGLE_PRIVATE_KEY");
+// 환경 변수 직접 로드 (Vercel 호환성 개선)
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Sheet1!A:Z";
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 // 디버깅용 로그
 console.log("Environment variables check:");
