@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getEnv, mapRow } from '@/lib/utils';
+import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 
@@ -150,20 +151,48 @@ async function segmentText(text: string) {
 }
 
 async function buildVectors() {
-  console.log("Fetching data from Google Sheets...");
+  console.log("Loading data from Google Sheets...");
   
-  // Google Sheets에서 데이터 가져오기
-  const baseUrl = process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-  const response = await fetch(`${baseUrl}/api/google-sheets`);
-  const result = await response.json();
-  
-  if (!result.ok) {
-    throw new Error(result.error || 'Failed to load data from Google Sheets');
+  // Google Sheets API 직접 호출
+  const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
+  const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Sheet1!A:Z";
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets API credentials are not set");
   }
-  
-  const rows = result.data;
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_PRIVATE_KEY,
+    },
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+
+  const sheets = google.sheets({ version: "v4", auth });
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: GOOGLE_SHEET_ID,
+    range: GOOGLE_SHEET_RANGE,
+  });
+
+  const rows = response.data.values;
+  if (!rows || rows.length === 0) {
+    throw new Error("No data found in Google Sheet");
+  }
+
+  // 첫 번째 행을 헤더로 사용
+  const headers = rows[0].map((h) => String(h || "").trim());
+  const data = rows.slice(1).map((row) => {
+    const rowData: Record<string, unknown> = {};
+    headers.forEach((header, index) => {
+      rowData[header] = row[index];
+    });
+    return rowData;
+  });
+
+  console.log(`Loaded ${data.length} rows from Google Sheets`);
   const out: Array<{
     id: string;
     meta: Record<string, unknown>;
