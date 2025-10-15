@@ -158,22 +158,43 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      // 대화 시작 메시지
-      const greeting = "안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?";
+      // CLOVA API를 통해 실제 대화 시작 메시지 생성
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: "안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?",
+          systemPrompt: systemPrompt,
+          history: [], // 초기 대화이므로 빈 히스토리
+        }),
+      });
+
+      const data = await response.json();
       
-      const greetingMessage: Message = {
-        role: 'assistant',
-        content: greeting,
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, greetingMessage]);
-      setChatHistory(prev => [...prev, greetingMessage]);
+      if (data.error) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '⚠️ ' + data.error,
+          timestamp: new Date()
+        }]);
+      } else {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.answer || '안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?',
+          timestamp: new Date(),
+          tokens: data.tokens,
+          hits: data.hits
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setChatHistory(prev => [...prev, assistantMessage]);
+      }
     } catch (error) {
       console.error('대화 시작 실패:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: '⚠️ 대화를 시작할 수 없습니다.',
+        content: '⚠️ 서버와의 통신에 실패했습니다.',
         timestamp: new Date()
       }]);
     } finally {
