@@ -6,8 +6,8 @@ const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-// 로그 시트 범위 (새로운 시트 사용)
-const LOG_SHEET_RANGE = "ChatLog!A:E";
+// 로그 시트 범위 (기존 시트의 다른 범위 사용)
+const LOG_SHEET_RANGE = "Coex!U:Y";
 
 interface ChatLog {
   timestamp: string;
@@ -40,14 +40,14 @@ async function logToGoogleSheet(logData: ChatLog) {
   try {
     const headerResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: "ChatLog!A1:E1",
+      range: "Coex!U1:Y1",
     });
 
     if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
       // 헤더 추가
       await sheets.spreadsheets.values.update({
         spreadsheetId: GOOGLE_SHEET_ID,
-        range: "ChatLog!A1:E1",
+        range: "Coex!U1:Y1",
         valueInputOption: "RAW",
         requestBody: {
           values: [["Timestamp", "System Prompt", "User Question", "AI Answer", "Token Usage"]]
@@ -55,7 +55,7 @@ async function logToGoogleSheet(logData: ChatLog) {
       });
     }
   } catch (error) {
-    console.log("Header check failed, assuming sheet doesn't exist, will create headers");
+    console.log("Header check failed, will try to add headers");
   }
 
   // 데이터 추가
