@@ -17,11 +17,6 @@ interface ChatLog {
     userMessage: string;
     aiMessage: string;
   }>;
-  tokens?: {
-    input: number;
-    output: number;
-    total: number;
-  };
 }
 
 async function logToGoogleSheet(logData: ChatLog) {
@@ -80,11 +75,6 @@ async function logToGoogleSheet(logData: ChatLog) {
     rowData.push(conv.aiMessage.substring(0, 1000));
   });
 
-  // 토큰 정보를 마지막에 추가 (필요한 경우)
-  if (logData.tokens) {
-    rowData.push(`토큰: ${logData.tokens.input}/${logData.tokens.output}/${logData.tokens.total}`);
-  }
-
   await sheets.spreadsheets.values.append({
     spreadsheetId: LOG_GOOGLE_SHEET_ID,
     range: LOG_SHEET_RANGE,
@@ -100,7 +90,7 @@ async function logToGoogleSheet(logData: ChatLog) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { timestamp, systemPrompt, conversation, tokens } = body;
+    const { timestamp, systemPrompt, conversation } = body;
 
     if (!timestamp || !systemPrompt || !conversation || !Array.isArray(conversation)) {
       return NextResponse.json(
@@ -112,8 +102,7 @@ export async function POST(request: Request) {
     const logData: ChatLog = {
       timestamp,
       systemPrompt,
-      conversation,
-      tokens
+      conversation
     };
 
     await logToGoogleSheet(logData);

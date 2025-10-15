@@ -354,8 +354,7 @@ export async function POST(request: NextRequest) {
       const logData = {
         timestamp: new Date().toISOString(),
         systemPrompt: activeSystemPrompt,
-        conversation: conversation,
-        tokens: result.tokens
+        conversation: conversation
       };
 
       // 비동기로 로그 저장 (응답을 블록하지 않음)
