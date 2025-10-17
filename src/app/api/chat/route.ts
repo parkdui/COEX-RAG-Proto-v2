@@ -353,22 +353,47 @@ export async function POST(request: NextRequest) {
         aiMessage: cleanedAnswer
       });
 
+      // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
+      const now = new Date();
+      const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+      const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
+      
       const logData = {
-        timestamp: new Date().toISOString(),
+        timestamp: timestamp,
         systemPrompt: activeSystemPrompt,
         conversation: conversation
       };
 
-      // 비동기로 로그 저장 (응답을 블록하지 않음)
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/log-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(logData),
-      }).catch(error => {
+      // Google Sheets에 로그 저장 - 직접 함수 호출 (포트 문제 해결)
+      try {
+        // log-chat API의 함수를 직접 import하여 호출
+        const { POST: logChatHandler } = await import('../log-chat/route');
+        const mockRequest = new Request('http://localhost/api/log-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(logData)
+        });
+        
+        const response = await logChatHandler(mockRequest);
+        const result = await response.json();
+        
+        if (result.ok) {
+          console.log('Chat log saved successfully to Google Sheets:', result);
+        } else {
+          throw new Error(result.error || 'Log API failed');
+        }
+      } catch (error) {
         console.error('Failed to log chat to Google Sheets:', error);
-      });
+        // 실패 시 콘솔에도 출력
+        console.log('=== CHAT LOG (Fallback Console Output) ===');
+        console.log('Timestamp:', logData.timestamp);
+        console.log('Conversation Count:', logData.conversation.length);
+        logData.conversation.forEach((conv, index) => {
+          console.log(`  ${index + 1}. User: ${conv.userMessage}`);
+          console.log(`     AI: ${conv.aiMessage}`);
+        });
+        console.log('==========================================');
+      }
     } catch (error) {
       console.error('Error preparing chat log:', error);
     }
