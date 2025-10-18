@@ -6,6 +6,8 @@ export async function GET() {
     GOOGLE_SHEET_RANGE: process.env.GOOGLE_SHEET_RANGE ? "SET" : "NOT SET", 
     GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET",
     GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET",
+    LOG_GOOGLE_SHEET_ID: process.env.LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET",
+    LOG_GOOGLE_SHEET_NAME: process.env.LOG_GOOGLE_SHEET_NAME ? "SET" : "NOT SET",
     HYPERCLOVAX_API_KEY: process.env.HYPERCLOVAX_API_KEY ? "SET" : "NOT SET",
     CLOVA_API_KEY: process.env.CLOVA_API_KEY ? "SET" : "NOT SET",
     NODE_ENV: process.env.NODE_ENV || "NOT SET",

@@ -364,33 +364,33 @@ export async function POST(request: NextRequest) {
         conversation: conversation
       };
 
-      // Google Sheets에 로그 저장 - 직접 함수 호출 (포트 문제 해결)
+      // Google Sheets에 로그 저장 - fetch API 사용 (더 안정적)
       try {
-        // log-chat API의 함수를 직접 import하여 호출
-        const { POST: logChatHandler } = await import('../log-chat/route');
-        const mockRequest = new Request('http://localhost/api/log-chat', {
+        const logResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/log-chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'User-Agent': 'COEX-RAG-Chat-API'
+          },
           body: JSON.stringify(logData)
         });
         
-        const response = await logChatHandler(mockRequest);
-        const result = await response.json();
-        
-        if (result.ok) {
-          console.log('Chat log saved successfully to Google Sheets:', result);
+        if (logResponse.ok) {
+          const result = await logResponse.json();
+          console.log('✅ Chat log saved successfully to Google Sheets:', result.message);
         } else {
-          throw new Error(result.error || 'Log API failed');
+          const errorText = await logResponse.text();
+          throw new Error(`Log API failed with status ${logResponse.status}: ${errorText}`);
         }
       } catch (error) {
-        console.error('Failed to log chat to Google Sheets:', error);
+        console.error('❌ Failed to log chat to Google Sheets:', error);
         // 실패 시 콘솔에도 출력
         console.log('=== CHAT LOG (Fallback Console Output) ===');
         console.log('Timestamp:', logData.timestamp);
         console.log('Conversation Count:', logData.conversation.length);
         logData.conversation.forEach((conv, index) => {
-          console.log(`  ${index + 1}. User: ${conv.userMessage}`);
-          console.log(`     AI: ${conv.aiMessage}`);
+          console.log(`  ${index + 1}. User: ${conv.userMessage.substring(0, 100)}${conv.userMessage.length > 100 ? '...' : ''}`);
+          console.log(`     AI: ${conv.aiMessage.substring(0, 100)}${conv.aiMessage.length > 100 ? '...' : ''}`);
         });
         console.log('==========================================');
       }
