@@ -432,18 +432,33 @@ export async function POST(request: NextRequest) {
 
     // 구글 스프레드시트에 로그 저장 (비동기, 에러 무시)
     try {
+      console.log('=== LOGGING DEBUG ===');
+      console.log('History received:', JSON.stringify(body?.history || [], null, 2));
+      console.log('History length:', (body?.history || []).length);
+      
       // 대화 히스토리를 올바른 형식으로 변환
       const conversation = [];
       
       // 이전 대화 히스토리 추가 (사용자 메시지와 AI 응답 쌍)
-      for (let i = 0; i < (body?.history || []).length; i += 2) {
-        const userMsg = body.history[i];
-        const aiMsg = body.history[i + 1];
-        if (userMsg && aiMsg) {
-          conversation.push({
-            userMessage: userMsg.content || userMsg,
-            aiMessage: aiMsg.content || aiMsg
-          });
+      const history = body?.history || [];
+      for (let i = 0; i < history.length; i++) {
+        const msg = history[i];
+        console.log(`Processing message ${i}:`, JSON.stringify(msg, null, 2));
+        
+        if (msg && msg.role === 'user') {
+          // 사용자 메시지 찾기
+          const userMsg = msg;
+          const aiMsg = history[i + 1]; // 다음 메시지가 assistant인지 확인
+          
+          console.log('Found user message, checking for assistant message:', JSON.stringify(aiMsg, null, 2));
+          
+          if (aiMsg && aiMsg.role === 'assistant') {
+            conversation.push({
+              userMessage: userMsg.content,
+              aiMessage: aiMsg.content
+            });
+            console.log('Added conversation pair to log');
+          }
         }
       }
       
@@ -452,6 +467,8 @@ export async function POST(request: NextRequest) {
         userMessage: question,
         aiMessage: cleanedAnswer
       });
+
+      console.log('Final conversation for logging:', JSON.stringify(conversation, null, 2));
 
       // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
       const now = new Date();
@@ -463,6 +480,9 @@ export async function POST(request: NextRequest) {
         systemPrompt: activeSystemPrompt,
         conversation: conversation
       };
+      
+      console.log('Log data prepared:', JSON.stringify(logData, null, 2));
+      console.log('========================');
 
       // Google Sheets에 로그 저장 - 직접 구현 (Vercel 환경에서 더 안정적)
       try {
