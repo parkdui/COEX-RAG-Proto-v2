@@ -425,33 +425,69 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       }
     }
 
-    // 데이터 준비
-    const rowData = [
-      logData.sessionId,
-      logData.timestamp,
-      logData.systemPrompt.substring(0, 1000)
-    ];
-
-    // 대화 내용을 D열부터 번갈아가며 배치
-    logData.conversation.forEach((conv) => {
-      rowData.push(conv.userMessage.substring(0, 1000));
-      rowData.push(conv.aiMessage.substring(0, 1000));
-    });
-
     if (existingRowIndex > 0) {
-      // 기존 세션 업데이트
+      // 기존 세션 업데이트 - 기존 대화에 새로운 대화 추가
       console.log(`Updating existing session at row ${existingRowIndex}`);
+      
+      // 기존 데이터 가져오기
+      const existingRowData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
+      });
+
+      let existingConversations = [];
+      if (existingRowData.data.values && existingRowData.data.values[0]) {
+        const existingRow = existingRowData.data.values[0];
+        // D열부터 기존 대화 데이터 추출
+        for (let i = 3; i < existingRow.length; i += 2) {
+          if (existingRow[i] && existingRow[i + 1]) {
+            existingConversations.push({
+              userMessage: existingRow[i],
+              aiMessage: existingRow[i + 1]
+            });
+          }
+        }
+      }
+
+      // 새로운 대화만 추가 (이미 저장된 대화는 제외)
+      const newConversations = logData.conversation.slice(existingConversations.length);
+      
+      // 업데이트할 데이터 준비
+      const updateData = [
+        logData.sessionId,
+        logData.timestamp,
+        logData.systemPrompt.substring(0, 1000)
+      ];
+
+      // 기존 대화 + 새로운 대화
+      [...existingConversations, ...newConversations].forEach((conv) => {
+        updateData.push(conv.userMessage.substring(0, 1000));
+        updateData.push(conv.aiMessage.substring(0, 1000));
+      });
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
         valueInputOption: "RAW",
         requestBody: {
-          values: [rowData]
+          values: [updateData]
         }
       });
     } else {
       // 새로운 세션 추가
       console.log("Adding new session");
+      const rowData = [
+        logData.sessionId,
+        logData.timestamp,
+        logData.systemPrompt.substring(0, 1000)
+      ];
+
+      // 대화 내용을 D열부터 번갈아가며 배치
+      logData.conversation.forEach((conv) => {
+        rowData.push(conv.userMessage.substring(0, 1000));
+        rowData.push(conv.aiMessage.substring(0, 1000));
+      });
+
       await sheets.spreadsheets.values.append({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
@@ -565,10 +601,11 @@ export async function POST(request: NextRequest) {
     try {
       console.log('=== SESSION-BASED LOGGING DEBUG ===');
       
-      // 세션 ID 생성 (클라이언트 IP + User-Agent 기반)
+      // 세션 ID 생성 (간단한 해시 기반)
       const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      const sessionId = `${clientIP}-${userAgent}`.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
+      const sessionString = `${clientIP}-${userAgent}`;
+      const sessionId = `session-${Date.now()}-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
       
       console.log('Session ID:', sessionId);
       console.log('History received:', JSON.stringify(body?.history || [], null, 2));
