@@ -253,94 +253,6 @@ interface SessionChatLog extends ChatLog {
   sessionId: string;
 }
 
-async function saveChatLogToGoogleSheets(logData: ChatLog) {
-  console.log('=== saveChatLogToGoogleSheets called ===');
-  
-  // 환경 변수 로드
-  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
-  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
-  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
-  
-  console.log("Log Environment variables check:");
-  console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
-  console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
-  console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
-  console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
-  
-  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Sheets API credentials are not set");
-  }
-
-  // 개인 키 형식 처리
-  if (GOOGLE_PRIVATE_KEY) {
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
-  }
-
-  // Google Auth 설정
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: GOOGLE_PRIVATE_KEY,
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-
-  const sheets = google.sheets({ version: "v4", auth });
-
-  // 헤더가 있는지 확인하고 없으면 추가
-  try {
-    const headerResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
-    });
-
-    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
-      // 헤더 추가
-      const headers = ["일시", "시스템 프롬프트"];
-      for (let i = 0; i < 10; i++) {
-        headers.push(`사용자 메시지 ${i + 1}`);
-        headers.push(`AI 메시지 ${i + 1}`);
-      }
-      
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [headers]
-        }
-      });
-    }
-  } catch {
-    console.log("Header check failed, will try to add headers");
-  }
-
-  // 데이터 추가
-  const rowData = [
-    logData.timestamp,
-    logData.systemPrompt.substring(0, 1000)
-  ];
-
-  // 대화 내용을 C열부터 번갈아가며 배치
-  logData.conversation.forEach((conv) => {
-    rowData.push(conv.userMessage.substring(0, 1000));
-    rowData.push(conv.aiMessage.substring(0, 1000));
-  });
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: LOG_GOOGLE_SHEET_ID,
-    range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
-    valueInputOption: "RAW",
-    requestBody: {
-      values: [rowData]
-    }
-  });
-
-  console.log("Chat log saved to Google Sheets successfully");
-}
 
 async function saveSessionBasedChatLog(logData: SessionChatLog) {
   console.log('=== saveSessionBasedChatLog called ===');
@@ -435,7 +347,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
         range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
       });
 
-      let existingConversations = [];
+      const existingConversations = [];
       if (existingRowData.data.values && existingRowData.data.values[0]) {
         const existingRow = existingRowData.data.values[0];
         // D열부터 기존 대화 데이터 추출

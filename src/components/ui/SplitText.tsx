@@ -28,7 +28,7 @@ export const SplitText: React.FC<SplitTextProps> = ({
     return () => clearTimeout(timer);
   }, [delay]);
 
-  const getAnimationClass = (index: number) => {
+  const getAnimationClass = () => {
     const baseClasses = 'inline-block';
     const animationClasses = {
       fadeIn: isVisible ? 'opacity-100' : 'opacity-0',
@@ -59,7 +59,7 @@ export const SplitText: React.FC<SplitTextProps> = ({
       {characters.map((char, index) => (
         <span
           key={index}
-          className={getAnimationClass(index)}
+          className={getAnimationClass()}
           style={getAnimationStyle(index)}
         >
           {char === ' ' ? '\u00A0' : char}
@@ -97,7 +97,7 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
     return () => clearTimeout(timer);
   }, [delay]);
 
-  const getAnimationClass = (index: number) => {
+  const getAnimationClass = () => {
     const baseClasses = 'inline-block mr-1';
     const animationClasses = {
       fadeIn: isVisible ? 'opacity-100' : 'opacity-0',
@@ -127,7 +127,7 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
       {words.map((word, index) => (
         <span
           key={index}
-          className={getAnimationClass(index)}
+          className={getAnimationClass()}
           style={getAnimationStyle(index)}
         >
           {word}

@@ -5,7 +5,7 @@
 import React from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
-import { SplitText, SplitWords, TypingEffect } from '@/components/ui';
+import { SplitWords, TypingEffect } from '@/components/ui';
 
 /**
  * TTS 버튼 컴포넌트
