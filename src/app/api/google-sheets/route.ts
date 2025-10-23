@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { getEnv } from '@/lib/utils';
 
 // 환경 변수 직접 로드 (Vercel 호환성 개선)
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;

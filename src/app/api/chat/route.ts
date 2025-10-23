@@ -310,7 +310,7 @@ async function saveChatLogToGoogleSheets(logData: ChatLog) {
         }
       });
     }
-  } catch (error) {
+  } catch {
     console.log("Header check failed, will try to add headers");
   }
 
@@ -321,7 +321,7 @@ async function saveChatLogToGoogleSheets(logData: ChatLog) {
   ];
 
   // 대화 내용을 C열부터 번갈아가며 배치
-  logData.conversation.forEach((conv, index) => {
+  logData.conversation.forEach((conv) => {
     rowData.push(conv.userMessage.substring(0, 1000));
     rowData.push(conv.aiMessage.substring(0, 1000));
   });

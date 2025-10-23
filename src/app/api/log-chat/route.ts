@@ -41,7 +41,7 @@ interface ChatLog {
   }>;
 }
 
-export async function logToGoogleSheet(logData: ChatLog) {
+async function logToGoogleSheet(logData: ChatLog) {
   console.log('=== logToGoogleSheet called ===');
   console.log('LOG_GOOGLE_SHEET_ID:', LOG_GOOGLE_SHEET_ID ? 'SET' : 'NOT SET');
   console.log('LOG_GOOGLE_SHEET_NAME:', LOG_GOOGLE_SHEET_NAME);
@@ -64,7 +64,7 @@ export async function logToGoogleSheet(logData: ChatLog) {
 
   // 인증 테스트
   try {
-    const authClient = await auth.getClient();
+    await auth.getClient();
     console.log('Google Auth client created successfully');
   } catch (authError) {
     console.error('Google Auth client creation failed:', authError);
@@ -99,7 +99,7 @@ export async function logToGoogleSheet(logData: ChatLog) {
         }
       });
     }
-  } catch (error) {
+  } catch {
     console.log("Header check failed, will try to add headers");
   }
 
@@ -110,7 +110,7 @@ export async function logToGoogleSheet(logData: ChatLog) {
   ];
 
   // 대화 내용을 C열부터 번갈아가며 배치
-  logData.conversation.forEach((conv, index) => {
+  logData.conversation.forEach((conv) => {
     rowData.push(conv.userMessage.substring(0, 1000));
     rowData.push(conv.aiMessage.substring(0, 1000));
   });
