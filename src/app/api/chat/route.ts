@@ -249,6 +249,10 @@ interface ChatLog {
   }>;
 }
 
+interface SessionChatLog extends ChatLog {
+  sessionId: string;
+}
+
 async function saveChatLogToGoogleSheets(logData: ChatLog) {
   console.log('=== saveChatLogToGoogleSheets called ===');
   
@@ -336,6 +340,133 @@ async function saveChatLogToGoogleSheets(logData: ChatLog) {
   });
 
   console.log("Chat log saved to Google Sheets successfully");
+}
+
+async function saveSessionBasedChatLog(logData: SessionChatLog) {
+  console.log('=== saveSessionBasedChatLog called ===');
+  console.log('Session ID:', logData.sessionId);
+  
+  // 환경 변수 로드
+  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
+  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+  
+  console.log("Session Log Environment variables check:");
+  console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
+  console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
+  console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
+  console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
+  
+  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets API credentials are not set");
+  }
+
+  // 개인 키 형식 처리
+  if (GOOGLE_PRIVATE_KEY) {
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+  }
+
+  // Google Auth 설정
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_PRIVATE_KEY,
+    },
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  // 헤더가 있는지 확인하고 없으면 추가
+  try {
+    const headerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+    });
+
+    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
+      // 헤더 추가 (세션 ID 포함)
+      const headers = ["세션 ID", "일시", "시스템 프롬프트"];
+      for (let i = 0; i < 10; i++) {
+        headers.push(`사용자 메시지 ${i + 1}`);
+        headers.push(`AI 메시지 ${i + 1}`);
+      }
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [headers]
+        }
+      });
+    }
+  } catch {
+    console.log("Header check failed, will try to add headers");
+  }
+
+  // 기존 세션 로그가 있는지 확인
+  try {
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+    });
+
+    let existingRowIndex = -1;
+    if (existingData.data.values) {
+      for (let i = 0; i < existingData.data.values.length; i++) {
+        if (existingData.data.values[i][0] === logData.sessionId) {
+          existingRowIndex = i + 1; // 1-based index
+          break;
+        }
+      }
+    }
+
+    // 데이터 준비
+    const rowData = [
+      logData.sessionId,
+      logData.timestamp,
+      logData.systemPrompt.substring(0, 1000)
+    ];
+
+    // 대화 내용을 D열부터 번갈아가며 배치
+    logData.conversation.forEach((conv) => {
+      rowData.push(conv.userMessage.substring(0, 1000));
+      rowData.push(conv.aiMessage.substring(0, 1000));
+    });
+
+    if (existingRowIndex > 0) {
+      // 기존 세션 업데이트
+      console.log(`Updating existing session at row ${existingRowIndex}`);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [rowData]
+        }
+      });
+    } else {
+      // 새로운 세션 추가
+      console.log("Adding new session");
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [rowData]
+        }
+      });
+    }
+
+    console.log("Session-based chat log saved to Google Sheets successfully");
+  } catch (error) {
+    console.error("Error saving session-based chat log:", error);
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -430,34 +561,37 @@ export async function POST(request: NextRequest) {
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
 
-    // 구글 스프레드시트에 로그 저장 (비동기, 에러 무시)
+    // 구글 스프레드시트에 세션 기반 로그 저장 (비동기, 에러 무시)
     try {
-      console.log('=== LOGGING DEBUG ===');
+      console.log('=== SESSION-BASED LOGGING DEBUG ===');
+      
+      // 세션 ID 생성 (클라이언트 IP + User-Agent 기반)
+      const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      const sessionId = `${clientIP}-${userAgent}`.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
+      
+      console.log('Session ID:', sessionId);
       console.log('History received:', JSON.stringify(body?.history || [], null, 2));
       console.log('History length:', (body?.history || []).length);
       
-      // 대화 히스토리를 올바른 형식으로 변환
+      // 전체 대화 히스토리를 올바른 형식으로 변환
       const conversation = [];
       
       // 이전 대화 히스토리 추가 (사용자 메시지와 AI 응답 쌍)
       const history = body?.history || [];
       for (let i = 0; i < history.length; i++) {
         const msg = history[i];
-        console.log(`Processing message ${i}:`, JSON.stringify(msg, null, 2));
         
         if (msg && msg.role === 'user') {
           // 사용자 메시지 찾기
           const userMsg = msg;
           const aiMsg = history[i + 1]; // 다음 메시지가 assistant인지 확인
           
-          console.log('Found user message, checking for assistant message:', JSON.stringify(aiMsg, null, 2));
-          
           if (aiMsg && aiMsg.role === 'assistant') {
             conversation.push({
               userMessage: userMsg.content,
               aiMessage: aiMsg.content
             });
-            console.log('Added conversation pair to log');
           }
         }
       }
@@ -476,6 +610,7 @@ export async function POST(request: NextRequest) {
       const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
       
       const logData = {
+        sessionId: sessionId,
         timestamp: timestamp,
         systemPrompt: activeSystemPrompt,
         conversation: conversation
@@ -484,14 +619,15 @@ export async function POST(request: NextRequest) {
       console.log('Log data prepared:', JSON.stringify(logData, null, 2));
       console.log('========================');
 
-      // Google Sheets에 로그 저장 - 직접 구현 (Vercel 환경에서 더 안정적)
+      // Google Sheets에 세션 기반 로그 저장
       try {
-        await saveChatLogToGoogleSheets(logData);
-        console.log('✅ Chat log saved successfully to Google Sheets');
+        await saveSessionBasedChatLog(logData);
+        console.log('✅ Session-based chat log saved successfully to Google Sheets');
       } catch (error) {
-        console.error('❌ Failed to log chat to Google Sheets:', error);
+        console.error('❌ Failed to save session-based chat log:', error);
         // 실패 시 콘솔에도 출력
         console.log('=== CHAT LOG (Fallback Console Output) ===');
+        console.log('Session ID:', logData.sessionId);
         console.log('Timestamp:', logData.timestamp);
         console.log('Conversation Count:', logData.conversation.length);
         logData.conversation.forEach((conv, index) => {
@@ -501,7 +637,7 @@ export async function POST(request: NextRequest) {
         console.log('==========================================');
       }
     } catch (error) {
-      console.error('Error preparing chat log:', error);
+      console.error('Error preparing session-based chat log:', error);
     }
 
     logTokenSummary("after query");
