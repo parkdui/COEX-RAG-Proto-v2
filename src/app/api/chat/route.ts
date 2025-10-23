@@ -513,11 +513,12 @@ export async function POST(request: NextRequest) {
     try {
       console.log('=== SESSION-BASED LOGGING DEBUG ===');
       
-      // 세션 ID 생성 (간단한 해시 기반)
-      const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-      const userAgent = request.headers.get('user-agent') || 'unknown';
-      const sessionString = `${clientIP}-${userAgent}`;
-      const sessionId = `session-${Date.now()}-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
+              // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
+              const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+              const userAgent = request.headers.get('user-agent') || 'unknown';
+              const sessionString = `${clientIP}-${userAgent}`;
+              // 타임스탬프를 제거하고 IP+UserAgent 기반으로만 세션 ID 생성
+              const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
       
       console.log('Session ID:', sessionId);
       console.log('History received:', JSON.stringify(body?.history || [], null, 2));
