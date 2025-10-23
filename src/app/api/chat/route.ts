@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getEnv, cosineSim, removeEmojiLikeExpressions } from '@/lib/utils';
 import fs from 'fs';
 import path from 'path';
+import { google } from 'googleapis';
 
 // ENV 로드
 const APP_ID = getEnv("APP_ID", "testapp");
@@ -238,6 +239,105 @@ function logTokenSummary(tag = "") {
   );
 }
 
+// Google Sheets 로그 저장 함수
+interface ChatLog {
+  timestamp: string;
+  systemPrompt: string;
+  conversation: Array<{
+    userMessage: string;
+    aiMessage: string;
+  }>;
+}
+
+async function saveChatLogToGoogleSheets(logData: ChatLog) {
+  console.log('=== saveChatLogToGoogleSheets called ===');
+  
+  // 환경 변수 로드
+  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
+  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+  
+  console.log("Log Environment variables check:");
+  console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
+  console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
+  console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
+  console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
+  
+  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets API credentials are not set");
+  }
+
+  // 개인 키 형식 처리
+  if (GOOGLE_PRIVATE_KEY) {
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+  }
+
+  // Google Auth 설정
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_PRIVATE_KEY,
+    },
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+
+  const sheets = google.sheets({ version: "v4", auth });
+
+  // 헤더가 있는지 확인하고 없으면 추가
+  try {
+    const headerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+    });
+
+    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
+      // 헤더 추가
+      const headers = ["일시", "시스템 프롬프트"];
+      for (let i = 0; i < 10; i++) {
+        headers.push(`사용자 메시지 ${i + 1}`);
+        headers.push(`AI 메시지 ${i + 1}`);
+      }
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [headers]
+        }
+      });
+    }
+  } catch (error) {
+    console.log("Header check failed, will try to add headers");
+  }
+
+  // 데이터 추가
+  const rowData = [
+    logData.timestamp,
+    logData.systemPrompt.substring(0, 1000)
+  ];
+
+  // 대화 내용을 C열부터 번갈아가며 배치
+  logData.conversation.forEach((conv, index) => {
+    rowData.push(conv.userMessage.substring(0, 1000));
+    rowData.push(conv.aiMessage.substring(0, 1000));
+  });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: LOG_GOOGLE_SHEET_ID,
+    range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [rowData]
+    }
+  });
+
+  console.log("Chat log saved to Google Sheets successfully");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -364,24 +464,10 @@ export async function POST(request: NextRequest) {
         conversation: conversation
       };
 
-      // Google Sheets에 로그 저장 - fetch API 사용 (더 안정적)
+      // Google Sheets에 로그 저장 - 직접 구현 (Vercel 환경에서 더 안정적)
       try {
-        const logResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/log-chat`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'User-Agent': 'COEX-RAG-Chat-API'
-          },
-          body: JSON.stringify(logData)
-        });
-        
-        if (logResponse.ok) {
-          const result = await logResponse.json();
-          console.log('✅ Chat log saved successfully to Google Sheets:', result.message);
-        } else {
-          const errorText = await logResponse.text();
-          throw new Error(`Log API failed with status ${logResponse.status}: ${errorText}`);
-        }
+        await saveChatLogToGoogleSheets(logData);
+        console.log('✅ Chat log saved successfully to Google Sheets');
       } catch (error) {
         console.error('❌ Failed to log chat to Google Sheets:', error);
         // 실패 시 콘솔에도 출력

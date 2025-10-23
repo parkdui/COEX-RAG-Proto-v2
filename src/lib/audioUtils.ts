@@ -147,3 +147,5 @@ export function handleMicrophoneError(error: any): void {
   
   alert(errorMessage);
 }
+
+

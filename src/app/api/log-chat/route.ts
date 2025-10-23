@@ -41,7 +41,7 @@ interface ChatLog {
   }>;
 }
 
-async function logToGoogleSheet(logData: ChatLog) {
+export async function logToGoogleSheet(logData: ChatLog) {
   console.log('=== logToGoogleSheet called ===');
   console.log('LOG_GOOGLE_SHEET_ID:', LOG_GOOGLE_SHEET_ID ? 'SET' : 'NOT SET');
   console.log('LOG_GOOGLE_SHEET_NAME:', LOG_GOOGLE_SHEET_NAME);
