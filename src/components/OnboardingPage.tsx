@@ -3,6 +3,7 @@
 import React from 'react';
 import Iridescence from './ui/Iridescence';
 import AnimatedLogo from './ui/AnimatedLogo';
+import { SplitWords } from './ui/SplitText';
 
 interface OnboardingPageProps {
   onNext: () => void;
@@ -17,7 +18,7 @@ export default function OnboardingPage({ onNext }: OnboardingPageProps) {
           color={[1, 0.9, 0.95]} 
           speed={0.8} 
           amplitude={0.15}
-          mouseReact={true}
+          mouseReact={false}
         />
       </div>
 
@@ -34,14 +35,43 @@ export default function OnboardingPage({ onNext }: OnboardingPageProps) {
         {/* 환영 메시지 */}
         <div className="space-y-3" style={{ color: '#000', textAlign: 'center', fontFamily: 'Pretendard Variable', fontSize: '24px', fontWeight: 400, lineHeight: '120%', letterSpacing: '-0.96px' }}>
           <div>
-            Hi there! I'm{' '}
-            <span style={{ color: '#9747FF' }}>Sori</span> 👋
+            <SplitWords
+              text="Hi there! I'm"
+              delay={0}
+              duration={1.2}
+              stagger={0.08}
+              animation="fadeIn"
+            />
+            {' '}
+            <span style={{ color: '#9747FF' }}>
+              <SplitWords
+                text="Sori"
+                delay={800}
+                duration={1.2}
+                stagger={0.08}
+                animation="fadeIn"
+              />
+            </span>
+            {' '}
+            <span style={{ whiteSpace: 'pre' }}>👋</span>
           </div>
           <div>
-            I'm here to help
+            <SplitWords
+              text="I'm here to help"
+              delay={500}
+              duration={1.2}
+              stagger={0.08}
+              animation="fadeIn"
+            />
           </div>
           <div>
-            with guidance at COEX today
+            <SplitWords
+              text="with guidance at COEX today"
+              delay={1000}
+              duration={1.2}
+              stagger={0.08}
+              animation="fadeIn"
+            />
           </div>
         </div>
       </div>

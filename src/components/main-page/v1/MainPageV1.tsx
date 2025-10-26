@@ -175,6 +175,7 @@ export default function MainPageV1() {
   const voiceState = useVoiceRecording();
   const ttsState = useTTS();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [questionCount, setQuestionCount] = useState(0);
 
   // 랜덤으로 3개 선택
   const getRandomRecommendations = useCallback(() => {
@@ -187,13 +188,33 @@ export default function MainPageV1() {
   // 스크롤을 맨 아래로 이동
   const scrollToBottom = useCallback(() => {
     if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+      chatRef.current.scroll({
+        top: chatRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [chatState.messages, scrollToBottom]);
+
+  // AI 답변 애니메이션 중 자동 스크롤
+  useEffect(() => {
+    if (!chatState.isLoading) return;
+
+    const intervalId = setInterval(() => {
+      scrollToBottom();
+    }, 500);
+
+    return () => clearInterval(intervalId);
+  }, [chatState.isLoading, scrollToBottom]);
+
+  // 질문 카운트 추적
+  useEffect(() => {
+    const userMessages = chatState.messages.filter(msg => msg.role === 'user');
+    setQuestionCount(Math.min(userMessages.length, 5));
+  }, [chatState.messages]);
 
   // 마지막 AI 메시지에 대해 TTS 자동 재생
   useEffect(() => {
@@ -474,12 +495,27 @@ export default function MainPageV1() {
       <div className="fixed inset-0 animate-gradient"></div>
       
       {/* 로고 - 상단에 고정 */}
-      <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4 pb-4">
+      <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4">
         <AnimatedLogo />
+      </div>
+
+      {/* 점 5개 - 로고 아래 고정 */}
+      <div className="fixed top-20 left-0 right-0 z-30 flex justify-center">
+        <div className="flex gap-2 mb-8">
+          {[0, 1, 2, 3, 4].map((index) => (
+            <div
+              key={index}
+              className="w-2 h-2 rounded-full"
+              style={{
+                backgroundColor: index < questionCount ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)'
+              }}
+            />
+          ))}
+        </div>
       </div>
       
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-32">
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -501,25 +537,20 @@ export default function MainPageV1() {
                   <div>안녕하세요! 전 이솔이라고 해요~</div>
                   <div>오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?</div>
                 </div>
-                
-                {/* 진행 표시기 */}
-                <div className="flex gap-2 mb-8">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                  <div className="w-2 h-2 bg-white/50 rounded-full"></div>
-                  <div className="w-2 h-2 bg-white/50 rounded-full"></div>
-                  <div className="w-2 h-2 bg-white/50 rounded-full"></div>
-                  <div className="w-2 h-2 bg-white/50 rounded-full"></div>
-                </div>
               </div>
             )}
-            {chatState.messages.map((message, index) => (
-              <ChatBubble 
-                key={index} 
-                message={message} 
-                onPlayTTS={ttsState.playTTS}
-                isPlayingTTS={ttsState.isPlayingTTS}
-              />
-            ))}
+            {chatState.messages.length > 0 && (
+              <div className="space-y-4">
+                {chatState.messages.slice(-2).map((message, index) => (
+                  <ChatBubble 
+                    key={`${message.role}-${chatState.messages.length - 2 + index}`}
+                    message={message} 
+                    onPlayTTS={ttsState.playTTS}
+                    isPlayingTTS={ttsState.isPlayingTTS}
+                  />
+                ))}
+              </div>
+            )}
             {chatState.isLoading && (
               <div className="flex items-center justify-center py-4">
                 <div className="flex items-center gap-3 text-gray-600">

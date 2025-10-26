@@ -88,6 +88,9 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // GradientText를 동적으로 import
+  const GradientText = React.lazy(() => import('./GradientText').then(m => ({ default: m.default })));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -119,20 +122,76 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
     };
   };
 
-  // 텍스트를 단어 단위로 분할
-  const words = text.split(' ');
+  // **로 감싸진 부분을 찾아서 분할
+  const parseText = (text: string): Array<{ text: string; isGradient: boolean }> => {
+    const parts: Array<{ text: string; isGradient: boolean }> = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+      const gradientStart = remaining.indexOf('**');
+
+      if (gradientStart === -1) {
+        // 남은 텍스트 모두 추가
+        const words = remaining.trim().split(' ');
+        words.forEach(word => {
+          if (word) parts.push({ text: word, isGradient: false });
+        });
+        break;
+      }
+
+      // ** 이전의 텍스트 추가
+      const beforeGradient = remaining.substring(0, gradientStart).trim();
+      if (beforeGradient) {
+        beforeGradient.split(' ').forEach(word => {
+          if (word) parts.push({ text: word, isGradient: false });
+        });
+      }
+
+      const gradientEnd = remaining.indexOf('**', gradientStart + 2);
+      if (gradientEnd === -1) {
+        // **로 시작하지만 끝나지 않은 경우
+        const gradientText = remaining.substring(gradientStart + 2);
+        gradientText.split(' ').forEach(word => {
+          if (word) parts.push({ text: word, isGradient: false });
+        });
+        break;
+      }
+
+      // **로 감싸진 텍스트 추가
+      const gradientText = remaining.substring(gradientStart + 2, gradientEnd);
+      parts.push({ text: gradientText, isGradient: true });
+
+      remaining = remaining.substring(gradientEnd + 2);
+    }
+
+    return parts;
+  };
+
+  const parsedText = parseText(text);
 
   return (
     <div ref={containerRef} className={className}>
-      {words.map((word, index) => (
-        <span
-          key={index}
-          className={getAnimationClass()}
-          style={getAnimationStyle(index)}
-        >
-          {word}
-        </span>
-      ))}
+      <React.Suspense fallback={<div className="inline">{text}</div>}>
+        {parsedText.map((item, index) => (
+          <span
+            key={index}
+            className={getAnimationClass()}
+            style={getAnimationStyle(index)}
+          >
+            {item.isGradient ? (
+              <GradientText
+                colors={['#ffaa40', '#9c40ff', '#ffaa40']}
+                animationSpeed={8}
+                className="inline"
+              >
+                {item.text}
+              </GradientText>
+            ) : (
+              item.text
+            )}
+          </span>
+        ))}
+      </React.Suspense>
     </div>
   );
 };

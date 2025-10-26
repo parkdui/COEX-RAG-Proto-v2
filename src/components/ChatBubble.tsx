@@ -73,23 +73,94 @@ const MessageSegment: React.FC<{
     letterSpacing: '-0.64px',
   };
 
+  // 첫 번째 말풍선 스타일
+  const firstBubbleStyle = {
+    color: '#FFF',
+    textAlign: 'center' as const,
+    textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
+    fontFamily: 'Pretendard Variable',
+    fontSize: '22px',
+    fontStyle: 'normal' as const,
+    fontWeight: 600,
+    lineHeight: '132%',
+    letterSpacing: '-0.88px',
+  };
+
+  const isFirst = segmentIndex === 0;
+
+  // 첫 번째 문장 추출 (. ! ? 등으로 구분)
+  const getFirstSentence = (text: string) => {
+    const match = text.match(/[^.!?]*(?:[.!?]|$)/);
+    return match ? match[0].trim() : text.split(/[.!?]/)[0].trim();
+  };
+
+  const getRestOfText = (text: string) => {
+    const match = text.match(/[^.!?]*(?:[.!?]|$)/);
+    if (match && match[0].trim().length < text.length) {
+      return text.substring(match[0].trim().length).trim();
+    }
+    return '';
+  };
+
+  const firstSentence = isFirst ? getFirstSentence(segment.text) : '';
+  const restOfText = isFirst ? getRestOfText(segment.text) : segment.text;
+
+  // 각 세그먼트마다 이전 세그먼트 애니메이션이 완료될 때까지 delay 추가
+  const calculateDelay = (index: number, text: string) => {
+    if (index === 0) return 0;
+    // 이전 세그먼트들이 모두 나타나는 시간 계산
+    const wordsPerBubble = 10; // 평균 단어 수
+    const timePerBubble = 1.2 + (wordsPerBubble * 0.05) + 0.2; // duration + stagger + 여유
+    return index * timePerBubble * 1000; // ms로 변환
+  };
+
+  const segmentDelay = calculateDelay(segmentIndex, segment.text);
+
   return (
-    <div className="flex justify-start">
-      <div 
-        className="max-w-[86%] px-4 py-3"
+    <div className={isFirst ? "flex justify-center" : "flex justify-start"}>
+      <div
+        className={isFirst ? "max-w-[90%] px-4 py-3" : "max-w-[86%] px-4 py-3"}
         style={{
           borderRadius: '32px',
-          background: 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
+          background: isFirst
+            ? 'transparent'
+            : 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
         }}
       >
-        <div className="whitespace-pre-wrap break-words" style={textStyle}>
-          <SplitWords
-            text={segment.text}
-            duration={1.2}
-            stagger={0.05}
-            animation="fadeIn"
-          />
-        </div>
+        {isFirst ? (
+          <>
+            <div className="whitespace-pre-wrap break-words mb-3" style={firstBubbleStyle}>
+              <SplitWords
+                text={firstSentence}
+                delay={segmentDelay}
+                duration={1.2}
+                stagger={0.05}
+                animation="fadeIn"
+              />
+            </div>
+            {restOfText && (
+              <div className="whitespace-pre-wrap break-words" style={textStyle}>
+                <SplitWords
+                  text={restOfText}
+                  delay={segmentDelay + 500}
+                  duration={1.2}
+                  stagger={0.05}
+                  animation="fadeIn"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="whitespace-pre-wrap break-words" style={textStyle}>
+            <SplitWords
+              text={segment.text}
+              delay={segmentDelay}
+              duration={1.2}
+              stagger={0.05}
+              animation="fadeIn"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

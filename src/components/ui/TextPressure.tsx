@@ -1,15 +1,9 @@
 'use client';
 
-import React, { useRef } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { SplitText as GSAPSplitText } from 'gsap/SplitText';
-import { useGSAP } from '@gsap/react';
+import { useEffect, useRef, useState } from 'react';
 
-gsap.registerPlugin(ScrollTrigger, GSAPSplitText, useGSAP);
-
-export interface TextPressureProps {
-  text: string;
+interface TextPressureProps {
+  text?: string;
   className?: string;
   style?: React.CSSProperties;
   duration?: number;
@@ -18,95 +12,73 @@ export interface TextPressureProps {
 }
 
 const TextPressure: React.FC<TextPressureProps> = ({
-  text,
+  text = 'Text',
   className = '',
   style,
   duration = 0.6,
   trigger = 'auto',
   onComplete,
 }) => {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
 
-  useGSAP(
-    () => {
-      if (!ref.current || !text) return;
-
-      const el = ref.current as HTMLElement & {
-        _rbsplitInstance?: GSAPSplitText;
-      };
-
-      if (el._rbsplitInstance) {
-        try {
-          el._rbsplitInstance.revert();
-        } catch (_) {}
-        el._rbsplitInstance = undefined;
-      }
-
-      const splitInstance = new GSAPSplitText(el, {
-        type: 'words',
-        reduceWhiteSpace: true,
-      });
-
-      const words = splitInstance.words;
-
-      gsap.fromTo(
-        words,
-        { 
-          opacity: 0,
-          scale: 0,
+  useEffect(() => {
+    if (trigger === 'auto') {
+      setTimeout(() => setMounted(true), 50);
+    } else if (trigger === 'scroll') {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setMounted(true);
+          }
         },
-        {
-          opacity: 1,
-          scale: 1,
-          duration,
-          stagger: 0.05,
-          ease: 'back.out(1.5)',
-          scrollTrigger: trigger === 'scroll' ? {
-            trigger: el,
-            start: 'top 80%',
-            once: true,
-          } : undefined,
-          force3D: true,
-        }
+        { threshold: 0.1 }
       );
 
-      // 전체 애니메이션이 완료된 후에만 onComplete 호출
-      if (onComplete && words.length > 0) {
-        const lastIndex = words.length - 1;
-        const lastWordDelay = lastIndex * 0.05;
-        const lastWordDuration = duration;
-        
-        setTimeout(() => {
-          onComplete();
-        }, (lastWordDelay + lastWordDuration) * 1000);
+      if (containerRef.current) {
+        observer.observe(containerRef.current);
       }
 
-      el._rbsplitInstance = splitInstance;
-
       return () => {
-        if (trigger === 'scroll') {
-          ScrollTrigger.getAll().forEach(st => {
-            if (st.trigger === el) st.kill();
-          });
+        if (containerRef.current) {
+          observer.unobserve(containerRef.current);
         }
-        try {
-          splitInstance.revert();
-        } catch (_) {}
-        el._rbsplitInstance = undefined;
       };
-    },
-    {
-      dependencies: [text, duration, trigger, onComplete],
-      scope: ref
     }
-  );
+  }, [trigger]);
+
+  const chars = text.split('');
+  const totalTime = duration + (chars.length - 1) * 0.08;
+
+  useEffect(() => {
+    if (mounted && onComplete) {
+      const timer = setTimeout(() => {
+        onComplete();
+      }, totalTime * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [mounted, onComplete, totalTime]);
 
   return (
-    <p ref={ref} className={className} style={style}>
-      {text}
-    </p>
+    <div ref={containerRef} style={style}>
+      <div className={className} style={{ fontFamily: 'Pretendard Variable' }}>
+        {chars.map((char, index) => (
+          <span
+            key={index}
+            className="inline-block"
+            style={{
+              opacity: mounted ? 1 : 0,
+              fontWeight: mounted ? 700 : 500,
+              transform: mounted ? 'scale(1)' : 'scale(0.95)',
+              transition: `opacity 0.2s ${index * 0.02}s, font-weight ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s, transform ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s`
+            }}
+          >
+            {char}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 };
 
 export default TextPressure;
-

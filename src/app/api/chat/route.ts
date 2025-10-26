@@ -437,9 +437,17 @@ export async function POST(request: NextRequest) {
       console.warn("Could not read system prompt file:", e);
     }
 
+    // 현재 날짜 정보 추가
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const weekday = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()];
+    const currentDateInfo = `\n\n[현재 날짜 정보]\n현재 날짜는 ${year}년 ${month}월 ${day}일(${weekday}요일)이다. 지나간 날짜의 이벤트는 추천하지 않아야 한다.\n`;
+
     const activeSystemPrompt =
-      (body?.systemPrompt && body.systemPrompt.trim()) ||
-      defaultSystemPrompt;
+      ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo;
 
     const vectors = JSON.parse(fs.readFileSync(VECTORS_JSON, "utf8"));
     if (!Array.isArray(vectors) || vectors.length === 0) {

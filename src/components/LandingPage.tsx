@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import GSAPSplitText from './ui/GSAPSplitText';
+import TextPressure from './ui/TextPressure';
 import Iridescence from './ui/Iridescence';
 
 interface LandingPageProps {
@@ -10,6 +11,7 @@ interface LandingPageProps {
 
 export default function LandingPage({ onStart }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
+
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain">
       {/* Iridescence 배경 */}
@@ -18,7 +20,7 @@ export default function LandingPage({ onStart }: LandingPageProps) {
           color={[1, 0.9, 0.95]} 
           speed={0.8} 
           amplitude={0.15}
-          mouseReact={true}
+          mouseReact={false}
         />
       </div>
 
@@ -32,20 +34,19 @@ export default function LandingPage({ onStart }: LandingPageProps) {
           
           {/* Sori Coex Guide 타이틀 */}
           <div className="mb-[16px]">
-            <GSAPSplitText
-              text="Sori Coex Guide"
-              className="text-gray-900"
-              tag="div"
-              splitType="chars"
-              delay={50}
+            <TextPressure
+              text="Sori  Coex  Guide"
+              trigger="auto"
               duration={0.8}
-              threshold={0}
-              rootMargin="0px"
-              from={{ opacity: 0, y: 20 }}
-              to={{ opacity: 1, y: 0 }}
-              textAlign="left"
-              style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}
-              onLetterAnimationComplete={() => setShowCounter(true)}
+              style={{ 
+                fontFamily: 'Pretendard Variable', 
+                fontWeight: 700, 
+                lineHeight: '90%', 
+                letterSpacing: '-1.8px', 
+                fontSize: '45pt',
+                color: '#1f2937'
+              }}
+              onComplete={() => setShowCounter(true)}
             />
           </div>
           
