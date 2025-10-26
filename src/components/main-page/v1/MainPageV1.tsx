@@ -7,6 +7,7 @@ import { createAssistantMessage, createErrorMessage, createUserMessage } from '@
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
 import { requestTTS, AudioManager } from '@/lib/ttsUtils';
 import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner } from '@/components/ui';
+import AnimatedLogo from '@/components/ui/AnimatedLogo';
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -101,21 +102,25 @@ const useTTS = () => {
       
       lastTTSTriggerRef.current = messageId;
       
-      if (!isPlayingTTS) {
-        // 텍스트 애니메이션이 완료된 후 TTS 재생 (duration + stagger * 평균 단어 수)
-        const wordCount = message.content.split(' ').length;
-        const animationDelay = (1.2 + wordCount * 0.05) * 1000;
-        
-        setTimeout(() => {
-          if (message.segments && message.segments.length > 0) {
-            playTTS(message.segments[0].text);
-          } else {
-            playTTS(message.content);
-          }
-        }, animationDelay);
+      // 텍스트 애니메이션이 완료된 후 첫 번째 말풍선 텍스트만 TTS 재생
+      let textToPlay = '';
+      
+      if (message.segments && message.segments.length > 0) {
+        // 세그먼트가 있으면 첫 번째 세그먼트만 재생
+        textToPlay = message.segments[0].text;
+      } else {
+        // 세그먼트가 없으면 전체 내용 재생
+        textToPlay = message.content;
       }
+      
+      const wordCount = textToPlay.split(' ').length;
+      const animationDelay = (1.2 + wordCount * 0.05) * 1000;
+      
+      setTimeout(() => {
+        playTTS(textToPlay);
+      }, animationDelay);
     }
-  }, [autoPlayTTS, playTTS, isPlayingTTS]);
+  }, [autoPlayTTS, playTTS]);
 
   return {
     isPlayingTTS,
@@ -150,12 +155,34 @@ const apiRequests = {
   }
 };
 
+// 추천 메시지 리스트
+const recommendationMessages = [
+  "친구와 함께 먹기 좋은 식당을 추천해줘",
+  "컨퍼런스를 관람하며 쉬기 좋은 곳을 추천해줘",
+  "KPOP 관련 구경거리를 추천해줘",
+  "데이트하기 좋은 행사 추천해줘",
+  "홀로 방문하기 좋은 곳 추천해줘",
+  "쇼핑하기 좋은 곳을 찾고 있어",
+  "조용히 작업할 수 있는 카페를 찾고 있어",
+  "즐길 거리가 많은 핫플레이스를 알려줘",
+  "문화적인 경험을 할 수 있는 곳을 추천해줘",
+  "트렌디한 음식점을 찾고 있어"
+];
+
 export default function MainPageV1() {
   const chatRef = useRef<HTMLDivElement>(null);
   const chatState = useChatState();
   const voiceState = useVoiceRecording();
   const ttsState = useTTS();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // 랜덤으로 3개 선택
+  const getRandomRecommendations = useCallback(() => {
+    const shuffled = [...recommendationMessages].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 3);
+  }, []);
+
+  const [randomRecommendations, setRandomRecommendations] = useState(getRandomRecommendations);
 
   // 스크롤을 맨 아래로 이동
   const scrollToBottom = useCallback(() => {
@@ -177,7 +204,7 @@ export default function MainPageV1() {
         ttsState.handleAutoTTS(lastMessage, messageIndex);
       }
     }
-  }, [chatState.messages, ttsState]);
+  }, [chatState.messages, ttsState.handleAutoTTS]);
 
   // 시스템 프롬프트 로드
   useEffect(() => {
@@ -376,7 +403,7 @@ export default function MainPageV1() {
 
     try {
       const data = await apiRequests.sendChatRequest(
-        "안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?",
+        "안녕하세요! 전 이솔이라고 해요~ 오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?",
         chatState.systemPrompt,
         []
       );
@@ -446,8 +473,13 @@ export default function MainPageV1() {
       {/* Gradient 배경 */}
       <div className="fixed inset-0 animate-gradient"></div>
       
+      {/* 로고 - 상단에 고정 */}
+      <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4 pb-4">
+        <AnimatedLogo />
+      </div>
+      
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24">
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -466,8 +498,8 @@ export default function MainPageV1() {
                   }}
                   className="p-6"
                 >
-                  <div>안녕하세요! 이솔이에요</div>
-                  <div>코엑스 안내를 도와드릴게요</div>
+                  <div>안녕하세요! 전 이솔이라고 해요~</div>
+                  <div>오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?</div>
                 </div>
                 
                 {/* 진행 표시기 */}
@@ -492,7 +524,7 @@ export default function MainPageV1() {
               <div className="flex items-center justify-center py-4">
                 <div className="flex items-center gap-3 text-gray-600">
                   <LoadingSpinner size="sm" />
-                  <span className="text-base">AI가 답변을 생성하고 있습니다...</span>
+                  <span className="text-base">이솔이 생각 중입니다...</span>
                 </div>
               </div>
             )}
@@ -502,28 +534,30 @@ export default function MainPageV1() {
 
       {/* 하단 추천 버튼들 */}
       <div className="fixed bottom-20 left-0 right-0 z-20 px-6">
-        <div className="space-y-3">
-          <button
-            onClick={() => handleRecommendationClick("친구와 함께 먹기 좋은 식당을 추천해줘")}
-            disabled={chatState.isLoading}
-            className="w-full bg-white/30 backdrop-blur-md rounded-xl p-4 text-left text-gray-800 font-medium shadow-lg border border-white/20 hover:bg-white/40 transition-all duration-200 touch-manipulation active:scale-95 disabled:opacity-50"
-          >
-            친구와 함께 먹기 좋은 식당을 추천해줘
-          </button>
-          <button
-            onClick={() => handleRecommendationClick("컨퍼런스를 관람하며 쉬기 좋은 곳을 추천해줘")}
-            disabled={chatState.isLoading}
-            className="w-full bg-white/30 backdrop-blur-md rounded-xl p-4 text-left text-gray-800 font-medium shadow-lg border border-white/20 hover:bg-white/40 transition-all duration-200 touch-manipulation active:scale-95 disabled:opacity-50"
-          >
-            컨퍼런스를 관람하며 쉬기 좋은 곳을 추천해줘
-          </button>
-          <button
-            onClick={() => handleRecommendationClick("KPOP 관련 구경거리를 추천해줘")}
-            disabled={chatState.isLoading}
-            className="w-full bg-white/30 backdrop-blur-md rounded-xl p-4 text-left text-gray-800 font-medium shadow-lg border border-white/20 hover:bg-white/40 transition-all duration-200 touch-manipulation active:scale-95 disabled:opacity-50"
-          >
-            KPOP 관련 구경거리를 추천해줘
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {randomRecommendations.map((message, index) => (
+            <button
+              key={index}
+              onClick={() => handleRecommendationClick(message)}
+              disabled={chatState.isLoading}
+              className="w-full p-2 transition-opacity duration-200 touch-manipulation active:scale-95 disabled:opacity-50"
+              style={{
+                textAlign: 'center',
+                fontFamily: 'Pretendard Variable',
+                fontSize: '15px',
+                fontStyle: 'normal',
+                fontWeight: 500,
+                lineHeight: '130%',
+                letterSpacing: '-0.6px',
+                background: 'linear-gradient(0deg, #FFF 23.15%, rgba(255, 255, 255, 0.12) 125%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
+              {message}
+            </button>
+          ))}
         </div>
       </div>
 

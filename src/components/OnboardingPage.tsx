@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Iridescence from './ui/Iridescence';
+import AnimatedLogo from './ui/AnimatedLogo';
 
 interface OnboardingPageProps {
   onNext: () => void;
@@ -25,10 +26,7 @@ export default function OnboardingPage({ onNext }: OnboardingPageProps) {
       
       {/* 로고 */}
       <div className="relative flex justify-center pt-8 pb-4">
-        <div className="text-black text-2xl font-bold">
-          coex
-          <span className="text-red-500">/</span>
-        </div>
+        <AnimatedLogo />
       </div>
 
       {/* 메인 콘텐츠 - 상단에 배치 */}

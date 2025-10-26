@@ -6,7 +6,6 @@ import React from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect } from '@/components/ui';
-import FallingText from '@/components/ui/FallingText';
 
 /**
  * TTS 버튼 컴포넌트
@@ -46,29 +45,14 @@ const TTSButton: React.FC<{
 );
 
 /**
- * 토큰 정보 컴포넌트
+ * 토큰 정보 컴포넌트 (사용하지 않음)
  */
-const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => (
-  <div className="mt-2 text-xs text-gray-400">
-    📊 토큰 사용량: 입력 {tokens.input.toLocaleString()} / 
-    출력 {tokens.output.toLocaleString()} / 
-    총 {tokens.total.toLocaleString()}
-  </div>
-);
+const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => null;
 
 /**
- * 히트 정보 컴포넌트
+ * 히트 정보 컴포넌트 (사용하지 않음)
  */
-const HitInfo: React.FC<{ hits: any[] }> = ({ hits }) => (
-  <details className="mt-2 text-xs text-gray-400">
-    <summary className="cursor-pointer">참조한 이벤트 ({hits.length})</summary>
-    <pre className="mt-2 p-2 bg-gray-900 rounded text-xs overflow-x-auto">
-      {hits.map((hit, i) => 
-        `[${i + 1}] ${hit.meta?.title || ''} | ${hit.meta?.date || ''} | ${hit.meta?.venue || ''}`
-      ).join('\n')}
-    </pre>
-  </details>
-);
+const HitInfo: React.FC<{ hits: any[] }> = ({ hits }) => null;
 
 /**
  * 분할된 메시지 세그먼트 컴포넌트
@@ -165,14 +149,8 @@ const SingleMessage: React.FC<{
       >
         <div className="whitespace-pre-wrap break-words">
           {message.role === 'user' ? (
-            // 사용자 메시지: Falling Text 효과
-            <FallingText
-              text={message.content}
-              delay={30}
-              duration={0.6}
-              trigger="auto"
-              style={textStyle}
-            />
+            // 사용자 메시지: 일반 텍스트
+            <span style={textStyle}>{message.content}</span>
           ) : message.role === 'assistant' && !isThinking ? (
             // AI 메시지: SplitWords 애니메이션 효과
             <div style={textStyle}>
