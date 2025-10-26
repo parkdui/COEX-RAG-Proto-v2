@@ -6,6 +6,7 @@ import React from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect } from '@/components/ui';
+import FallingText from '@/components/ui/FallingText';
 
 /**
  * TTS 버튼 컴포넌트
@@ -77,35 +78,38 @@ const MessageSegment: React.FC<{
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
   segmentIndex?: number;
-}> = ({ segment, onPlayTTS, isPlayingTTS, segmentIndex = 0 }) => (
-  <div className="flex justify-start">
-    <div className={`max-w-[86%] rounded-2xl px-4 py-3 bg-gray-800 text-white border border-gray-600 ${getSegmentStyleClass(segment.type)}`}>
-      <div className="flex items-start gap-2">
-        <span className="text-sm opacity-70 mt-0.5">{getSegmentIcon(segment.type)}</span>
-        <div className="flex-1">
-          <div className="whitespace-pre-wrap break-words">
-            <SplitWords
-              text={segment.text}
-              delay={segmentIndex * 0.3}
-              duration={0.8}
-              stagger={0.05}
-              animation="slideUp"
-            />
-          </div>
-          
-          {onPlayTTS && segment.text && (
-            <TTSButton
-              text={segment.text}
-              onPlayTTS={onPlayTTS}
-              isPlayingTTS={isPlayingTTS}
-              title="이 부분 음성으로 듣기"
-            />
-          )}
+}> = ({ segment, onPlayTTS, isPlayingTTS, segmentIndex = 0 }) => {
+  const textStyle = {
+    color: '#000',
+    fontFamily: 'Pretendard Variable',
+    fontSize: '16px',
+    fontStyle: 'normal' as const,
+    fontWeight: 400,
+    lineHeight: '140%',
+    letterSpacing: '-0.64px',
+  };
+
+  return (
+    <div className="flex justify-start">
+      <div 
+        className="max-w-[86%] px-4 py-3"
+        style={{
+          borderRadius: '32px',
+          background: 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
+        }}
+      >
+        <div className="whitespace-pre-wrap break-words" style={textStyle}>
+          <SplitWords
+            text={segment.text}
+            duration={1.2}
+            stagger={0.05}
+            animation="fadeIn"
+          />
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * 분할된 메시지 컴포넌트
@@ -139,44 +143,63 @@ const SingleMessage: React.FC<{
   isThinking: boolean;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
-}> = ({ message, isThinking, onPlayTTS, isPlayingTTS }) => (
-  <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
-    <div className={`max-w-[86%] rounded-2xl px-4 py-3 ${
-      message.role === 'user' 
-        ? 'bg-gray-700 text-white' 
-        : 'bg-gray-800 text-white border border-gray-600'
-    }`}>
-      <div className="whitespace-pre-wrap break-words">
-        {message.role === 'assistant' && !isThinking ? (
-          <TypingEffect
-            text={message.content}
-            speed={30}
-            delay={0.2}
-            showCursor={false}
-          />
-        ) : (
-          <>
-            {message.content}
-            {isThinking && (
-              <span className="inline-block ml-2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
-            )}
-          </>
-        )}
+}> = ({ message, isThinking, onPlayTTS, isPlayingTTS }) => {
+  const textStyle = {
+    color: '#000',
+    fontFamily: 'Pretendard Variable',
+    fontSize: '16px',
+    fontStyle: 'normal' as const,
+    fontWeight: 400,
+    lineHeight: '140%',
+    letterSpacing: '-0.64px',
+  };
+
+  return (
+    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div 
+        className="max-w-[86%] px-4 py-3"
+        style={message.role === 'assistant' ? {
+          borderRadius: '32px',
+          background: 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
+        } : { backgroundColor: 'transparent' }}
+      >
+        <div className="whitespace-pre-wrap break-words">
+          {message.role === 'user' ? (
+            // 사용자 메시지: Falling Text 효과
+            <FallingText
+              text={message.content}
+              delay={30}
+              duration={0.6}
+              trigger="auto"
+              style={textStyle}
+            />
+          ) : message.role === 'assistant' && !isThinking ? (
+            // AI 메시지: SplitWords 애니메이션 효과
+            <div style={textStyle}>
+              <SplitWords
+                text={message.content}
+                duration={1.2}
+                stagger={0.05}
+                animation="fadeIn"
+              />
+            </div>
+          ) : (
+            <>
+              <span style={textStyle}>{message.content}</span>
+              {isThinking && (
+                <span className="inline-block ml-2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
+              )}
+            </>
+          )}
+        </div>
+        
+        
+        {message.tokens && <TokenInfo tokens={message.tokens} />}
+        {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
       </div>
-      
-      {message.role === 'assistant' && onPlayTTS && message.content && (
-        <TTSButton
-          text={message.content}
-          onPlayTTS={onPlayTTS}
-          isPlayingTTS={isPlayingTTS}
-        />
-      )}
-      
-      {message.tokens && <TokenInfo tokens={message.tokens} />}
-      {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * 메인 ChatBubble 컴포넌트
