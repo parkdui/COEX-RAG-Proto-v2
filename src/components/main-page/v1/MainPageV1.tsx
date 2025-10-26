@@ -500,17 +500,68 @@ export default function MainPageV1() {
       </div>
 
       {/* 점 5개 - 로고 아래 고정 */}
-      <div className="fixed top-20 left-0 right-0 z-30 flex justify-center">
-        <div className="flex gap-2 mb-8">
-          {[0, 1, 2, 3, 4].map((index) => (
-            <div
-              key={index}
-              className="w-2 h-2 rounded-full"
+      <div className="fixed top-20 left-0 right-0 z-30 mb-8">
+        <div className="flex flex-col items-center">
+          <div className="relative flex justify-between items-center" style={{ width: '70%' }}>
+            {questionCount > 1 && [0, 1, 2, 3, 4].map((index) => {
+              if (index >= questionCount - 1) return null;
+              
+              // 점의 위치는 justify-between으로 배치되므로 각 점의 위치는
+              // index 0: 0%, index 1: 25%, index 2: 50%, index 3: 75%, index 4: 100%
+              const startPosition = (index / 4) * 100;
+              const endPosition = ((index + 1) / 4) * 100;
+              const lineWidth = endPosition - startPosition;
+              
+              return (
+                <div
+                  key={`gradient-${index}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${startPosition}%`,
+                    top: '50%',
+                    width: `${lineWidth}%`,
+                    height: '10px',
+                    transform: 'translateY(-50%)',
+                    background: 'linear-gradient(to right, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0))',
+                    zIndex: 0,
+                    borderRadius: '5px'
+                  }}
+                />
+              );
+            })}
+            
+            {[0, 1, 2, 3, 4].map((index) => (
+              <div
+                key={index}
+                className="rounded-full flex-shrink-0"
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  backgroundColor: index < questionCount ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)',
+                  position: 'relative',
+                  zIndex: 1
+                }}
+              />
+            ))}
+          </div>
+          
+          {/* 마지막 질문 기회 안내 문구 */}
+          {questionCount === 4 && (
+            <div 
+              className="mt-4 text-center"
               style={{
-                backgroundColor: index < questionCount ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)'
+                color: 'rgba(255, 255, 255, 0.8)',
+                fontFamily: 'Pretendard Variable',
+                fontSize: '14px',
+                fontStyle: 'normal',
+                fontWeight: 400,
+                lineHeight: '140%',
+                letterSpacing: '-0.56px'
               }}
-            />
-          ))}
+            >
+              이제 이솔에게 질문할 기회가 한 번 남았습니다
+            </div>
+          )}
         </div>
       </div>
       
