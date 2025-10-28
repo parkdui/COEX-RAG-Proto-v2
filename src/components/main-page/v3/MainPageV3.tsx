@@ -413,7 +413,7 @@ export default function MainPageV3() {
         switch (e.key) {
           case 'k':
             e.preventDefault();
-            document.querySelector('input[type="text"]')?.focus();
+            (document.querySelector('input[type="text"]') as HTMLInputElement)?.focus();
             break;
           case 'm':
             e.preventDefault();
