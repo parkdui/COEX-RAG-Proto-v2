@@ -35,6 +35,7 @@ export interface ChatBubbleProps {
   isThinking?: boolean;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS?: boolean;
+  isGlobalLoading?: boolean;
 }
 
 export interface AudioConstraints {

@@ -6,7 +6,7 @@ import { Message } from '@/types';
 import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
 import { requestTTS, AudioManager } from '@/lib/ttsUtils';
-import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner } from '@/components/ui';
+import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 
 /**
@@ -102,7 +102,7 @@ const useTTS = () => {
       
       lastTTSTriggerRef.current = messageId;
       
-      // 텍스트 애니메이션이 완료된 후 첫 번째 말풍선 텍스트만 TTS 재생
+      // 첫 번째 말풍선 텍스트만 TTS 재생
       let textToPlay = '';
       
       if (message.segments && message.segments.length > 0) {
@@ -113,12 +113,8 @@ const useTTS = () => {
         textToPlay = message.content;
       }
       
-      const wordCount = textToPlay.split(' ').length;
-      const animationDelay = (1.2 + wordCount * 0.05) * 1000;
-      
-      setTimeout(() => {
-        playTTS(textToPlay);
-      }, animationDelay);
+      // TTS를 즉시 재생 (텍스트 애니메이션 시작 전)
+      playTTS(textToPlay);
     }
   }, [autoPlayTTS, playTTS]);
 
@@ -176,6 +172,10 @@ export default function MainPageV1() {
   const ttsState = useTTS();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
+  const [isConversationEnded, setIsConversationEnded] = useState(false);
+  const [showEndMessage, setShowEndMessage] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
 
   // 랜덤으로 3개 선택
   const getRandomRecommendations = useCallback(() => {
@@ -215,6 +215,20 @@ export default function MainPageV1() {
     const userMessages = chatState.messages.filter(msg => msg.role === 'user');
     setQuestionCount(Math.min(userMessages.length, 5));
   }, [chatState.messages]);
+
+  // AI 답변 카운트 추적 및 6번째 답변 감지
+  useEffect(() => {
+    const assistantMessages = chatState.messages.filter(msg => msg.role === 'assistant');
+    // 6번째 답변이 완료되고 로딩이 끝났을 때만 종료 상태로 전환
+    // 사용자가 마지막 답변을 충분히 볼 수 있도록 충분한 delay
+    if (assistantMessages.length >= 6 && !isConversationEnded && !chatState.isLoading) {
+      // 마지막 답변을 볼 수 있도록 충분한 시간 (3초) 후 종료 상태로 전환
+      const timer = setTimeout(() => {
+        setIsConversationEnded(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [chatState.messages, isConversationEnded, chatState.isLoading]);
 
   // 마지막 AI 메시지에 대해 TTS 자동 재생
   useEffect(() => {
@@ -387,7 +401,7 @@ export default function MainPageV1() {
   // 메시지 전송
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatState.inputValue.trim() || chatState.isLoading) return;
+    if (!chatState.inputValue.trim() || chatState.isLoading || isConversationEnded) return;
 
     const userMessage = createUserMessage(chatState.inputValue);
     chatState.addMessage(userMessage);
@@ -424,7 +438,7 @@ export default function MainPageV1() {
 
     try {
       const data = await apiRequests.sendChatRequest(
-        "안녕하세요! 전 이솔이라고 해요~ 오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?",
+        "안녕하세요! 이솔이에요. 오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?",
         chatState.systemPrompt,
         []
       );
@@ -458,9 +472,111 @@ export default function MainPageV1() {
     }
   }, [handleSubmit]);
 
+  // 정보성 키워드 추출 함수
+  const extractInfoKeywords = useCallback(() => {
+    const assistantMessages = chatState.messages
+      .filter(msg => msg.role === 'assistant')
+      .map(msg => msg.content);
+    
+    const keywords: Set<string> = new Set();
+    
+    // 알려진 장소 및 추천 키워드 패턴
+    const knownKeywords = [
+      '카페 추천',
+      '레스토랑 추천',
+      '식당 추천',
+      '컨퍼런스 위치',
+      '별마당 도서관',
+      '별마당 도서관 정보',
+      'SM 타운',
+      'SM 타운 정보',
+      '코엑스 아쿠아리움',
+      '아쿠아리움',
+      'VR 게임존',
+      'VR 체험',
+      '디지털 체험 공간',
+      '필립 콜버트',
+      '필립 콜버트 아트',
+      '아트 프로젝트',
+      '서울 일러스트페어',
+      '일러스트페어',
+      'ALAND',
+      '알랜드',
+      '사이드쇼',
+      'kpop 구경거리',
+      'kpop 관련',
+      'k스타일 쇼핑',
+      '미디어 월',
+      '메가박스',
+      '문화 체험',
+      '액티비티',
+      '감각적 체험',
+      '실내 체험',
+      '가족과의 놀거리',
+      '가족 놀거리 추천',
+      '데이트하기 좋은',
+      '홀로 방문하기 좋은',
+      '친구와 함께',
+      '쇼핑하기 좋은',
+      '조용한 카페',
+      '작업하기 좋은',
+      '핫플레이스',
+      '트렌디한 음식점',
+    ];
+    
+    // 메시지 내용에서 키워드 찾기
+    assistantMessages.forEach(message => {
+      knownKeywords.forEach(keyword => {
+        if (message.includes(keyword) || 
+            message.includes(keyword.replace(/\s/g, '')) ||
+            keyword.split(' ').every(word => message.includes(word))) {
+          keywords.add(keyword);
+        }
+      });
+    });
+    
+    // 메시지에서 추천 문구 패턴 찾기
+    const recommendationPatterns = [
+      /([가-힣\s]+(?:추천|정보|위치|어때요|어때|어떠실까요|있어요))/g,
+      /([가-힣\s]+(?:카페|식당|레스토랑|공간|장소|아트|전시|이벤트))/g,
+    ];
+    
+    assistantMessages.forEach(message => {
+      recommendationPatterns.forEach(pattern => {
+        const matches = message.matchAll(pattern);
+        for (const match of matches) {
+          const keyword = match[1]?.trim();
+          if (keyword && keyword.length >= 3 && keyword.length <= 20 && !keyword.includes('제가') && !keyword.includes('이솔')) {
+            keywords.add(keyword);
+          }
+        }
+      });
+    });
+    
+    // 최대 6개까지만 반환 (중복 제거 및 정렬)
+    const uniqueKeywords = Array.from(keywords);
+    
+    // 키워드를 길이 순으로 정렬 (짧은 것부터)
+    uniqueKeywords.sort((a, b) => a.length - b.length);
+    
+    return uniqueKeywords.slice(0, 6);
+  }, [chatState.messages]);
+
+  // 대화 요약 보러가기 버튼 클릭 핸들러 (종료 메시지 화면으로 이동)
+  const handleShowSummary = useCallback(() => {
+    setShowEndMessage(true);
+  }, []);
+
+  // 종료 메시지 화면에서 Next 버튼 클릭 핸들러 (키워드 요약 화면으로 이동)
+  const handleNextToSummary = useCallback(() => {
+    const keywords = extractInfoKeywords();
+    setExtractedKeywords(keywords);
+    setShowSummary(true);
+  }, [extractInfoKeywords]);
+
   // 추천 버튼 클릭 핸들러
   const handleRecommendationClick = useCallback(async (recommendation: string) => {
-    if (chatState.isLoading) return;
+    if (chatState.isLoading || isConversationEnded) return;
     
     const userMessage = createUserMessage(recommendation);
     chatState.addMessage(userMessage);
@@ -491,8 +607,24 @@ export default function MainPageV1() {
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
-      {/* Gradient 배경 */}
-      <div className="fixed inset-0 animate-gradient"></div>
+      {/* Blurry Blob 배경 */}
+      <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
+        <div
+          style={{
+            position: 'absolute',
+            width: '697px',
+            height: '697px',
+            flexShrink: 0,
+            borderRadius: '697px',
+            opacity: 0.85,
+            background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
+            filter: 'blur(20px)',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        />
+      </div>
       
       {/* 로고 - 상단에 고정 */}
       <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4">
@@ -500,7 +632,7 @@ export default function MainPageV1() {
       </div>
 
       {/* 점 5개 - 로고 아래 고정 */}
-      <div className="fixed top-20 left-0 right-0 z-30 mb-8">
+      <div className="fixed top-20 left-0 right-0 z-30 mb-8" style={{ display: 'none' }}>
         <div className="flex flex-col items-center">
           <div className="relative flex justify-between items-center" style={{ width: '70%' }}>
             {questionCount > 1 && [0, 1, 2, 3, 4].map((index) => {
@@ -566,7 +698,7 @@ export default function MainPageV1() {
       </div>
       
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-32">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-8">
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -574,78 +706,274 @@ export default function MainPageV1() {
                 {/* AI 환영 메시지 */}
                 <div 
                   style={{ 
-                    color: '#FFF', 
+                    color: '#4E5363', 
                     textAlign: 'center', 
                     fontFamily: 'Pretendard Variable', 
                     fontSize: '22px', 
                     fontStyle: 'normal', 
                     fontWeight: 600, 
-                    lineHeight: '132%', 
+                    lineHeight: '110%', 
                     letterSpacing: '-0.88px' 
                   }}
-                  className="p-6"
+                  className="p-6 w-full"
                 >
-                  <div>안녕하세요! 전 이솔이라고 해요~</div>
-                  <div>오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?</div>
+                  <div className="flex justify-center">
+                    <SplitWords
+                      text="안녕하세요! 이솔이에요"
+                      delay={0}
+                      duration={1.2}
+                      stagger={0.05}
+                      animation="fadeIn"
+                    />
+                  </div>
+                  <div className="flex justify-center mt-2">
+                    <SplitWords
+                      text="코엑스 안내를 도와드릴게요"
+                      delay={800}
+                      duration={1.2}
+                      stagger={0.05}
+                      animation="fadeIn"
+                    />
+                  </div>
                 </div>
               </div>
             )}
             {chatState.messages.length > 0 && (
-              <div className="space-y-4">
-                {chatState.messages.slice(-2).map((message, index) => (
-                  <ChatBubble 
-                    key={`${message.role}-${chatState.messages.length - 2 + index}`}
-                    message={message} 
-                    onPlayTTS={ttsState.playTTS}
-                    isPlayingTTS={ttsState.isPlayingTTS}
-                  />
-                ))}
-              </div>
-            )}
-            {chatState.isLoading && (
-              <div className="flex items-center justify-center py-4">
-                <div className="flex items-center gap-3 text-gray-600">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-base">이솔이 생각 중입니다...</span>
-                </div>
-              </div>
+              <>
+                {showSummary ? (
+                  // 키워드 요약 화면
+                  <div className="flex flex-col items-center justify-center min-h-full py-12 px-6">
+                    <div className="flex flex-wrap gap-6 justify-center items-center" style={{ maxWidth: '90%' }}>
+                      {extractedKeywords.map((keyword, index) => {
+                        // 각 키워드마다 다양한 크기와 위치를 위한 스타일 변형
+                        const sizes = ['small', 'medium', 'large'];
+                        const size = sizes[index % sizes.length];
+                        const sizeConfig = {
+                          small: { padding: '10px 20px', fontSize: '15px' },
+                          medium: { padding: '12px 24px', fontSize: '16px' },
+                          large: { padding: '14px 28px', fontSize: '17px' },
+                        };
+                        const config = sizeConfig[size as keyof typeof sizeConfig];
+                        
+                        return (
+                          <div
+                            key={index}
+                            className="relative"
+                            style={{
+                              padding: config.padding,
+                              borderRadius: '999px',
+                              background: `radial-gradient(ellipse at 50% 50%, 
+                                rgba(255, 255, 255, 0.95) 0%, 
+                                rgba(230, 240, 255, 0.85) 30%,
+                                rgba(220, 235, 255, 0.75) 60%,
+                                rgba(200, 225, 255, 0.6) 100%)`,
+                              backdropFilter: 'blur(20px)',
+                              WebkitBackdropFilter: 'blur(20px)',
+                              boxShadow: `
+                                0 8px 32px rgba(0, 0, 0, 0.08),
+                                0 2px 8px rgba(0, 0, 0, 0.04),
+                                inset 0 1px 0 rgba(255, 255, 255, 0.9)
+                              `,
+                              border: '1px solid rgba(255, 255, 255, 0.6)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {/* 빛나는 효과 */}
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '-50%',
+                                left: '-50%',
+                                width: '200%',
+                                height: '200%',
+                                background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%)',
+                                pointerEvents: 'none',
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontFamily: 'Pretendard Variable',
+                                fontSize: config.fontSize,
+                                fontWeight: 500,
+                                color: '#1f2937',
+                                textAlign: 'center',
+                                lineHeight: '1.4',
+                                position: 'relative',
+                                zIndex: 1,
+                                letterSpacing: '-0.3px',
+                              }}
+                            >
+                              {keyword}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : showEndMessage ? (
+                  // 종료 메시지 화면
+                  <div className="flex flex-col items-center justify-center min-h-full py-12">
+                    <div
+                      style={{
+                        fontFamily: 'Pretendard Variable',
+                        fontSize: '22px',
+                        fontWeight: 600,
+                        color: '#4E5363',
+                        textAlign: 'center',
+                        lineHeight: '140%',
+                        letterSpacing: '-0.88px',
+                        marginBottom: '40px',
+                        padding: '0 24px',
+                        whiteSpace: 'pre-line',
+                      }}
+                    >
+                      <SplitWords
+                        text="오늘의 대화가 모두 끝났어요\n제가 안내한 내용을 정리해드릴게요"
+                        delay={0}
+                        duration={1.2}
+                        stagger={0.05}
+                        animation="fadeIn"
+                      />
+                    </div>
+                    
+                    {/* Next 버튼 - LandingPage 스타일 참고 */}
+                    <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+                      <button
+                        onClick={handleNextToSummary}
+                        className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+                        style={{
+                          height: '56px',
+                          padding: '15px 85px',
+                          borderRadius: '68px',
+                          background: 'rgba(255, 255, 255, 0.21)',
+                          color: '#000',
+                          textAlign: 'center',
+                          fontFamily: 'Pretendard Variable',
+                          fontSize: '16px',
+                          fontWeight: 700,
+                          lineHeight: '110%',
+                          letterSpacing: '-0.64px',
+                        }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : chatState.isLoading ? (
+                  // 로딩 중: 사용자 메시지만 표시하고, '이솔이 생각 중입니다...'는 중간에
+                  <div className="flex flex-col min-h-full">
+                    {/* 중간에 '이솔이 생각 중입니다...' 표시 */}
+                    <div className="flex-1 flex items-center justify-center" style={{ minHeight: '40vh' }}>
+                      <div className="flex items-center gap-3" style={{ color: '#000' }}>
+                        <LoadingSpinner size="sm" />
+                        <span className="text-base">이솔이 생각 중입니다...</span>
+                      </div>
+                    </div>
+                    {/* 하단에 사용자 메시지 표시 */}
+                    <div className="space-y-4 pb-4 mt-auto">
+                      {chatState.messages
+                        .filter(msg => msg.role === 'user')
+                        .slice(-1)
+                        .map((message) => (
+                          <ChatBubble 
+                            key={`${message.role}-${message.timestamp || Date.now()}`}
+                            message={message} 
+                            onPlayTTS={ttsState.playTTS}
+                            isPlayingTTS={ttsState.isPlayingTTS}
+                            isGlobalLoading={chatState.isLoading}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  // 로딩 완료: 최근 사용자 메시지와 AI 답변만 표시
+                  <div className="space-y-4">
+                    {chatState.messages.slice(-2).map((message, index) => (
+                      <ChatBubble 
+                        key={`${message.role}-${chatState.messages.length - 2 + index}`}
+                        message={message} 
+                        onPlayTTS={ttsState.playTTS}
+                        isPlayingTTS={ttsState.isPlayingTTS}
+                        isGlobalLoading={chatState.isLoading}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </main>
 
       {/* 하단 추천 버튼들 */}
-      <div className="fixed bottom-20 left-0 right-0 z-20 px-6">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {randomRecommendations.map((message, index) => (
-            <button
-              key={index}
-              onClick={() => handleRecommendationClick(message)}
-              disabled={chatState.isLoading}
-              className="w-full p-2 transition-opacity duration-200 touch-manipulation active:scale-95 disabled:opacity-50"
-              style={{
-                textAlign: 'center',
-                fontFamily: 'Pretendard Variable',
-                fontSize: '15px',
-                fontStyle: 'normal',
-                fontWeight: 500,
-                lineHeight: '130%',
-                letterSpacing: '-0.6px',
-                background: 'linear-gradient(0deg, #FFF 23.15%, rgba(255, 255, 255, 0.12) 125%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              {message}
-            </button>
-          ))}
+      {!isConversationEnded && !showSummary && !showEndMessage && (
+      <div className="fixed bottom-20 left-0 right-0 z-20">
+        <div 
+          className="overflow-x-auto px-6 hide-scrollbar" 
+          style={{ 
+            position: 'relative'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '12px', width: 'max-content' }}>
+            {randomRecommendations.map((message, index) => (
+              <button
+                key={index}
+                onClick={() => handleRecommendationClick(message)}
+                disabled={chatState.isLoading}
+                className="px-4 py-2 transition-opacity duration-200 touch-manipulation active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                style={{
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '15px',
+                  fontStyle: 'normal',
+                  fontWeight: 500,
+                  lineHeight: '130%',
+                  letterSpacing: '-0.6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#717171',
+                }}
+              >
+                {message}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+      )}
 
-      {/* 하단 고정 입력창 */}
+      {/* 하단 고정 입력창 또는 대화 요약 보러가기 버튼 */}
+      {!showSummary && !showEndMessage && (
       <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
-        <form onSubmit={handleSubmit} className="w-full">
+        {isConversationEnded ? (
+          // 6번째 답변 후: 대화 요약 보러가기 버튼
+          <div className="px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+            <button
+              onClick={handleShowSummary}
+              className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+              style={{
+                height: '56px',
+                padding: '15px 85px',
+                borderRadius: '68px',
+                background: 'rgba(255, 255, 255, 0.21)',
+                color: '#000',
+                textAlign: 'center',
+                fontFamily: 'Pretendard Variable',
+                fontSize: '16px',
+                fontWeight: 700,
+                lineHeight: '110%',
+                letterSpacing: '-0.64px',
+              }}
+            >
+              대화 요약 보러가기
+            </button>
+          </div>
+        ) : (
+          // 일반 입력창
+          <form onSubmit={handleSubmit} className="w-full">
           <div 
             className="flex items-center shadow-lg"
             style={{
@@ -717,7 +1045,9 @@ export default function MainPageV1() {
             </div>
           )}
         </form>
+        )}
       </div>
+      )}
     </div>
   );
 }

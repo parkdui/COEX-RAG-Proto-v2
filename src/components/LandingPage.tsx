@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import GSAPSplitText from './ui/GSAPSplitText';
 import TextPressure from './ui/TextPressure';
-import Iridescence from './ui/Iridescence';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -11,16 +10,27 @@ interface LandingPageProps {
 
 export default function LandingPage({ onStart }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
+  const [showSecondLine, setShowSecondLine] = useState(false);
+  const [showThirdLine, setShowThirdLine] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain">
-      {/* Iridescence 배경 */}
-      <div className="fixed inset-0">
-        <Iridescence 
-          color={[1, 0.9, 0.95]} 
-          speed={0.8} 
-          amplitude={0.15}
-          mouseReact={false}
+    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
+      {/* Blurry Blob 배경 */}
+      <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
+        <div
+          style={{
+            position: 'absolute',
+            width: '697px',
+            height: '697px',
+            flexShrink: 0,
+            borderRadius: '697px',
+            opacity: 0.85,
+            background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
+            filter: 'blur(20px)',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
         />
       </div>
 
@@ -32,22 +42,71 @@ export default function LandingPage({ onStart }: LandingPageProps) {
             Welcome To
           </div>
           
-          {/* Sori Coex Guide 타이틀 */}
+          {/* Sori Coex Guide 타이틀 - 3줄로 분리 */}
           <div className="mb-[16px]">
-            <TextPressure
-              text="Sori  Coex  Guide"
-              trigger="auto"
-              duration={0.8}
-              style={{ 
-                fontFamily: 'Pretendard Variable', 
-                fontWeight: 700, 
-                lineHeight: '90%', 
-                letterSpacing: '-1.8px', 
-                fontSize: '45pt',
-                color: '#1f2937'
-              }}
-              onComplete={() => setShowCounter(true)}
-            />
+            {/* 첫 번째 줄: Sori */}
+            <div>
+              <TextPressure
+                text="Sori"
+                trigger="auto"
+                duration={0.8}
+                style={{ 
+                  fontFamily: 'Pretendard Variable', 
+                  fontWeight: 700, 
+                  lineHeight: '90%', 
+                  letterSpacing: '-1.8px', 
+                  fontSize: '45pt',
+                  color: '#1f2937'
+                }}
+                onComplete={() => {
+                  // 'Sori'의 마지막 문자 'i'의 애니메이션이 끝나면 두 번째 줄 시작
+                  setShowSecondLine(true);
+                }}
+              />
+            </div>
+            
+            {/* 두 번째 줄: Coex */}
+            {showSecondLine && (
+              <div>
+                <TextPressure
+                  text="Coex"
+                  trigger="auto"
+                  duration={0.8}
+                  style={{ 
+                    fontFamily: 'Pretendard Variable', 
+                    fontWeight: 700, 
+                    lineHeight: '90%', 
+                    letterSpacing: '-1.8px', 
+                    fontSize: '45pt',
+                    color: '#1f2937'
+                  }}
+                  onComplete={() => {
+                    // 'Coex'의 마지막 문자 'x'의 애니메이션이 끝나면 세 번째 줄 시작
+                    setShowThirdLine(true);
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* 세 번째 줄: Guide */}
+            {showThirdLine && (
+              <div>
+                <TextPressure
+                  text="Guide"
+                  trigger="auto"
+                  duration={0.8}
+                  style={{ 
+                    fontFamily: 'Pretendard Variable', 
+                    fontWeight: 700, 
+                    lineHeight: '90%', 
+                    letterSpacing: '-1.8px', 
+                    fontSize: '45pt',
+                    color: '#1f2937'
+                  }}
+                  onComplete={() => setShowCounter(true)}
+                />
+              </div>
+            )}
           </div>
           
           {/* 대화 카운터 */}

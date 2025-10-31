@@ -2,10 +2,10 @@
  * ChatBubble 컴포넌트
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
-import { SplitWords, TypingEffect } from '@/components/ui';
+import { SplitWords, TypingEffect, SplitText } from '@/components/ui';
 
 /**
  * TTS 버튼 컴포넌트
@@ -75,7 +75,7 @@ const MessageSegment: React.FC<{
 
   // 첫 번째 말풍선 스타일
   const firstBubbleStyle = {
-    color: '#FFF',
+    color: '#4E5363',
     textAlign: 'center' as const,
     textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
     fontFamily: 'Pretendard Variable',
@@ -107,7 +107,10 @@ const MessageSegment: React.FC<{
 
   // 각 세그먼트마다 이전 세그먼트 애니메이션이 완료될 때까지 delay 추가
   const calculateDelay = (index: number, text: string) => {
-    if (index === 0) return 0;
+    if (index === 0) {
+      // 첫 번째 세그먼트: TTS 요청 및 재생 시작 시간을 기다림 (약 500ms)
+      return 500;
+    }
     // 이전 세그먼트들이 모두 나타나는 시간 계산
     const wordsPerBubble = 10; // 평균 단어 수
     const timePerBubble = 1.2 + (wordsPerBubble * 0.05) + 0.2; // duration + stagger + 여유
@@ -118,47 +121,70 @@ const MessageSegment: React.FC<{
 
   return (
     <div className={isFirst ? "flex justify-center" : "flex justify-start"}>
-      <div
-        className={isFirst ? "max-w-[90%] px-4 py-3" : "max-w-[86%] px-4 py-3"}
-        style={{
-          borderRadius: '32px',
-          background: isFirst
-            ? 'transparent'
-            : 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
-        }}
-      >
+      <div className={isFirst ? "w-full" : "w-full"}>
         {isFirst ? (
           <>
-            <div className="whitespace-pre-wrap break-words mb-3" style={firstBubbleStyle}>
-              <SplitWords
-                text={firstSentence}
-                delay={segmentDelay}
-                duration={1.2}
-                stagger={0.05}
-                animation="fadeIn"
-              />
-            </div>
-            {restOfText && (
-              <div className="whitespace-pre-wrap break-words" style={textStyle}>
+            <div className="whitespace-pre-wrap break-words mb-3 flex justify-center" style={firstBubbleStyle}>
+              {getLineCount(firstSentence) >= 5 ? (
+                <SplitLines
+                  text={firstSentence}
+                  delay={segmentDelay}
+                  duration={1.2}
+                  stagger={0.1}
+                  animation="fadeIn"
+                />
+              ) : (
                 <SplitWords
-                  text={restOfText}
-                  delay={segmentDelay + 500}
+                  text={firstSentence}
+                  delay={segmentDelay}
                   duration={1.2}
                   stagger={0.05}
                   animation="fadeIn"
+                  className="text-center"
                 />
+              )}
+            </div>
+            {restOfText && (
+              <div className="whitespace-pre-wrap break-words" style={textStyle}>
+                {getLineCount(restOfText) >= 5 ? (
+                  <SplitLines
+                    text={restOfText}
+                    delay={segmentDelay + 500}
+                    duration={1.2}
+                    stagger={0.1}
+                    animation="fadeIn"
+                  />
+                ) : (
+                  <SplitWords
+                    text={restOfText}
+                    delay={segmentDelay + 500}
+                    duration={1.2}
+                    stagger={0.05}
+                    animation="fadeIn"
+                  />
+                )}
               </div>
             )}
           </>
         ) : (
           <div className="whitespace-pre-wrap break-words" style={textStyle}>
-            <SplitWords
-              text={segment.text}
-              delay={segmentDelay}
-              duration={1.2}
-              stagger={0.05}
-              animation="fadeIn"
-            />
+            {getLineCount(segment.text) >= 5 ? (
+              <SplitLines
+                text={segment.text}
+                delay={segmentDelay}
+                duration={1.2}
+                stagger={0.1}
+                animation="fadeIn"
+              />
+            ) : (
+              <SplitWords
+                text={segment.text}
+                delay={segmentDelay}
+                duration={1.2}
+                stagger={0.05}
+                animation="fadeIn"
+              />
+            )}
           </div>
         )}
       </div>
@@ -174,21 +200,75 @@ const SegmentedMessage: React.FC<{
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
 }> = ({ message, onPlayTTS, isPlayingTTS }) => (
-  <div className="flex flex-col gap-2 mb-4">
-    {message.segments.map((segment: any, segmentIndex: number) => (
-      <MessageSegment
-        key={segmentIndex}
-        segment={segment}
-        onPlayTTS={onPlayTTS}
-        isPlayingTTS={isPlayingTTS}
-        segmentIndex={segmentIndex}
-      />
-    ))}
-    
-    {message.tokens && <TokenInfo tokens={message.tokens} />}
-    {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+  <div className="flex justify-center mb-4">
+    <div 
+      style={{
+        width: '90%',
+        borderRadius: '32px',
+        background: 'rgba(255, 255, 255, 0.25)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
+        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+        padding: '20px',
+      }}
+    >
+      <div className="flex flex-col gap-2">
+        {message.segments.map((segment: any, segmentIndex: number) => (
+          <MessageSegment
+            key={segmentIndex}
+            segment={segment}
+            onPlayTTS={onPlayTTS}
+            isPlayingTTS={isPlayingTTS}
+            segmentIndex={segmentIndex}
+          />
+        ))}
+        
+        {message.tokens && <TokenInfo tokens={message.tokens} />}
+        {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+      </div>
+    </div>
   </div>
 );
+
+/**
+ * 텍스트를 줄 단위로 분할하는 컴포넌트 (Line by Line Split)
+ */
+const SplitLines: React.FC<{
+  text: string;
+  delay?: number;
+  duration?: number;
+  stagger?: number;
+  animation?: 'fadeIn' | 'slideUp';
+}> = ({ text, delay = 0, duration = 0.8, stagger = 0.1, animation = 'fadeIn' }) => {
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  
+  return (
+    <>
+      {lines.map((line, index) => (
+        <div key={index} style={{ marginBottom: index < lines.length - 1 ? '0.5em' : 0 }}>
+          <SplitWords
+            text={line}
+            delay={delay + (index * stagger * 1000)}
+            duration={duration}
+            stagger={0.05}
+            animation={animation}
+          />
+        </div>
+      ))}
+    </>
+  );
+};
+
+/**
+ * 텍스트 줄 수 계산 (줄바꿈 기준)
+ */
+const getLineCount = (text: string): number => {
+  if (!text) return 0;
+  // 줄바꿈으로 나누고, 빈 줄 제외
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  return lines.length;
+};
 
 /**
  * 단일 메시지 컴포넌트
@@ -198,7 +278,12 @@ const SingleMessage: React.FC<{
   isThinking: boolean;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
-}> = ({ message, isThinking, onPlayTTS, isPlayingTTS }) => {
+  isGlobalLoading?: boolean;
+}> = ({ message, isThinking, onPlayTTS, isPlayingTTS, isGlobalLoading = false }) => {
+  // 사용자 메시지는 처음에 표시되다가 AI 답변이 시작되면 fade-out
+  const [isUserMessageVisible, setIsUserMessageVisible] = useState(true);
+  const [hasAssistantMessageStarted, setHasAssistantMessageStarted] = useState(false);
+  
   const textStyle = {
     color: '#000',
     fontFamily: 'Pretendard Variable',
@@ -209,43 +294,87 @@ const SingleMessage: React.FC<{
     letterSpacing: '-0.64px',
   };
 
+  // 사용자 메시지는 계속 표시되어야 함 (AI 답변과 함께 표시)
+  // fade-out 제거: 사용자 메시지는 AI 답변과 함께 유지
+
+  // AI 메시지가 시작되면 상태 업데이트 (전역 상태 관리를 위해)
+  useEffect(() => {
+    if (message.role === 'assistant' && !isThinking && message.content) {
+      setHasAssistantMessageStarted(true);
+    }
+  }, [message.role, isThinking, message.content]);
+
   return (
-    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div 
-        className="max-w-[86%] px-4 py-3"
-        style={message.role === 'assistant' ? {
-          borderRadius: '32px',
-          background: 'linear-gradient(180deg, rgba(229, 111, 223, 0.20) 0.48%, rgba(255, 161, 235, 0.20) 100%)',
-        } : { backgroundColor: 'transparent' }}
-      >
-        <div className="whitespace-pre-wrap break-words">
-          {message.role === 'user' ? (
-            // 사용자 메시지: 일반 텍스트
-            <span style={textStyle}>{message.content}</span>
-          ) : message.role === 'assistant' && !isThinking ? (
-            // AI 메시지: SplitWords 애니메이션 효과
+    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
+      {message.role === 'assistant' ? (
+        // AI 메시지: 글래스모피즘 효과
+        <div 
+          style={{
+            width: '90%',
+            borderRadius: '32px',
+            background: 'rgba(255, 255, 255, 0.25)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+            padding: '20px',
+          }}
+        >
+          <div className="whitespace-pre-wrap break-words">
+            {!isThinking ? (
+              // AI 메시지: 5줄 이상이면 line by line, 그 이하면 word by word
+              <div style={textStyle}>
+                {getLineCount(message.content) >= 5 ? (
+                  <SplitLines
+                    text={message.content}
+                    delay={500}
+                    duration={1.2}
+                    stagger={0.1}
+                    animation="fadeIn"
+                  />
+                ) : (
+                  <SplitWords
+                    text={message.content}
+                    delay={500}
+                    duration={1.2}
+                    stagger={0.05}
+                    animation="fadeIn"
+                  />
+                )}
+              </div>
+            ) : (
+              <>
+                <span style={textStyle}>{message.content}</span>
+                <span className="inline-block ml-2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
+              </>
+            )}
+          </div>
+          {message.tokens && <TokenInfo tokens={message.tokens} />}
+          {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+        </div>
+      ) : (
+        // 사용자 메시지: SplitText 애니메이션 + fade-out
+        <div className="max-w-[86%] px-4 py-3"
+          style={{
+            opacity: isUserMessageVisible ? 1 : 0,
+            transition: 'opacity 0.5s ease-out',
+          }}
+        >
+          <div className="whitespace-pre-wrap break-words">
             <div style={textStyle}>
-              <SplitWords
+              <SplitText
                 text={message.content}
-                duration={1.2}
-                stagger={0.05}
+                delay={0}
+                duration={0.8}
+                stagger={0.03}
                 animation="fadeIn"
               />
             </div>
-          ) : (
-            <>
-              <span style={textStyle}>{message.content}</span>
-              {isThinking && (
-                <span className="inline-block ml-2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
-              )}
-            </>
-          )}
+          </div>
+          {message.tokens && <TokenInfo tokens={message.tokens} />}
+          {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
         </div>
-        
-        
-        {message.tokens && <TokenInfo tokens={message.tokens} />}
-        {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
-      </div>
+      )}
     </div>
   );
 };
@@ -257,7 +386,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   message, 
   isThinking = false, 
   onPlayTTS, 
-  isPlayingTTS = false 
+  isPlayingTTS = false,
+  isGlobalLoading = false
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -277,6 +407,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       isThinking={isThinking}
       onPlayTTS={onPlayTTS}
       isPlayingTTS={isPlayingTTS}
+      isGlobalLoading={isGlobalLoading}
     />
   );
 };
