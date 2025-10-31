@@ -176,6 +176,7 @@ export default function MainPageV1() {
   const [showEndMessage, setShowEndMessage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
+  const [showFifthAnswerWarning, setShowFifthAnswerWarning] = useState(false);
 
   // 랜덤으로 3개 선택
   const getRandomRecommendations = useCallback(() => {
@@ -219,14 +220,37 @@ export default function MainPageV1() {
   // AI 답변 카운트 추적 및 6번째 답변 감지
   useEffect(() => {
     const assistantMessages = chatState.messages.filter(msg => msg.role === 'assistant');
+    const assistantCount = assistantMessages.length;
+    
     // 6번째 답변이 완료되고 로딩이 끝났을 때만 종료 상태로 전환
-    // 사용자가 마지막 답변을 충분히 볼 수 있도록 충분한 delay
-    if (assistantMessages.length >= 6 && !isConversationEnded && !chatState.isLoading) {
-      // 마지막 답변을 볼 수 있도록 충분한 시간 (3초) 후 종료 상태로 전환
+    if (assistantCount >= 6 && !isConversationEnded && !chatState.isLoading) {
+      // 마지막 답변을 볼 수 있도록 약간의 시간 (1초) 후 종료 상태로 전환
       const timer = setTimeout(() => {
         setIsConversationEnded(true);
-      }, 3000);
+        setShowFifthAnswerWarning(false);
+      }, 1000);
       return () => clearTimeout(timer);
+    }
+  }, [chatState.messages, isConversationEnded, chatState.isLoading]);
+
+  // 5번째 답변 완료 시 안내 메시지 표시
+  useEffect(() => {
+    const assistantMessages = chatState.messages.filter(msg => msg.role === 'assistant');
+    const assistantCount = assistantMessages.length;
+    
+    // 5번째 답변 완료 시 안내 메시지 표시 (6번째 이전에만)
+    if (assistantCount === 5 && !chatState.isLoading && !isConversationEnded && assistantCount < 6) {
+      setShowFifthAnswerWarning(true);
+      // 5초 후 메시지 숨김
+      const timer = setTimeout(() => {
+        setShowFifthAnswerWarning(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+    
+    // 6번째 답변이 되면 경고 메시지 숨김
+    if (assistantCount >= 6) {
+      setShowFifthAnswerWarning(false);
     }
   }, [chatState.messages, isConversationEnded, chatState.isLoading]);
 
@@ -546,7 +570,23 @@ export default function MainPageV1() {
         const matches = message.matchAll(pattern);
         for (const match of matches) {
           const keyword = match[1]?.trim();
-          if (keyword && keyword.length >= 3 && keyword.length <= 20 && !keyword.includes('제가') && !keyword.includes('이솔')) {
+          // 불완전한 키워드 필터링 (조사로 시작하거나 끝나는 경우 제외)
+          if (keyword && 
+              keyword.length >= 3 && 
+              keyword.length <= 20 && 
+              !keyword.includes('제가') && 
+              !keyword.includes('이솔') &&
+              !keyword.startsWith('를') &&
+              !keyword.startsWith('은') &&
+              !keyword.startsWith('는') &&
+              !keyword.startsWith('이') &&
+              !keyword.startsWith('가') &&
+              !keyword.startsWith('의') &&
+              !keyword.startsWith('와') &&
+              !keyword.startsWith('과') &&
+              !keyword.endsWith('라는') &&
+              !keyword.endsWith('라는 카페') &&
+              !keyword.endsWith('를 추천')) {
             keywords.add(keyword);
           }
         }
@@ -554,7 +594,46 @@ export default function MainPageV1() {
     });
     
     // 최대 6개까지만 반환 (중복 제거 및 정렬)
-    const uniqueKeywords = Array.from(keywords);
+    let uniqueKeywords = Array.from(keywords);
+    
+    // 불완전한 키워드 제거 (조사로만 이루어진 키워드 제외)
+    uniqueKeywords = uniqueKeywords.filter(keyword => {
+      const trimmed = keyword.trim();
+      
+      // 빈 키워드 제거
+      if (!trimmed || trimmed.length < 2) return false;
+      
+      // 조사로 시작하는 키워드 제거
+      const startsWithParticle = /^(를|은|는|이|가|의|와|과|로|으로|에게|에게서|에서|까지|부터|보다|처럼|같이|만|도|조차|마저|까지|까지도|뿐|따라|통해|위해|대해|관해|대한|위한|관한)\s/.test(trimmed);
+      if (startsWithParticle) return false;
+      
+      // 조사로 끝나는 키워드 제거
+      const endsWithParticle = /\s?(라는|라는\s+카페|를\s+추천|는|은|이|가|를|을|의|와|과|로|으로|에서|까지|부터|보다)$/.test(trimmed);
+      if (endsWithParticle) return false;
+      
+      // 특정 불완전한 패턴 제거
+      const invalidPatterns = [
+        '를 추천',
+        '라는 카페',
+        '라는',
+        '를',
+        '을',
+        '은',
+        '는',
+        '이',
+        '가'
+      ];
+      
+      if (invalidPatterns.includes(trimmed) || invalidPatterns.some(pattern => trimmed.includes(pattern + ' '))) {
+        return false;
+      }
+      
+      // 명사나 의미있는 단어로 시작해야 함 (조사만으로는 안 됨)
+      const startsWithNoun = /^[가-힣]+/.test(trimmed);
+      if (!startsWithNoun) return false;
+      
+      return true;
+    });
     
     // 키워드를 길이 순으로 정렬 (짧은 것부터)
     uniqueKeywords.sort((a, b) => a.length - b.length);
@@ -607,7 +686,8 @@ export default function MainPageV1() {
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
-      {/* Blurry Blob 배경 */}
+      {/* Blurry Blob 배경 - 키워드 요약 화면에서는 숨김 */}
+      {!showSummary && (
       <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
         <div
           style={{
@@ -619,12 +699,13 @@ export default function MainPageV1() {
             opacity: 0.85,
             background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
             filter: 'blur(20px)',
-            top: '50%',
+            top: '35%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
           }}
         />
       </div>
+      )}
       
       {/* 로고 - 상단에 고정 */}
       <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4">
@@ -697,6 +778,28 @@ export default function MainPageV1() {
         </div>
       </div>
       
+      {/* 5번째 답변 후 안내 메시지 */}
+      {showFifthAnswerWarning && !showEndMessage && !showSummary && (
+        <div className="fixed top-24 left-0 right-0 z-30 flex justify-center">
+          <div
+            style={{
+              fontFamily: 'Pretendard Variable',
+              fontSize: '16px',
+              fontWeight: 500,
+              color: '#4E5363',
+              textAlign: 'center',
+              padding: '12px 24px',
+              background: 'rgba(255, 255, 255, 0.8)',
+              borderRadius: '20px',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            이제 앞으로 한 번 더 질문할 수 있습니다
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-8">
         <div className="flex-1 overflow-hidden">
@@ -742,69 +845,167 @@ export default function MainPageV1() {
               <>
                 {showSummary ? (
                   // 키워드 요약 화면
-                  <div className="flex flex-col items-center justify-center min-h-full py-12 px-6">
-                    <div className="flex flex-wrap gap-6 justify-center items-center" style={{ maxWidth: '90%' }}>
+                  <div 
+                    className="fixed inset-0"
+                    style={{
+                      background: '#D0ECE6',
+                      zIndex: 10,
+                    }}
+                  >
+                    <div 
+                      className="absolute inset-0"
+                      style={{
+                        paddingTop: '15vh', // 로고 영역 고려
+                        paddingBottom: '20vh', // End 버튼 영역 고려
+                        paddingLeft: '20px',
+                        paddingRight: '20px',
+                      }}
+                    >
                       {extractedKeywords.map((keyword, index) => {
-                        // 각 키워드마다 다양한 크기와 위치를 위한 스타일 변형
-                        const sizes = ['small', 'medium', 'large'];
-                        const size = sizes[index % sizes.length];
-                        const sizeConfig = {
-                          small: { padding: '10px 20px', fontSize: '15px' },
-                          medium: { padding: '12px 24px', fontSize: '16px' },
-                          large: { padding: '14px 28px', fontSize: '17px' },
+                        // 키워드 길이에 비례하여 ellipse 크기 결정 (1.2배 증가)
+                        const keywordLength = keyword.length;
+                        const baseSize = 120; // 기본 크기 (100 * 1.2)
+                        const sizeMultiplier = Math.max(0.7, Math.min(1.8, keywordLength / 6)); // 6글자를 기준으로 크기 조절
+                        const ellipseSize = baseSize * sizeMultiplier * 1.2; // 1.2배 증가
+                        const padding = Math.max(8, ellipseSize * 0.25);
+                        
+                        // 겹치지 않는 위치 계산 (height 20%~80% 영역, width 10%~90% 영역)
+                        // 키워드 텍스트가 겹치지 않도록 배치 (ellipse는 5% 겹쳐도 됨)
+                        const getPosition = (idx: number, keywordLen: number, ellipseSize: number) => {
+                          const minTop = 20;
+                          const maxTop = 80;
+                          // ellipse가 화면 밖으로 나가지 않도록 left 범위 설정
+                          // ellipse의 반지름을 고려하여 minLeft와 maxLeft 설정
+                          // 화면 너비를 100%로 가정하고, ellipse 반지름을 퍼센트로 추정
+                          // 일반적인 모바일 화면 너비 375px 기준으로 ellipse 반지름 계산
+                          const estimatedScreenWidth = 375; // 픽셀 단위 (모바일 기준)
+                          const ellipseRadiusPercent = (ellipseSize / 2 / estimatedScreenWidth) * 100;
+                          const minLeft = Math.max(10, 10 + ellipseRadiusPercent); // 왼쪽 경계 확보
+                          const maxLeft = Math.min(90, 90 - ellipseRadiusPercent); // 오른쪽 경계 확보
+                          
+                          // 기존 키워드들의 위치 정보 (이미 배치된 키워드들)
+                          // 기존 키워드들도 ellipse 반지름을 고려하여 계산
+                          const existingPositions: Array<{top: number, left: number, size: number}> = [];
+                          for (let i = 0; i < idx; i++) {
+                            const existingKeywordLength = extractedKeywords[i].length;
+                            const existingSize = baseSize * Math.max(0.7, Math.min(1.8, existingKeywordLength / 6)) * 1.2;
+                            const existingEllipseRadiusPercent = (existingSize / 2 / estimatedScreenWidth) * 100;
+                            const existingMinLeft = Math.max(10, 10 + existingEllipseRadiusPercent);
+                            const existingMaxLeft = Math.min(90, 90 - existingEllipseRadiusPercent);
+                            
+                            // 그리드 기반 초기 위치 계산
+                            const row = Math.floor(i / 3);
+                            const col = i % 3;
+                            const existingTop = minTop + (row * 18) + ((i % 2) * 5);
+                            const existingGridLeft = 10 + (col * 40); // 10%, 50%, 90% (3열)
+                            const existingLeft = Math.max(existingMinLeft, Math.min(existingMaxLeft, existingGridLeft));
+                            existingPositions.push({
+                              top: existingTop,
+                              left: existingLeft,
+                              size: existingSize
+                            });
+                          }
+                          
+                          // 그리드 기반 초기 위치 (3열 그리드)
+                          const row = Math.floor(idx / 3);
+                          const col = idx % 3;
+                          let topPercent = minTop + (row * 18) + ((idx % 2) * 5);
+                          // leftPercent를 10%~90% 범위 내에서 배치
+                          // 3열 그리드로 배치하되, ellipse 반지름을 고려하여 경계 내에 위치
+                          const gridLeftPercent = 10 + (col * 40); // 10%, 50%, 90% (3열)
+                          let leftPercent = Math.max(minLeft, Math.min(maxLeft, gridLeftPercent));
+                          
+                          // 기존 키워드들과의 거리 체크 (텍스트가 겹치지 않도록)
+                          // ellipse는 최대 3% 면적까지 겹칠 수 있지만, 텍스트가 겹치지 않도록 충분한 거리 확보
+                          let attempts = 0;
+                          const maxAttempts = 50;
+                          
+                          while (attempts < maxAttempts) {
+                            let hasOverlap = false;
+                            
+                            // 기존 키워드들과의 거리 체크 (퍼센트 기반)
+                            for (const existing of existingPositions) {
+                              // 퍼센트 차이 계산
+                              const topDiff = Math.abs(topPercent - existing.top);
+                              const leftDiff = Math.abs(leftPercent - existing.left);
+                              // 유클리드 거리 계산 (퍼센트 단위)
+                              const distance = Math.sqrt(topDiff * topDiff + leftDiff * leftDiff);
+                              
+                              // 한 ellipse가 다른 ellipse 속 키워드 텍스트를 침범하지 않도록 엄격한 거리 확보
+                              // ellipse 크기를 퍼센트로 변환 (화면 높이 800px 기준으로 추정)
+                              const ellipseSizePercent = (ellipseSize / 800) * 100;
+                              const existingSizePercent = (existing.size / 800) * 100;
+                              // 두 ellipse의 반지름 합 (ellipse가 전혀 겹치지 않도록)
+                              // 텍스트가 ellipse 내부에 있으므로, ellipse가 겹치면 텍스트도 겹칠 수 있음
+                              // 따라서 반지름 합보다 충분히 큰 거리 확보 (10% 여유 추가)
+                              const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.1;
+                              
+                              if (distance < minDistance) {
+                                hasOverlap = true;
+                                // 충분한 거리로 위치 조정 (방향 벡터 사용)
+                                const angle = Math.atan2(topPercent - existing.top, leftPercent - existing.left);
+                                // 최소 거리를 확보하기 위해 충분히 이동
+                                const moveDistance = minDistance - distance + 2; // 2% 여유
+                                topPercent += Math.sin(angle) * moveDistance;
+                                leftPercent += Math.cos(angle) * moveDistance;
+                                break;
+                              }
+                            }
+                            
+                            if (!hasOverlap) break;
+                            attempts++;
+                            
+                            // 시도 횟수가 많아지면 랜덤 위치 재시도
+                            if (attempts > 20) {
+                              topPercent = minTop + Math.random() * (maxTop - minTop);
+                              leftPercent = minLeft + Math.random() * (maxLeft - minLeft);
+                            }
+                          }
+                          
+                          // 경계 체크 및 ellipse가 화면 밖으로 나가지 않도록 추가 검증
+                          topPercent = Math.max(minTop, Math.min(maxTop, topPercent));
+                          
+                          // leftPercent는 ellipse의 중심 위치이므로, ellipse의 반지름을 고려한 범위 체크
+                          // ellipse가 화면 밖(0% 또는 100%)으로 나가지 않도록
+                          const currentMinLeft = Math.max(10, 10 + ellipseRadiusPercent);
+                          const currentMaxLeft = Math.min(90, 90 - ellipseRadiusPercent);
+                          leftPercent = Math.max(currentMinLeft, Math.min(currentMaxLeft, leftPercent));
+                          
+                          return { topPercent, leftPercent };
                         };
-                        const config = sizeConfig[size as keyof typeof sizeConfig];
+                        
+                        const { topPercent, leftPercent } = getPosition(index, keywordLength, ellipseSize);
                         
                         return (
                           <div
                             key={index}
-                            className="relative"
+                            className="absolute"
                             style={{
-                              padding: config.padding,
-                              borderRadius: '999px',
-                              background: `radial-gradient(ellipse at 50% 50%, 
-                                rgba(255, 255, 255, 0.95) 0%, 
-                                rgba(230, 240, 255, 0.85) 30%,
-                                rgba(220, 235, 255, 0.75) 60%,
-                                rgba(200, 225, 255, 0.6) 100%)`,
-                              backdropFilter: 'blur(20px)',
-                              WebkitBackdropFilter: 'blur(20px)',
-                              boxShadow: `
-                                0 8px 32px rgba(0, 0, 0, 0.08),
-                                0 2px 8px rgba(0, 0, 0, 0.04),
-                                inset 0 1px 0 rgba(255, 255, 255, 0.9)
-                              `,
-                              border: '1px solid rgba(255, 255, 255, 0.6)',
-                              display: 'inline-flex',
+                              top: `${topPercent}%`,
+                              left: `${leftPercent}%`,
+                              width: `${ellipseSize}px`,
+                              height: `${ellipseSize}px`,
+                              borderRadius: '297px',
+                              opacity: 0.65,
+                              background: 'radial-gradient(50% 50% at 50% 50%, #DEE6FF 43.75%, #FFF 65.87%, rgba(255, 255, 255, 0.61) 100%)',
+                              boxShadow: '0 -14px 20px 0 #FFEFFC, 0 20px 20px 0 #CBD7F3, 0 4px 100px 0 #CFE9FF',
+                              display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              position: 'relative',
-                              overflow: 'hidden',
+                              position: 'absolute',
+                              transform: 'translate(-50%, -50%)',
                             }}
                           >
-                            {/* 빛나는 효과 */}
-                            <div
-                              style={{
-                                position: 'absolute',
-                                top: '-50%',
-                                left: '-50%',
-                                width: '200%',
-                                height: '200%',
-                                background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%)',
-                                pointerEvents: 'none',
-                              }}
-                            />
                             <span
                               style={{
                                 fontFamily: 'Pretendard Variable',
-                                fontSize: config.fontSize,
+                                fontSize: `${Math.max(14, Math.min(18, ellipseSize / 8))}px`,
                                 fontWeight: 500,
                                 color: '#1f2937',
                                 textAlign: 'center',
                                 lineHeight: '1.4',
-                                position: 'relative',
-                                zIndex: 1,
-                                letterSpacing: '-0.3px',
+                                padding: `${padding}px`,
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               {keyword}
@@ -812,6 +1013,33 @@ export default function MainPageV1() {
                           </div>
                         );
                       })}
+                    </div>
+                    
+                    {/* End 버튼 - 하단 고정 */}
+                    <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+                      <button
+                        onClick={() => {
+                          // End 버튼 클릭 시 처리 (필요한 로직 추가)
+                          console.log('End button clicked');
+                        }}
+                        className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+                        style={{
+                          height: '56px',
+                          padding: '15px 85px',
+                          borderRadius: '68px',
+                          background: 'rgba(135, 254, 200, 0.75)',
+                          boxShadow: '0 0 50px 0 #EEE inset',
+                          color: '#000',
+                          textAlign: 'center',
+                          fontFamily: 'Pretendard Variable',
+                          fontSize: '16px',
+                          fontWeight: 700,
+                          lineHeight: '110%',
+                          letterSpacing: '-0.64px',
+                        }}
+                      >
+                        End
+                      </button>
                     </div>
                   </div>
                 ) : showEndMessage ? (
@@ -958,7 +1186,8 @@ export default function MainPageV1() {
                 height: '56px',
                 padding: '15px 85px',
                 borderRadius: '68px',
-                background: 'rgba(255, 255, 255, 0.21)',
+                background: 'rgba(135, 254, 200, 0.75)',
+                boxShadow: '0 0 50px 0 #EEE inset',
                 color: '#000',
                 textAlign: 'center',
                 fontFamily: 'Pretendard Variable',
@@ -975,10 +1204,10 @@ export default function MainPageV1() {
           // 일반 입력창
           <form onSubmit={handleSubmit} className="w-full">
           <div 
-            className="flex items-center shadow-lg"
+            className="flex items-center"
             style={{
               borderRadius: '22px',
-              background: 'linear-gradient(90deg, rgba(211, 178, 226, 0.41) 0%, rgba(255, 255, 255, 0.55) 76.44%, rgba(223, 199, 234, 0.32) 100%)',
+              background: 'rgba(217, 217, 217, 0.60)',
             }}
           >
             <input

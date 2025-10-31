@@ -23,7 +23,7 @@ export default function OnboardingPage({ onNext }: OnboardingPageProps) {
             opacity: 0.85,
             background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
             filter: 'blur(20px)',
-            top: '50%',
+            top: '35%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
           }}

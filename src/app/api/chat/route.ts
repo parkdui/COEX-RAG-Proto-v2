@@ -490,7 +490,7 @@ export async function POST(request: NextRequest) {
       ...(body?.history || []), // 이전 대화 맥락
       {
         role: "user",
-        content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요.`,
+        content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 200자 이내로만 답하세요.`,
       },
     ];
 
