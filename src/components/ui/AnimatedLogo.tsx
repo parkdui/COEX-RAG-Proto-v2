@@ -13,16 +13,14 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const logoHeight = 47; // 각 로고 div의 높이
-    const containerHeight = 53; // 외부 컨테이너 높이 (여유 포함)
+    const logoHeight = 40; // 각 로고 div의 높이 (간격 최소화)
+    const containerHeight = 40; // 외부 컨테이너 높이 (로고 하나 높이와 동일)
     const holdDuration = 3000; // 중앙에 도착했을 때 3초 대기
     const moveDuration = 2000; // 로고가 올라가는 시간 (2초)
     const cycleHeight = logoHeight * 2; // SORI → COEX (2개 로고 높이)
     
-    // 컨테이너와 로고 div 높이 차이를 고려한 offset
-    // 컨테이너(53px) - 로고 div(47px) = 6px 여유
-    // 이 여유를 위아래로 3px씩 분배하여 로고를 중앙에 배치
-    const verticalOffset = (containerHeight - logoHeight) / 2; // 3px
+    // 컨테이너와 로고 div 높이가 동일하므로 offset 없음
+    const verticalOffset = 0;
     
     // 역동적인 easing 함수
     const easeInOutCubic = (t: number): number => {
@@ -58,7 +56,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         // 3단계: COEX 중앙에 3초 대기
         translateY = verticalOffset - logoHeight;
       } else {
-        // 4단계: COEX 올라가고 SORI 올라옴
+        // 4단계: COEX 올라가고 SORI 올라옴 (계속 위로 올라가는 방향 유지)
         const moveProgress = (cycleProgress - holdDuration * 2 - moveDuration) / moveDuration;
         const easedProgress = easeInOutCubic(moveProgress);
         translateY = verticalOffset - logoHeight - easedProgress * logoHeight;
@@ -90,7 +88,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
       className={className}
       style={{
         width: '402px',
-        height: '53px', // 약간 여유를 둠 (로고가 잘리지 않도록)
+        height: '40px', // 로고 하나 높이와 동일 (한 번에 하나만 보이도록)
         padding: '0 15px',
         background: 'rgba(0, 0, 0, 0.00)',
         flexShrink: 0,
@@ -121,21 +119,22 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '47px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
-            padding: '3px 0' // 상하 여유 공간 추가
+            padding: '0', // 간격 제거
+            margin: '0' // 마진 제거
           }}
         >
           <img 
-            src="/SORI.png" 
+            src="/SORI.svg" 
             alt="SORI Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '41px', // 패딩 고려하여 높이 제한
+              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
@@ -148,21 +147,22 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '47px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
-            padding: '3px 0' // 상하 여유 공간 추가
+            padding: '0', // 간격 제거
+            margin: '0' // 마진 제거
           }}
         >
           <img 
-            src="/Coex CI_White 2.png" 
+            src="/Coex CI_White 2.svg" 
             alt="COEX Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '41px', // 패딩 고려하여 높이 제한
+              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
@@ -175,21 +175,22 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '47px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
-            padding: '3px 0' // 상하 여유 공간 추가
+            padding: '0', // 간격 제거
+            margin: '0' // 마진 제거
           }}
         >
           <img 
-            src="/SORI.png" 
+            src="/SORI.svg" 
             alt="SORI Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '41px', // 패딩 고려하여 높이 제한
+              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
@@ -202,21 +203,50 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '47px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
-            padding: '3px 0' // 상하 여유 공간 추가
+            padding: '0', // 간격 제거
+            margin: '0' // 마진 제거
           }}
         >
           <img 
-            src="/Coex CI_White 2.png" 
+            src="/Coex CI_White 2.svg" 
             alt="COEX Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '41px', // 패딩 고려하여 높이 제한
+              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+              display: 'block'
+            }}
+          />
+        </div>
+        
+        {/* SORI 로고 복제 2 (무한 반복을 위한 마지막 - 첫 번째와 같은 위치) */}
+        <div
+          style={{
+            width: '100%',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
+            padding: '0', // 간격 제거
+            margin: '0' // 마진 제거
+          }}
+        >
+          <img 
+            src="/SORI.svg" 
+            alt="SORI Logo"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',

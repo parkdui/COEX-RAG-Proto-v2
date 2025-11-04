@@ -2,7 +2,7 @@
  * ChatBubble 컴포넌트
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText } from '@/components/ui';
@@ -199,37 +199,97 @@ const SegmentedMessage: React.FC<{
   message: any;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
-}> = ({ message, onPlayTTS, isPlayingTTS }) => (
-  <div className="flex justify-center mb-4">
-    <div 
-      style={{
-        width: '90%',
-        borderRadius: '32px',
-        background: 'rgba(255, 255, 255, 0.25)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
-        padding: '20px',
-      }}
-    >
-      <div className="flex flex-col gap-2">
-        {message.segments.map((segment: any, segmentIndex: number) => (
-          <MessageSegment
-            key={segmentIndex}
-            segment={segment}
-            onPlayTTS={onPlayTTS}
-            isPlayingTTS={isPlayingTTS}
-            segmentIndex={segmentIndex}
+}> = ({ message, onPlayTTS, isPlayingTTS }) => {
+  const [showHighlight, setShowHighlight] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  // 하이라이트 애니메이션 트리거
+  useEffect(() => {
+    setShowHighlight(true);
+    const timer = setTimeout(() => setShowHighlight(false), 2000);
+    return () => clearTimeout(timer);
+  }, [message.segments]);
+  
+  // 컨테이너 높이 추적 및 실시간 확장 효과
+  useEffect(() => {
+    if (contentRef.current) {
+      // ResizeObserver로 높이 변화 감지
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const newHeight = entry.contentRect.height;
+          if (newHeight > 0) {
+            setContainerHeight(newHeight);
+          }
+        }
+      });
+      
+      resizeObserver.observe(contentRef.current);
+      
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+  }, [message.segments]);
+  
+  return (
+    <div className="flex justify-center mb-4">
+      <div 
+        style={{
+          width: '90%',
+          borderRadius: '32px',
+          background: 'rgba(255, 255, 255, 0.25)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+          padding: '20px',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: containerHeight > 0 ? 'min-height 0.3s ease-out' : 'none',
+          minHeight: containerHeight > 0 ? `${containerHeight}px` : 'auto',
+        }}
+      >
+        {/* Border stroke 애니메이션 */}
+        {showHighlight && (
+          <div 
+            style={{
+              position: 'absolute',
+              top: '0',
+              left: '0',
+              right: '0',
+              bottom: '0',
+              borderRadius: '32px',
+              padding: '2px',
+              background: 'linear-gradient(45deg, transparent 25%, rgba(255, 255, 255, 0.8) 50%, transparent 75%, transparent 100%)',
+              backgroundSize: '400% 400%',
+              animation: 'gradient-rotate 2s linear',
+              pointerEvents: 'none',
+              zIndex: 1,
+              mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              WebkitMaskComposite: 'xor',
+            }}
           />
-        ))}
-        
-        {message.tokens && <TokenInfo tokens={message.tokens} />}
-        {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+        )}
+        <div ref={contentRef} className="flex flex-col gap-2" style={{ position: 'relative', zIndex: 2 }}>
+          {message.segments.map((segment: any, segmentIndex: number) => (
+            <MessageSegment
+              key={segmentIndex}
+              segment={segment}
+              onPlayTTS={onPlayTTS}
+              isPlayingTTS={isPlayingTTS}
+              segmentIndex={segmentIndex}
+            />
+          ))}
+          
+          {message.tokens && <TokenInfo tokens={message.tokens} />}
+          {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * 텍스트를 줄 단위로 분할하는 컴포넌트 (Line by Line Split)
@@ -283,6 +343,8 @@ const SingleMessage: React.FC<{
   // 사용자 메시지는 처음에 표시되다가 AI 답변이 시작되면 fade-out
   const [isUserMessageVisible, setIsUserMessageVisible] = useState(true);
   const [hasAssistantMessageStarted, setHasAssistantMessageStarted] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(0);
   
   const textStyle = {
     color: '#000',
@@ -304,6 +366,38 @@ const SingleMessage: React.FC<{
     }
   }, [message.role, isThinking, message.content]);
 
+  // AI 메시지 등장 시 하이라이트 애니메이션 트리거
+  useEffect(() => {
+    if (message.role === 'assistant' && !isThinking && message.content) {
+      setShowHighlight(true);
+      const timer = setTimeout(() => setShowHighlight(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [message.role, isThinking, message.content]);
+
+  // 컨테이너 높이 추적 및 실시간 확장 효과
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (contentRef.current && message.role === 'assistant') {
+      // ResizeObserver로 높이 변화 감지
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const newHeight = entry.contentRect.height;
+          if (newHeight > 0) {
+            setContainerHeight(newHeight);
+          }
+        }
+      });
+      
+      resizeObserver.observe(contentRef.current);
+      
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+  }, [message.content, message.role]);
+
   return (
     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
       {message.role === 'assistant' ? (
@@ -318,9 +412,35 @@ const SingleMessage: React.FC<{
             border: '1px solid rgba(255, 255, 255, 0.3)',
             boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
             padding: '20px',
+            position: 'relative',
+            overflow: 'hidden',
+            minHeight: containerHeight > 0 ? `${containerHeight}px` : 'auto',
+            transition: containerHeight > 0 ? 'min-height 0.3s ease-out' : 'none',
           }}
         >
-          <div className="whitespace-pre-wrap break-words">
+          {/* Border stroke 애니메이션 */}
+          {showHighlight && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '0',
+                borderRadius: '32px',
+                padding: '2px',
+                background: 'linear-gradient(45deg, transparent 25%, rgba(255, 255, 255, 0.8) 50%, transparent 75%, transparent 100%)',
+                backgroundSize: '400% 400%',
+                animation: 'gradient-rotate 2s linear',
+                pointerEvents: 'none',
+                zIndex: 1,
+                mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                WebkitMaskComposite: 'xor',
+              }}
+            />
+          )}
+          <div ref={contentRef} className="whitespace-pre-wrap break-words" style={{ position: 'relative', zIndex: 2 }}>
             {!isThinking ? (
               // AI 메시지: 5줄 이상이면 line by line, 그 이하면 word by word
               <div style={textStyle}>

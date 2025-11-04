@@ -184,6 +184,40 @@ export default function MainPageV1() {
     return shuffled.slice(0, 3);
   }, []);
 
+  // 사용자 메시지 요약 함수
+  const summarizeUserMessage = useCallback((text: string) => {
+    // 패턴 기반 요약
+    const patterns = [
+      { pattern: /가족.*?놀/i, replacement: '가족과 놀거리 추천' },
+      { pattern: /친구.*?먹/i, replacement: '친구와 먹거리 추천' },
+      { pattern: /데이트.*?좋/i, replacement: '데이트하기 좋은 곳' },
+      { pattern: /컨퍼런스.*?쉬/i, replacement: '컨퍼런스 중 쉬기 좋은 곳' },
+      { pattern: /홀로.*?방문/i, replacement: '홀로 방문하기 좋은 곳' },
+      { pattern: /조용.*?작업/i, replacement: '조용히 작업할 카페' },
+      { pattern: /핫플레이스/i, replacement: '핫플레이스 추천' },
+      { pattern: /문화.*?체험/i, replacement: '문화 체험 장소' },
+      { pattern: /쇼핑.*?좋/i, replacement: '쇼핑하기 좋은 곳' },
+    ];
+    
+    // 패턴 매칭
+    for (const { pattern, replacement } of patterns) {
+      if (pattern.test(text)) {
+        return replacement;
+      }
+    }
+    
+    // 패턴에 매칭되지 않으면 키워드 기반 요약
+    const keywords = ['가족', '친구', '혼자', '데이트', '컨퍼런스', '식당', '카페', '쇼핑'];
+    const foundKeyword = keywords.find(kw => text.includes(kw));
+    
+    if (foundKeyword) {
+      return `${foundKeyword} 관련 추천`;
+    }
+    
+    // 아무것도 매칭되지 않으면 원본 반환 (최대 20자)
+    return text.length > 20 ? text.substring(0, 20) + '...' : text;
+  }, []);
+
   const [randomRecommendations, setRandomRecommendations] = useState(getRandomRecommendations);
 
   // 스크롤을 맨 아래로 이동
@@ -801,7 +835,7 @@ export default function MainPageV1() {
       )}
 
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-8">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-32">
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -1092,43 +1126,53 @@ export default function MainPageV1() {
                     </div>
                   </div>
                 ) : chatState.isLoading ? (
-                  // 로딩 중: 사용자 메시지만 표시하고, '이솔이 생각 중입니다...'는 중간에
+                  // 로딩 중: 요약된 사용자 메시지 표시
                   <div className="flex flex-col min-h-full">
-                    {/* 중간에 '이솔이 생각 중입니다...' 표시 */}
-                    <div className="flex-1 flex items-center justify-center" style={{ minHeight: '40vh' }}>
+                    {/* 중간에 요약된 사용자 메시지와 '이솔이 생각 중입니다...' 표시 */}
+                    <div className="flex-1 flex flex-col items-center justify-center" style={{ minHeight: '40vh' }}>
+                      {chatState.messages
+                        .filter(msg => msg.role === 'user')
+                        .slice(-1)
+                        .map((message) => (
+                          <div
+                            key={`summarized-${message.role}-${message.timestamp || Date.now()}`}
+                            style={{
+                              color: '#666D6F',
+                              textAlign: 'center',
+                              fontFamily: 'Pretendard Variable',
+                              fontSize: '22px',
+                              fontStyle: 'normal',
+                              fontWeight: 700,
+                              lineHeight: '132%',
+                              letterSpacing: '-0.88px',
+                              marginBottom: '24px',
+                              padding: '0 24px',
+                            }}
+                          >
+                            {summarizeUserMessage(message.content)}
+                          </div>
+                        ))}
                       <div className="flex items-center gap-3" style={{ color: '#000' }}>
                         <LoadingSpinner size="sm" />
                         <span className="text-base">이솔이 생각 중입니다...</span>
                       </div>
                     </div>
-                    {/* 하단에 사용자 메시지 표시 */}
-                    <div className="space-y-4 pb-4 mt-auto">
-                      {chatState.messages
-                        .filter(msg => msg.role === 'user')
-                        .slice(-1)
-                        .map((message) => (
-                          <ChatBubble 
-                            key={`${message.role}-${message.timestamp || Date.now()}`}
-                            message={message} 
-                            onPlayTTS={ttsState.playTTS}
-                            isPlayingTTS={ttsState.isPlayingTTS}
-                            isGlobalLoading={chatState.isLoading}
-                          />
-                        ))}
-                    </div>
                   </div>
                 ) : (
-                  // 로딩 완료: 최근 사용자 메시지와 AI 답변만 표시
+                  // 로딩 완료: AI 답변만 표시 (사용자 메시지 숨김)
                   <div className="space-y-4">
-                    {chatState.messages.slice(-2).map((message, index) => (
-                      <ChatBubble 
-                        key={`${message.role}-${chatState.messages.length - 2 + index}`}
-                        message={message} 
-                        onPlayTTS={ttsState.playTTS}
-                        isPlayingTTS={ttsState.isPlayingTTS}
-                        isGlobalLoading={chatState.isLoading}
-                      />
-                    ))}
+                    {chatState.messages
+                      .filter(msg => msg.role === 'assistant')
+                      .slice(-1)
+                      .map((message, index) => (
+                        <ChatBubble 
+                          key={`${message.role}-${index}`}
+                          message={message} 
+                          onPlayTTS={ttsState.playTTS}
+                          isPlayingTTS={ttsState.isPlayingTTS}
+                          isGlobalLoading={chatState.isLoading}
+                        />
+                      ))}
                   </div>
                 )}
               </>

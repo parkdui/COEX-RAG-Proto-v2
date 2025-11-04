@@ -69,11 +69,11 @@ const TextPressure: React.FC<TextPressureProps> = ({
             style={{
               opacity: mounted ? 1 : 0,
               fontWeight: mounted ? 700 : 500,
-              transform: mounted ? 'scale(1)' : 'scale(0.95)',
-              transition: `opacity 0.2s ${index * 0.02}s, font-weight ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s, transform ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s`
+              transform: mounted ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
+              transition: `opacity 0.3s ${index * 0.02}s, font-weight ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s, transform ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s`
             }}
           >
-            {char}
+            {char === ' ' ? '\u00A0' : char}
           </span>
         ))}
       </div>

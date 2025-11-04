@@ -122,15 +122,58 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
     };
   };
 
-  // **로 감싸진 부분을 찾아서 분할
+  // ** 또는 작은 따옴표로 감싸진 부분을 찾아서 분할
   const parseText = (text: string): Array<{ text: string; isGradient: boolean }> => {
     const parts: Array<{ text: string; isGradient: boolean }> = [];
     let remaining = text;
 
     while (remaining.length > 0) {
-      const gradientStart = remaining.indexOf('**');
+      // ** 또는 작은 따옴표 중 먼저 나오는 것 찾기
+      const doubleStarIndex = remaining.indexOf('**');
+      const singleQuotePairIndex = remaining.indexOf("''");
+      const singleQuoteIndex = remaining.indexOf("'");
+      
+      // 컬리 따옴표: U+2018 (시작), U+2019 (종료)
+      const curlyQuoteStartIndex = remaining.indexOf('\u2018');
+      const curlyQuoteEndIndex = remaining.indexOf('\u2019');
+      
+      let gradientStart = -1;
+      let gradientMarker = '';
+      let gradientEnd = -1;
+      let markerLength = 2;
+      
+      // 여러 마커 중 가장 앞에 있는 것 선택
+      const indices = [
+        { index: doubleStarIndex, marker: '**', length: 2 },
+        { index: singleQuotePairIndex, marker: "''", length: 2 },
+      ].filter(item => item.index !== -1);
+      
+      // 단일 따옴표 (컬리 따옴표 먼저 확인 후 추가)
+      if (curlyQuoteStartIndex !== -1) {
+        indices.push({ index: curlyQuoteStartIndex, marker: 'curly', length: 1 });
+      } else if (singleQuoteIndex !== -1) {
+        // 일반 작은 따옴표 (하나)
+        indices.push({ index: singleQuoteIndex, marker: "'", length: 1 });
+      }
+      
+      if (indices.length > 0) {
+        indices.sort((a, b) => a.index - b.index);
+        const first = indices[0];
+        gradientStart = first.index;
+        gradientMarker = first.marker;
+        markerLength = first.length;
+        
+        // 마커에 따라 종료 위치 찾기
+        if (gradientMarker === 'curly') {
+          gradientEnd = remaining.indexOf('\u2019', gradientStart + 1);
+        } else if (gradientMarker === "'") {
+          gradientEnd = remaining.indexOf("'", gradientStart + 1);
+        } else {
+          gradientEnd = remaining.indexOf(gradientMarker, gradientStart + markerLength);
+        }
+      }
 
-      if (gradientStart === -1) {
+      if (gradientStart === -1 || gradientEnd === -1) {
         // 남은 텍스트 모두 추가
         const words = remaining.trim().split(' ');
         words.forEach(word => {
@@ -139,7 +182,7 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
         break;
       }
 
-      // ** 이전의 텍스트 추가
+      // 마커 이전의 텍스트 추가
       const beforeGradient = remaining.substring(0, gradientStart).trim();
       if (beforeGradient) {
         beforeGradient.split(' ').forEach(word => {
@@ -147,21 +190,13 @@ export const SplitWords: React.FC<SplitWordsProps> = ({
         });
       }
 
-      const gradientEnd = remaining.indexOf('**', gradientStart + 2);
-      if (gradientEnd === -1) {
-        // **로 시작하지만 끝나지 않은 경우
-        const gradientText = remaining.substring(gradientStart + 2);
-        gradientText.split(' ').forEach(word => {
-          if (word) parts.push({ text: word, isGradient: false });
-        });
-        break;
-      }
-
-      // **로 감싸진 텍스트 추가
-      const gradientText = remaining.substring(gradientStart + 2, gradientEnd);
+      // 마커로 감싸진 텍스트 추가
+      const gradientText = remaining.substring(gradientStart + markerLength, gradientEnd);
       parts.push({ text: gradientText, isGradient: true });
 
-      remaining = remaining.substring(gradientEnd + 2);
+      // 종료 마커 길이 계산
+      const endMarkerLength = (gradientMarker === 'curly' || gradientMarker === "'") ? 1 : markerLength;
+      remaining = remaining.substring(gradientEnd + endMarkerLength);
     }
 
     return parts;

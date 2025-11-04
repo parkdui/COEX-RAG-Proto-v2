@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import GSAPSplitText from './ui/GSAPSplitText';
 import TextPressure from './ui/TextPressure';
+import Typewriter from './ui/Typewriter';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -11,7 +12,7 @@ interface LandingPageProps {
 export default function LandingPage({ onStart }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
-  const [showThirdLine, setShowThirdLine] = useState(false);
+  const [showSori, setShowSori] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
@@ -39,39 +40,31 @@ export default function LandingPage({ onStart }: LandingPageProps) {
         <div className="text-left">
           {/* Welcome To */}
           <div className="text-gray-800 mb-[12px]" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.44px', fontSize: '22px' }}>
-            Welcome To
+            <Typewriter
+              text="Welcome To"
+              speed={80}
+              delay={0}
+              onIndexReach={(index) => {
+                // "Welcome"은 7글자이므로 index가 7에 도달하면 Sori 시작
+                if (index === 7 && !showSori) {
+                  setShowSori(true);
+                }
+              }}
+              onComplete={() => {
+                // "Welcome To" 완료 후 카운터 표시를 위한 콜백
+              }}
+            />
           </div>
           
-          {/* Sori Coex Guide 타이틀 - 3줄로 분리 */}
+          {/* Sori Coex Guide 타이틀 - 2줄로 분리 */}
           <div className="mb-[16px]">
             {/* 첫 번째 줄: Sori */}
-            <div>
-              <TextPressure
-                text="Sori"
-                trigger="auto"
-                duration={0.8}
-                style={{ 
-                  fontFamily: 'Pretendard Variable', 
-                  fontWeight: 700, 
-                  lineHeight: '90%', 
-                  letterSpacing: '-1.8px', 
-                  fontSize: '45pt',
-                  color: '#1f2937'
-                }}
-                onComplete={() => {
-                  // 'Sori'의 마지막 문자 'i'의 애니메이션이 끝나면 두 번째 줄 시작
-                  setShowSecondLine(true);
-                }}
-              />
-            </div>
-            
-            {/* 두 번째 줄: Coex */}
-            {showSecondLine && (
+            {showSori && (
               <div>
                 <TextPressure
-                  text="Coex"
+                  text="Sori"
                   trigger="auto"
-                  duration={0.8}
+                  duration={1.2}
                   style={{ 
                     fontFamily: 'Pretendard Variable', 
                     fontWeight: 700, 
@@ -81,20 +74,20 @@ export default function LandingPage({ onStart }: LandingPageProps) {
                     color: '#1f2937'
                   }}
                   onComplete={() => {
-                    // 'Coex'의 마지막 문자 'x'의 애니메이션이 끝나면 세 번째 줄 시작
-                    setShowThirdLine(true);
+                    // 'Sori'의 마지막 문자 'i'의 애니메이션이 끝나면 두 번째 줄 시작
+                    setShowSecondLine(true);
                   }}
                 />
               </div>
             )}
             
-            {/* 세 번째 줄: Guide */}
-            {showThirdLine && (
+            {/* 두 번째 줄: Coex Guide */}
+            {showSecondLine && (
               <div>
                 <TextPressure
-                  text="Guide"
+                  text="Coex Guide"
                   trigger="auto"
-                  duration={0.8}
+                  duration={1.2}
                   style={{ 
                     fontFamily: 'Pretendard Variable', 
                     fontWeight: 700, 
@@ -103,7 +96,9 @@ export default function LandingPage({ onStart }: LandingPageProps) {
                     fontSize: '45pt',
                     color: '#1f2937'
                   }}
-                  onComplete={() => setShowCounter(true)}
+                  onComplete={() => {
+                    setShowCounter(true);
+                  }}
                 />
               </div>
             )}
@@ -111,20 +106,13 @@ export default function LandingPage({ onStart }: LandingPageProps) {
           
           {/* 대화 카운터 */}
           {showCounter ? (
-            <GSAPSplitText
-              text="오늘 538번째로 대화하는 중이에요"
-              className="text-gray-800"
-              tag="div"
-              splitType="chars"
-              delay={50}
-              duration={0.8}
-              threshold={0}
-              rootMargin="0px"
-              from={{ opacity: 0, y: 20 }}
-              to={{ opacity: 1, y: 0 }}
-              textAlign="left"
-              style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}
-            />
+            <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
+              <Typewriter
+                text="오늘 538번째로 대화하는 중이에요"
+                speed={50}
+                delay={200}
+              />
+            </div>
           ) : null}
         </div>
       </div>

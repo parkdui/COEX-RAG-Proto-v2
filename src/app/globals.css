@@ -72,6 +72,16 @@ body {
     animation: gradient-rotate 15s ease infinite;
   }
   
+  /* Highlight Rotate Animation */
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
   /* 스크롤바 숨김 */
   .hide-scrollbar {
     -ms-overflow-style: none;
