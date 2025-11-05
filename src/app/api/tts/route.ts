@@ -8,7 +8,7 @@ const CLOVA_VOICE_CLIENT_SECRET = getEnv("CLOVA_CSR_API_KEY_SECRET");
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, speaker = 'nara', speed = '0', pitch = '0', volume = '0', format = 'mp3' } = body;
+    const { text, speaker = 'vyuna', speed = '-1', pitch = '3', volume = '0', alpha = '1', format = 'mp3' } = body;
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: 'text parameter is required' }, { status: 400 });
@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     formData.append('speed', speed);
     formData.append('pitch', pitch);
     formData.append('text', text);
+    if (alpha !== undefined) {
+      formData.append('alpha', alpha);
+    }
     formData.append('format', format);
 
     const response = await fetch(apiUrl, {

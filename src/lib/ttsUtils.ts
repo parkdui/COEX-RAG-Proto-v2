@@ -10,10 +10,11 @@ import { TTSRequest } from '@/types';
 export async function requestTTS(text: string): Promise<Blob> {
   const request: TTSRequest = {
     text,
-    speaker: 'nara',
-    speed: '0',
-    pitch: '0',
+    speaker: 'vyuna',
+    speed: '-1', // 기본 속도(0)보다 1.2배 빠르게 (약 20% 증가)
+    pitch: '3',
     volume: '0',
+    alpha: '1',
     format: 'mp3'
   };
 

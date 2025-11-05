@@ -102,15 +102,21 @@ const useTTS = () => {
       
       lastTTSTriggerRef.current = messageId;
       
-      // 첫 번째 말풍선 텍스트만 TTS 재생
+      // 큰 글씨로 표시되는 상단 영역(firstSentence)만 TTS 재생
       let textToPlay = '';
       
+      // 첫 번째 문장 추출 함수 (ChatBubble.tsx와 동일한 로직)
+      const getFirstSentence = (text: string) => {
+        const match = text.match(/[^.!?]*(?:[.!?]|$)/);
+        return match ? match[0].trim() : text.split(/[.!?]/)[0].trim();
+      };
+      
       if (message.segments && message.segments.length > 0) {
-        // 세그먼트가 있으면 첫 번째 세그먼트만 재생
-        textToPlay = message.segments[0].text;
+        // 세그먼트가 있으면 첫 번째 세그먼트의 첫 번째 문장만 재생
+        textToPlay = getFirstSentence(message.segments[0].text);
       } else {
-        // 세그먼트가 없으면 전체 내용 재생
-        textToPlay = message.content;
+        // 세그먼트가 없으면 전체 내용의 첫 번째 문장만 재생
+        textToPlay = getFirstSentence(message.content);
       }
       
       // TTS를 즉시 재생 (텍스트 애니메이션 시작 전)
@@ -1094,7 +1100,7 @@ export default function MainPageV1() {
                       }}
                     >
                       <SplitWords
-                        text="오늘의 대화가 모두 끝났어요\n제가 안내한 내용을 정리해드릴게요"
+                        text="오늘의 대화가 모두 끝났어요. 제가 안내한 내용을 정리해드릴게요"
                         delay={0}
                         duration={1.2}
                         stagger={0.05}

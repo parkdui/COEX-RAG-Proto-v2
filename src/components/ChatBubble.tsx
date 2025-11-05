@@ -5,7 +5,145 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
-import { SplitWords, TypingEffect, SplitText } from '@/components/ui';
+import { SplitWords, TypingEffect, SplitText, Typewriter } from '@/components/ui';
+import ChatTypewriter from '@/components/ui/ChatTypewriter';
+import GradientText from '@/components/ui/GradientText';
+
+/**
+ * 작은따옴표(''), 큰따옴표(""), '**'로 감싸진 텍스트를 파싱하는 함수
+ */
+const parseQuotedText = (text: string): Array<{ text: string; isQuoted: boolean }> => {
+  if (!text) return [{ text: '', isQuoted: false }];
+  
+  const parts: Array<{ text: string; isQuoted: boolean }> = [];
+  let lastIndex = 0;
+  
+  // 모든 마커 패턴: 작은따옴표 쌍(''), 단일 작은따옴표('), 큰따옴표(""), '**'
+  // 작은따옴표 쌍을 먼저 찾고, 그 다음 단일 작은따옴표를 찾음
+  // 단일 작은따옴표: 작은따옴표로 시작하고 끝나는 텍스트 (한글/영문 포함)
+  const patterns = [
+    { regex: /''(.*?)''/g, name: 'double-single' }, // 작은따옴표 쌍 먼저 체크
+    { regex: /'(.*?)'/g, name: 'single' }, // 단일 작은따옴표
+    { regex: /""(.*?)""/g, name: 'double' },
+    { regex: /\*\*(.*?)\*\*/g, name: 'bold' }
+  ];
+  
+  const allMatches: Array<{ start: number; end: number; text: string; type: string }> = [];
+  
+  // 모든 패턴에서 매칭 찾기
+  for (const pattern of patterns) {
+    const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      // 단일 작은따옴표의 경우, 작은따옴표 쌍과 겹치지 않도록 체크
+      if (pattern.name === 'single') {
+        // 작은따옴표 쌍('')과 겹치는지 확인
+        const beforeChar = text[match.index - 1];
+        const afterEndChar = text[match.index + match[0].length];
+        if (beforeChar === "'" || afterEndChar === "'") {
+          // 작은따옴표 쌍의 일부이므로 건너뜀
+          continue;
+        }
+      }
+      
+      allMatches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[1],
+        type: pattern.name
+      });
+    }
+  }
+  
+  // 시작 위치 순으로 정렬
+  allMatches.sort((a, b) => a.start - b.start);
+  
+  // 겹치지 않는 매칭만 선택
+  const validMatches: Array<{ start: number; end: number; text: string; type: string }> = [];
+  for (const match of allMatches) {
+    if (validMatches.length === 0 || match.start >= validMatches[validMatches.length - 1].end) {
+      validMatches.push(match);
+    }
+  }
+  
+  // 디버깅: 매칭 결과 확인
+  if (validMatches.length > 0) {
+    console.log('parseQuotedText matches found:', validMatches);
+  }
+  
+  // 텍스트 파싱
+  for (const match of validMatches) {
+    // 매칭 이전 텍스트
+    if (match.start > lastIndex) {
+      const beforeText = text.substring(lastIndex, match.start);
+      if (beforeText) {
+        parts.push({ text: beforeText, isQuoted: false });
+      }
+    }
+    
+    // 매칭된 텍스트
+    if (match.text) {
+      parts.push({ text: match.text, isQuoted: true });
+    }
+    
+    lastIndex = match.end;
+  }
+  
+  // 남은 텍스트
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    if (remainingText) {
+      parts.push({ text: remainingText, isQuoted: false });
+    }
+  }
+  
+  // 매칭이 없으면 전체 텍스트 반환
+  if (parts.length === 0) {
+    parts.push({ text, isQuoted: false });
+  }
+  
+  return parts;
+};
+
+/**
+ * 텍스트를 작은따옴표, 큰따옴표, '**' 파싱 결과로 렌더링하는 컴포넌트
+ */
+const QuotedTextRenderer: React.FC<{ text: string }> = ({ text }) => {
+  // 디버깅: 원본 텍스트 확인
+  console.log('QuotedTextRenderer input:', text);
+  
+  const parts = parseQuotedText(text);
+  
+  // 디버깅: 파싱 결과 확인
+  console.log('QuotedTextRenderer parts:', parts);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.isQuoted) {
+          // 테스트: GradientText 적용
+          console.log('Rendering quoted text:', part.text);
+          return (
+            <span
+              key={index}
+              className="inline-block px-2 py-1 mx-1"
+              style={{
+                fontWeight: 600, // Semibold
+                borderRadius: '25px',
+                background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
+              }}
+            >
+              <GradientText colors={['#ffaa40', '#9c40ff', '#ffaa40']} animationSpeed={8}>
+                {part.text}
+              </GradientText>
+            </span>
+          );
+        }
+        return <span key={index}>{part.text}</span>;
+      })}
+    </>
+  );
+};
 
 /**
  * TTS 버튼 컴포넌트
@@ -119,72 +257,38 @@ const MessageSegment: React.FC<{
 
   const segmentDelay = calculateDelay(segmentIndex, segment.text);
 
+  // Typewriter 속도 계산 (평균적으로 1글자당 50ms)
+  const typewriterSpeed = 50;
+
   return (
     <div className={isFirst ? "flex justify-center" : "flex justify-start"}>
       <div className={isFirst ? "w-full" : "w-full"}>
         {isFirst ? (
           <>
             <div className="whitespace-pre-wrap break-words mb-3 flex justify-center" style={firstBubbleStyle}>
-              {getLineCount(firstSentence) >= 5 ? (
-                <SplitLines
-                  text={firstSentence}
-                  delay={segmentDelay}
-                  duration={1.2}
-                  stagger={0.1}
-                  animation="fadeIn"
-                />
-              ) : (
-                <SplitWords
-                  text={firstSentence}
-                  delay={segmentDelay}
-                  duration={1.2}
-                  stagger={0.05}
-                  animation="fadeIn"
-                  className="text-center"
-                />
-              )}
+              <Typewriter
+                text={firstSentence}
+                speed={typewriterSpeed}
+                delay={segmentDelay}
+              />
             </div>
             {restOfText && (
               <div className="whitespace-pre-wrap break-words" style={textStyle}>
-                {getLineCount(restOfText) >= 5 ? (
-                  <SplitLines
-                    text={restOfText}
-                    delay={segmentDelay + 500}
-                    duration={1.2}
-                    stagger={0.1}
-                    animation="fadeIn"
-                  />
-                ) : (
-                  <SplitWords
-                    text={restOfText}
-                    delay={segmentDelay + 500}
-                    duration={1.2}
-                    stagger={0.05}
-                    animation="fadeIn"
-                  />
-                )}
+                <Typewriter
+                  text={restOfText}
+                  speed={typewriterSpeed}
+                  delay={segmentDelay + (firstSentence.length * typewriterSpeed)}
+                />
               </div>
             )}
           </>
         ) : (
           <div className="whitespace-pre-wrap break-words" style={textStyle}>
-            {getLineCount(segment.text) >= 5 ? (
-              <SplitLines
-                text={segment.text}
-                delay={segmentDelay}
-                duration={1.2}
-                stagger={0.1}
-                animation="fadeIn"
-              />
-            ) : (
-              <SplitWords
-                text={segment.text}
-                delay={segmentDelay}
-                duration={1.2}
-                stagger={0.05}
-                animation="fadeIn"
-              />
-            )}
+            <Typewriter
+              text={segment.text}
+              speed={typewriterSpeed}
+              delay={segmentDelay}
+            />
           </div>
         )}
       </div>
@@ -193,7 +297,7 @@ const MessageSegment: React.FC<{
 };
 
 /**
- * 분할된 메시지 컴포넌트
+ * 분할된 메시지 컴포넌트 - 전체 텍스트를 한 번에 Typewriter로 처리
  */
 const SegmentedMessage: React.FC<{
   message: any;
@@ -203,6 +307,33 @@ const SegmentedMessage: React.FC<{
   const [showHighlight, setShowHighlight] = useState(false);
   const [containerHeight, setContainerHeight] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // 첫 번째 세그먼트의 첫 번째 문장 추출
+  const getFirstSentence = (text: string) => {
+    const match = text.match(/[^.!?]*(?:[.!?]|$)/);
+    return match ? match[0].trim() : text.split(/[.!?]/)[0].trim();
+  };
+  
+  const firstSegmentText = message.segments?.[0]?.text || message.content || '';
+  const firstSentence = getFirstSentence(firstSegmentText);
+  
+  // 첫 번째 세그먼트에서 첫 번째 문장을 제외한 나머지
+  const getRestOfFirstSegment = (text: string, firstSentence: string) => {
+    const index = text.indexOf(firstSentence);
+    if (index !== -1) {
+      return text.substring(index + firstSentence.length).trim();
+    }
+    return '';
+  };
+  
+  const restOfFirstSegment = getRestOfFirstSegment(firstSegmentText, firstSentence);
+  
+  // 나머지 세그먼트들
+  const remainingSegments = message.segments?.slice(1) || [];
+  const remainingText = remainingSegments.map((seg: any) => seg.text).join('\n\n');
+  
+  // 전체 텍스트 구성: 첫 번째 문장 + 첫 번째 세그먼트 나머지 + 나머지 세그먼트들
+  const fullText = firstSentence + (restOfFirstSegment ? '\n\n' + restOfFirstSegment : '') + (remainingText ? '\n\n' + remainingText : '');
   
   // 하이라이트 애니메이션 트리거
   useEffect(() => {
@@ -214,10 +345,23 @@ const SegmentedMessage: React.FC<{
   // 컨테이너 높이 추적 및 실시간 확장 효과
   useEffect(() => {
     if (contentRef.current) {
+      // 즉시 높이 계산
+      const updateHeight = () => {
+        if (contentRef.current) {
+          const scrollHeight = contentRef.current.scrollHeight;
+          // 패딩을 고려한 높이 계산 (20px * 2 = 40px)
+          const newHeight = scrollHeight + 40;
+          setContainerHeight(newHeight);
+        }
+      };
+      
+      // 초기 높이 설정
+      updateHeight();
+      
       // ResizeObserver로 높이 변화 감지
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const newHeight = entry.contentRect.height;
+          const newHeight = entry.contentRect.height + 40;
           if (newHeight > 0) {
             setContainerHeight(newHeight);
           }
@@ -226,11 +370,38 @@ const SegmentedMessage: React.FC<{
       
       resizeObserver.observe(contentRef.current);
       
+      // 주기적으로 높이 확인 (Typewriter로 인한 동적 변화 대응)
+      const intervalId = setInterval(updateHeight, 100);
+      
       return () => {
         resizeObserver.disconnect();
+        clearInterval(intervalId);
       };
     }
-  }, [message.segments]);
+  }, [message.segments, fullText]);
+  
+  const textStyle = {
+    color: '#000',
+    fontFamily: 'Pretendard Variable',
+    fontSize: '16px',
+    fontStyle: 'normal' as const,
+    fontWeight: 400,
+    lineHeight: '140%',
+    letterSpacing: '-0.64px',
+    textAlign: 'center' as const,
+  };
+
+  const firstBubbleStyle = {
+    color: '#4E5363',
+    textAlign: 'center' as const,
+    textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
+    fontFamily: 'Pretendard Variable',
+    fontSize: '22px',
+    fontStyle: 'normal' as const,
+    fontWeight: 600,
+    lineHeight: '132%',
+    letterSpacing: '-0.88px',
+  };
   
   return (
     <div className="flex justify-center mb-4">
@@ -246,7 +417,8 @@ const SegmentedMessage: React.FC<{
           padding: '20px',
           position: 'relative',
           overflow: 'hidden',
-          transition: containerHeight > 0 ? 'min-height 0.3s ease-out' : 'none',
+          transition: containerHeight > 0 ? 'height 0.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+          height: containerHeight > 0 ? `${containerHeight}px` : 'auto',
           minHeight: containerHeight > 0 ? `${containerHeight}px` : 'auto',
         }}
       >
@@ -272,16 +444,50 @@ const SegmentedMessage: React.FC<{
             }}
           />
         )}
-        <div ref={contentRef} className="flex flex-col gap-2" style={{ position: 'relative', zIndex: 2 }}>
-          {message.segments.map((segment: any, segmentIndex: number) => (
-            <MessageSegment
-              key={segmentIndex}
-              segment={segment}
-              onPlayTTS={onPlayTTS}
-              isPlayingTTS={isPlayingTTS}
-              segmentIndex={segmentIndex}
-            />
-          ))}
+        <div ref={contentRef} style={{ position: 'relative', zIndex: 2 }}>
+          <ChatTypewriter
+            text={fullText}
+            speed={50}
+            delay={500}
+            onComplete={() => {
+              // 완료 후 높이 재계산
+              if (contentRef.current) {
+                setContainerHeight(contentRef.current.scrollHeight + 40);
+              }
+            }}
+            render={(displayedText, isComplete) => {
+              // 첫 번째 문장 부분과 나머지 부분으로 분리
+              const firstSentenceLength = firstSentence.length;
+              const displayedFirstSentence = displayedText.substring(0, firstSentenceLength);
+              const displayedRest = displayedText.substring(firstSentenceLength);
+              
+              // displayedRest에서 앞의 '\n\n' 제거
+              const cleanedRest = displayedRest.replace(/^\n\n/, '');
+              
+              // ●를 표시할 위치 결정 (마지막 텍스트가 있는 곳)
+              const showCursor = !isComplete;
+              
+              return (
+                <div className="flex flex-col gap-2">
+                  {displayedFirstSentence && (
+                    <div className="whitespace-pre-wrap break-words mb-3 flex justify-center" style={firstBubbleStyle}>
+                      <QuotedTextRenderer text={displayedFirstSentence} />
+                      {showCursor && displayedRest.length === 0 && <span className="inline-block">●</span>}
+                    </div>
+                  )}
+                  {cleanedRest && (
+                    <div className="whitespace-pre-wrap break-words" style={textStyle}>
+                      <QuotedTextRenderer text={cleanedRest} />
+                      {showCursor && <span className="inline-block">●</span>}
+                    </div>
+                  )}
+                  {!displayedFirstSentence && !cleanedRest && showCursor && (
+                    <span className="inline-block">●</span>
+                  )}
+                </div>
+              );
+            }}
+          />
           
           {message.tokens && <TokenInfo tokens={message.tokens} />}
           {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
@@ -354,6 +560,7 @@ const SingleMessage: React.FC<{
     fontWeight: 400,
     lineHeight: '140%',
     letterSpacing: '-0.64px',
+    textAlign: 'center' as const,
   };
 
   // 사용자 메시지는 계속 표시되어야 함 (AI 답변과 함께 표시)
@@ -380,10 +587,23 @@ const SingleMessage: React.FC<{
   
   useEffect(() => {
     if (contentRef.current && message.role === 'assistant') {
+      // 즉시 높이 계산
+      const updateHeight = () => {
+        if (contentRef.current) {
+          const scrollHeight = contentRef.current.scrollHeight;
+          // 패딩을 고려한 높이 계산 (20px * 2 = 40px)
+          const newHeight = scrollHeight + 40;
+          setContainerHeight(newHeight);
+        }
+      };
+      
+      // 초기 높이 설정
+      updateHeight();
+      
       // ResizeObserver로 높이 변화 감지
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const newHeight = entry.contentRect.height;
+          const newHeight = entry.contentRect.height + 40;
           if (newHeight > 0) {
             setContainerHeight(newHeight);
           }
@@ -392,8 +612,12 @@ const SingleMessage: React.FC<{
       
       resizeObserver.observe(contentRef.current);
       
+      // 주기적으로 높이 확인 (Typewriter로 인한 동적 변화 대응)
+      const intervalId = setInterval(updateHeight, 100);
+      
       return () => {
         resizeObserver.disconnect();
+        clearInterval(intervalId);
       };
     }
   }, [message.content, message.role]);
@@ -413,9 +637,10 @@ const SingleMessage: React.FC<{
             boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
             padding: '20px',
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'visible',
+            height: containerHeight > 0 ? `${containerHeight}px` : 'auto',
             minHeight: containerHeight > 0 ? `${containerHeight}px` : 'auto',
-            transition: containerHeight > 0 ? 'min-height 0.3s ease-out' : 'none',
+            transition: containerHeight > 0 ? 'height 0.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
           }}
         >
           {/* Border stroke 애니메이션 */}
@@ -442,25 +667,27 @@ const SingleMessage: React.FC<{
           )}
           <div ref={contentRef} className="whitespace-pre-wrap break-words" style={{ position: 'relative', zIndex: 2 }}>
             {!isThinking ? (
-              // AI 메시지: 5줄 이상이면 line by line, 그 이하면 word by word
+              // AI 메시지: ChatTypewriter 효과 적용
               <div style={textStyle}>
-                {getLineCount(message.content) >= 5 ? (
-                  <SplitLines
-                    text={message.content}
-                    delay={500}
-                    duration={1.2}
-                    stagger={0.1}
-                    animation="fadeIn"
-                  />
-                ) : (
-                  <SplitWords
-                    text={message.content}
-                    delay={500}
-                    duration={1.2}
-                    stagger={0.05}
-                    animation="fadeIn"
-                  />
-                )}
+                <ChatTypewriter
+                  text={message.content}
+                  speed={50}
+                  delay={500}
+                  onComplete={() => {
+                    // 완료 후 높이 재계산
+                    if (contentRef.current) {
+                      setContainerHeight(contentRef.current.scrollHeight + 40);
+                    }
+                  }}
+                  render={(displayedText, isComplete) => {
+                    return (
+                      <>
+                        <QuotedTextRenderer text={displayedText} />
+                        {!isComplete && <span className="inline-block">●</span>}
+                      </>
+                    );
+                  }}
+                />
               </div>
             ) : (
               <>

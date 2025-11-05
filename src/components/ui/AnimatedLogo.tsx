@@ -13,8 +13,8 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const logoHeight = 40; // 각 로고 div의 높이 (간격 최소화)
-    const containerHeight = 40; // 외부 컨테이너 높이 (로고 하나 높이와 동일)
+    const logoHeight = 20; // 각 로고 div의 높이 (간격 최소화)
+    const containerHeight = 20; // 외부 컨테이너 높이 (로고 하나 높이와 동일)
     const holdDuration = 3000; // 중앙에 도착했을 때 3초 대기
     const moveDuration = 2000; // 로고가 올라가는 시간 (2초)
     const cycleHeight = logoHeight * 2; // SORI → COEX (2개 로고 높이)
@@ -44,20 +44,25 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
       
       let translateY: number;
       
+      // 1단계: SORI 중앙에 3초 대기 (0-3000ms)
       if (cycleProgress < holdDuration) {
-        // 1단계: SORI 중앙에 3초 대기
         translateY = verticalOffset;
-      } else if (cycleProgress < holdDuration + moveDuration) {
-        // 2단계: SORI 올라가고 COEX 올라옴
-        const moveProgress = (cycleProgress - holdDuration) / moveDuration;
+      } 
+      // 2단계: SORI 올라가고 COEX 올라옴 (3000-5000ms)
+      else if (cycleProgress >= holdDuration && cycleProgress <= holdDuration + moveDuration) {
+        const moveProgress = Math.min((cycleProgress - holdDuration) / moveDuration, 1);
         const easedProgress = easeInOutCubic(moveProgress);
+        // 0에서 -20px로 이동 (SORI 올라가고 COEX 나타남)
         translateY = verticalOffset - easedProgress * logoHeight;
-      } else if (cycleProgress < holdDuration * 2 + moveDuration) {
-        // 3단계: COEX 중앙에 3초 대기
+      } 
+      // 3단계: COEX 중앙에 3초 대기 (5000-8000ms)
+      else if (cycleProgress > holdDuration + moveDuration && cycleProgress < holdDuration * 2 + moveDuration) {
+        // 정확히 -20px 위치에서 고정 (COEX 대기)
         translateY = verticalOffset - logoHeight;
-      } else {
-        // 4단계: COEX 올라가고 SORI 올라옴 (계속 위로 올라가는 방향 유지)
-        const moveProgress = (cycleProgress - holdDuration * 2 - moveDuration) / moveDuration;
+      } 
+      // 4단계: COEX 올라가고 SORI 올라옴 (8000-10000ms)
+      else {
+        const moveProgress = (cycleProgress - (holdDuration * 2 + moveDuration)) / moveDuration;
         const easedProgress = easeInOutCubic(moveProgress);
         translateY = verticalOffset - logoHeight - easedProgress * logoHeight;
       }
@@ -88,7 +93,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
       className={className}
       style={{
         width: '402px',
-        height: '40px', // 로고 하나 높이와 동일 (한 번에 하나만 보이도록)
+        height: '20px', // 로고 하나 높이와 동일 (한 번에 하나만 보이도록)
         padding: '0 15px',
         background: 'rgba(0, 0, 0, 0.00)',
         flexShrink: 0,
@@ -108,25 +113,34 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
           transition: 'none', // 애니메이션은 requestAnimationFrame으로 제어
           willChange: 'transform',
           gap: 0, // gap 제거 (로고가 붙어있도록)
+          rowGap: 0, // 행 간격 제거
+          columnGap: 0, // 열 간격 제거
           position: 'absolute',
           top: 0,
           left: '15px',
           right: '15px',
-          width: 'calc(100% - 30px)' // 패딩 고려
+          width: 'calc(100% - 30px)', // 패딩 고려
+          margin: '0',
+          padding: '0',
+          lineHeight: '0'
         }}
       >
         {/* SORI 로고 (초기 중앙 위치) */}
         <div
           style={{
             width: '100%',
-            height: '40px',
+            height: '20px', // 정확히 40px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
             padding: '0', // 간격 제거
-            margin: '0' // 마진 제거
+            margin: '0', // 마진 제거
+            lineHeight: '0', // 텍스트 간격 제거
+            border: 'none',
+            outline: 'none',
+            alignContent: 'flex-start' // 추가 정렬
           }}
         >
           <img 
@@ -134,11 +148,21 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             alt="SORI Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              margin: '0',
+              padding: '0',
+              lineHeight: '0',
+              verticalAlign: 'top',
+              border: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+              alignSelf: 'flex-start', // 이미지 상단 정렬
+              marginTop: '0', // 상단 마진 명시적 제거
+              marginBottom: '0' // 하단 마진 명시적 제거
             }}
           />
         </div>
@@ -147,14 +171,18 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '40px',
+            height: '20px', // 정확히 40px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
             padding: '0', // 간격 제거
-            margin: '0' // 마진 제거
+            margin: '0', // 마진 제거
+            lineHeight: '0', // 텍스트 간격 제거
+            border: 'none',
+            outline: 'none',
+            alignContent: 'flex-start' // 추가 정렬
           }}
         >
           <img 
@@ -162,11 +190,21 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             alt="COEX Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              maxHeight: '40px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              margin: '0',
+              padding: '0',
+              lineHeight: '0',
+              verticalAlign: 'top',
+              border: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+              alignSelf: 'flex-start', // 이미지 상단 정렬
+              marginTop: '0', // 상단 마진 명시적 제거
+              marginBottom: '0' // 하단 마진 명시적 제거
             }}
           />
         </div>
@@ -175,14 +213,18 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '40px',
+            height: '20px', // 정확히 40px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
             padding: '0', // 간격 제거
-            margin: '0' // 마진 제거
+            margin: '0', // 마진 제거
+            lineHeight: '0', // 텍스트 간격 제거
+            border: 'none',
+            outline: 'none',
+            alignContent: 'flex-start' // 추가 정렬
           }}
         >
           <img 
@@ -190,11 +232,21 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             alt="SORI Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              margin: '0',
+              padding: '0',
+              lineHeight: '0',
+              verticalAlign: 'top',
+              border: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+              alignSelf: 'flex-start', // 이미지 상단 정렬
+              marginTop: '0', // 상단 마진 명시적 제거
+              marginBottom: '0' // 하단 마진 명시적 제거
             }}
           />
         </div>
@@ -203,14 +255,18 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '40px',
+            height: '20px', // 정확히 40px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
             padding: '0', // 간격 제거
-            margin: '0' // 마진 제거
+            margin: '0', // 마진 제거
+            lineHeight: '0', // 텍스트 간격 제거
+            border: 'none',
+            outline: 'none',
+            alignContent: 'flex-start' // 추가 정렬
           }}
         >
           <img 
@@ -218,11 +274,21 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             alt="COEX Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              margin: '0',
+              padding: '0',
+              lineHeight: '0',
+              verticalAlign: 'top',
+              border: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+              alignSelf: 'flex-start', // 이미지 상단 정렬
+              marginTop: '0', // 상단 마진 명시적 제거
+              marginBottom: '0' // 하단 마진 명시적 제거
             }}
           />
         </div>
@@ -231,14 +297,18 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '40px',
+            height: '20px', // 정확히 40px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
             padding: '0', // 간격 제거
-            margin: '0' // 마진 제거
+            margin: '0', // 마진 제거
+            lineHeight: '0', // 텍스트 간격 제거
+            border: 'none',
+            outline: 'none',
+            alignContent: 'flex-start' // 추가 정렬
           }}
         >
           <img 
@@ -246,11 +316,21 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             alt="SORI Logo"
             style={{
               maxWidth: '100%',
-              maxHeight: '40px', // 간격 최소화를 위한 높이 조정
+              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              margin: '0',
+              padding: '0',
+              lineHeight: '0',
+              verticalAlign: 'top',
+              border: 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
+              alignSelf: 'flex-start', // 이미지 상단 정렬
+              marginTop: '0', // 상단 마진 명시적 제거
+              marginBottom: '0' // 하단 마진 명시적 제거
             }}
           />
         </div>

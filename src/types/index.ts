@@ -55,6 +55,7 @@ export interface TTSRequest {
   speed: string;
   pitch: string;
   volume: string;
+  alpha?: string;
   format: string;
 }
 
