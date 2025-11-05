@@ -7,7 +7,6 @@ import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText, Typewriter } from '@/components/ui';
 import ChatTypewriter from '@/components/ui/ChatTypewriter';
-import GradientText from '@/components/ui/GradientText';
 
 /**
  * 작은따옴표(''), 큰따옴표(""), '**'로 감싸진 텍스트를 파싱하는 함수
@@ -66,10 +65,6 @@ const parseQuotedText = (text: string): Array<{ text: string; isQuoted: boolean 
     }
   }
   
-  // 디버깅: 매칭 결과 확인
-  if (validMatches.length > 0) {
-    console.log('parseQuotedText matches found:', validMatches);
-  }
   
   // 텍스트 파싱
   for (const match of validMatches) {
@@ -109,33 +104,41 @@ const parseQuotedText = (text: string): Array<{ text: string; isQuoted: boolean 
  * 텍스트를 작은따옴표, 큰따옴표, '**' 파싱 결과로 렌더링하는 컴포넌트
  */
 const QuotedTextRenderer: React.FC<{ text: string }> = ({ text }) => {
-  // 디버깅: 원본 텍스트 확인
-  console.log('QuotedTextRenderer input:', text);
-  
   const parts = parseQuotedText(text);
-  
-  // 디버깅: 파싱 결과 확인
-  console.log('QuotedTextRenderer parts:', parts);
 
   return (
     <>
       {parts.map((part, index) => {
         if (part.isQuoted) {
-          // 테스트: GradientText 적용
-          console.log('Rendering quoted text:', part.text);
           return (
             <span
               key={index}
-              className="inline-block px-2 py-1 mx-1"
+              className="inline-block px-2 py-1 mx-1 relative"
               style={{
                 fontWeight: 600, // Semibold
                 borderRadius: '25px',
                 background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
               }}
             >
-              <GradientText colors={['#ffaa40', '#9c40ff', '#ffaa40']} animationSpeed={8}>
+              {/* 보더 그라데이션을 위한 wrapper */}
+              <span
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: '25px',
+                  padding: '1px',
+                  background: 'linear-gradient(45deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 1) 100%)',
+                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                  WebkitMaskComposite: 'xor',
+                  mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                  maskComposite: 'exclude',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+              />
+              <span style={{ position: 'relative', zIndex: 0 }}>
                 {part.text}
-              </GradientText>
+              </span>
             </span>
           );
         }
