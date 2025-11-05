@@ -1,39 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import GSAPSplitText from './ui/GSAPSplitText';
+import { useState } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
+import BlobBackground from './ui/BlobBackground';
 
 interface LandingPageProps {
   onStart: () => void;
+  showBlob?: boolean;
 }
 
-export default function LandingPage({ onStart }: LandingPageProps) {
+export default function LandingPage({ onStart, showBlob = true }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
   const [showSori, setShowSori] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
-      {/* Blurry Blob 배경 */}
-      <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
-        <div
-          style={{
-            position: 'absolute',
-            width: '697px',
-            height: '697px',
-            flexShrink: 0,
-            borderRadius: '697px',
-            opacity: 0.85,
-            background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
-            filter: 'blur(20px)',
-            top: '35%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      </div>
+      {/* Blurry Blob 배경 - 2개의 gradient blob (V4/IN1 스타일) */}
+      {showBlob && <BlobBackground />}
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div className="relative z-10 flex-1 flex flex-col justify-start pt-20 px-6 pb-32">

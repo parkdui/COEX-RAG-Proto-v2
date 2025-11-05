@@ -171,7 +171,11 @@ const recommendationMessages = [
   "트렌디한 음식점을 찾고 있어"
 ];
 
-export default function MainPageV1() {
+interface MainPageV1Props {
+  showBlob?: boolean;
+}
+
+export default function MainPageV1({ showBlob = true }: MainPageV1Props = { showBlob: true }) {
   const chatRef = useRef<HTMLDivElement>(null);
   const chatState = useChatState();
   const voiceState = useVoiceRecording();
@@ -726,25 +730,11 @@ export default function MainPageV1() {
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
-      {/* Blurry Blob 배경 - 키워드 요약 화면에서는 숨김 */}
-      {!showSummary && (
-      <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
-        <div
-          style={{
-            position: 'absolute',
-            width: '697px',
-            height: '697px',
-            flexShrink: 0,
-            borderRadius: '697px',
-            opacity: 0.85,
-            background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
-            filter: 'blur(20px)',
-            top: '35%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      </div>
+      {/* Blurry Blob 배경은 AppFlow에서 관리 (키워드 요약 화면에서는 숨김) */}
+      {showBlob && !showSummary && (
+        <div className="fixed inset-0 z-0 pointer-events-none">
+          {/* BlobBackground는 AppFlow에서 렌더링됨 */}
+        </div>
       )}
       
       {/* 로고 - 상단에 고정 */}
@@ -1060,7 +1050,6 @@ export default function MainPageV1() {
                       <button
                         onClick={() => {
                           // End 버튼 클릭 시 처리 (필요한 로직 추가)
-                          console.log('End button clicked');
                         }}
                         className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
                         style={{

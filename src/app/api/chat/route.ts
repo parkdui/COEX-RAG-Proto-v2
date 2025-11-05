@@ -41,11 +41,7 @@ if (!/\/(testapp|serviceapp)(\/|$)/.test(CLOVA_BASE)) {
 const CLOVA_KEY = getEnv("CLOVA_API_KEY");
 const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 
-// 디버깅용 로그
-console.log("CLOVA API Debug:");
-console.log("CLOVA_BASE:", CLOVA_BASE);
-console.log("CLOVA_KEY:", CLOVA_KEY ? "SET" : "NOT SET");
-console.log("CLOVA_MODEL:", CLOVA_MODEL);
+// CLOVA API 설정
 
 // 파일 경로
   const VECTORS_JSON = path.join(process.cwd(), "public", "vectors.json");
@@ -155,10 +151,7 @@ function extractEmbedding(json: any) {
 async function callClovaChat(messages: any[], opts: any = {}) {
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
   
-  console.log("CLOVA API Call Debug:");
-  console.log("URL:", url);
-  console.log("CLOVA_BASE:", CLOVA_BASE);
-  console.log("CLOVA_MODEL:", CLOVA_MODEL);
+  // CLOVA API 호출
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
@@ -176,7 +169,7 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     stop: [],
   };
 
-  console.log("📝 [CLOVA Chat Request Body]:", JSON.stringify(body, null, 2));
+  // CLOVA Chat 요청
 
   const res = await fetch(url, {
     method: "POST",
@@ -255,20 +248,11 @@ interface SessionChatLog extends ChatLog {
 
 
 async function saveSessionBasedChatLog(logData: SessionChatLog) {
-  console.log('=== saveSessionBasedChatLog called ===');
-  console.log('Session ID:', logData.sessionId);
-  
   // 환경 변수 로드
   const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
   const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
   const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
-  
-  console.log("Session Log Environment variables check:");
-  console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
-  console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
-  console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
-  console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
   
   if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
@@ -317,7 +301,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       });
     }
   } catch {
-    console.log("Header check failed, will try to add headers");
+      // 헤더 추가
   }
 
   // 기존 세션 로그가 있는지 확인
@@ -339,7 +323,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
 
     if (existingRowIndex > 0) {
       // 기존 세션 업데이트 - 기존 대화에 새로운 대화 추가
-      console.log(`Updating existing session at row ${existingRowIndex}`);
+      // 기존 세션 업데이트
       
       // 기존 데이터 가져오기
       const existingRowData = await sheets.spreadsheets.values.get({
@@ -387,7 +371,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       });
     } else {
       // 새로운 세션 추가
-      console.log("Adding new session");
+      // 새 세션 추가
       const rowData = [
         logData.sessionId,
         logData.timestamp,
@@ -410,7 +394,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       });
     }
 
-    console.log("Session-based chat log saved to Google Sheets successfully");
+    // 세션 기반 채팅 로그 저장 완료
   } catch (error) {
     console.error("Error saving session-based chat log:", error);
     throw error;
@@ -494,21 +478,7 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // 디버깅 로그: 히스토리와 메시지 구조 확인
-    console.log("=== CHAT API DEBUG ===");
-    console.log("Question:", question);
-    console.log("System Prompt Length:", activeSystemPrompt.length);
-    console.log("System Prompt Preview:", activeSystemPrompt.substring(0, 200) + "...");
-    console.log("History length:", body?.history?.length || 0);
-    console.log("History content:", JSON.stringify(body?.history || [], null, 2));
-    console.log("Total messages:", messages.length);
-    console.log("Messages structure:", messages.map((m, i) => ({
-      index: i,
-      role: m.role,
-      contentLength: m.content?.length || 0,
-      contentPreview: m.content?.substring(0, 100) + (m.content?.length > 100 ? "..." : "")
-    })));
-    console.log("=====================");
+    // 메시지 처리
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
@@ -519,18 +489,12 @@ export async function POST(request: NextRequest) {
 
     // 구글 스프레드시트에 세션 기반 로그 저장 (비동기, 에러 무시)
     try {
-      console.log('=== SESSION-BASED LOGGING DEBUG ===');
-      
-              // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
-              const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-              const userAgent = request.headers.get('user-agent') || 'unknown';
-              const sessionString = `${clientIP}-${userAgent}`;
-              // 타임스탬프를 제거하고 IP+UserAgent 기반으로만 세션 ID 생성
-              const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
-      
-      console.log('Session ID:', sessionId);
-      console.log('History received:', JSON.stringify(body?.history || [], null, 2));
-      console.log('History length:', (body?.history || []).length);
+      // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
+      const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      const sessionString = `${clientIP}-${userAgent}`;
+      // 타임스탬프를 제거하고 IP+UserAgent 기반으로만 세션 ID 생성
+      const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
       
       // 전체 대화 히스토리를 올바른 형식으로 변환
       const conversation = [];
@@ -560,7 +524,7 @@ export async function POST(request: NextRequest) {
         aiMessage: cleanedAnswer
       });
 
-      console.log('Final conversation for logging:', JSON.stringify(conversation, null, 2));
+      // 대화 히스토리 준비 완료
 
       // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
       const now = new Date();
@@ -574,25 +538,14 @@ export async function POST(request: NextRequest) {
         conversation: conversation
       };
       
-      console.log('Log data prepared:', JSON.stringify(logData, null, 2));
-      console.log('========================');
+      // 로그 데이터 준비 완료
 
       // Google Sheets에 세션 기반 로그 저장
       try {
         await saveSessionBasedChatLog(logData);
-        console.log('✅ Session-based chat log saved successfully to Google Sheets');
+        // 세션 기반 채팅 로그 저장 성공
       } catch (error) {
-        console.error('❌ Failed to save session-based chat log:', error);
-        // 실패 시 콘솔에도 출력
-        console.log('=== CHAT LOG (Fallback Console Output) ===');
-        console.log('Session ID:', logData.sessionId);
-        console.log('Timestamp:', logData.timestamp);
-        console.log('Conversation Count:', logData.conversation.length);
-        logData.conversation.forEach((conv, index) => {
-          console.log(`  ${index + 1}. User: ${conv.userMessage.substring(0, 100)}${conv.userMessage.length > 100 ? '...' : ''}`);
-          console.log(`     AI: ${conv.aiMessage.substring(0, 100)}${conv.aiMessage.length > 100 ? '...' : ''}`);
-        });
-        console.log('==========================================');
+        // 로그 저장 실패 시 에러만 기록
       }
     } catch (error) {
       console.error('Error preparing session-based chat log:', error);

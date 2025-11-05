@@ -1,34 +1,39 @@
 'use client';
 
-import React from 'react';
+import { useState } from 'react';
 import AnimatedLogo from './ui/AnimatedLogo';
 import { SplitWords } from './ui/SplitText';
 
 interface OnboardingPageProps {
   onNext: () => void;
+  onBlobAnimationStart?: () => void;
+  showBlob?: boolean;
 }
 
-export default function OnboardingPage({ onNext }: OnboardingPageProps) {
+export default function OnboardingPage({ onNext, onBlobAnimationStart, showBlob = true }: OnboardingPageProps) {
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const handleNextClick = () => {
+    // 상위 컴포넌트에서 blob 애니메이션을 제어하도록 신호
+    if (onBlobAnimationStart) {
+      onBlobAnimationStart();
+    }
+    // 페이드아웃 시작
+    setIsTransitioning(true);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
-      {/* Blurry Blob 배경 */}
-      <div className="fixed inset-0 overflow-hidden" style={{ zIndex: 0, backgroundColor: '#EEF6F0' }}>
-        <div
-          style={{
-            position: 'absolute',
-            width: '697px',
-            height: '697px',
-            flexShrink: 0,
-            borderRadius: '697px',
-            opacity: 0.85,
-            background: 'radial-gradient(68.28% 68.28% at 42.04% 40.53%, #C6FFB0 0%, #50ECCA 38.04%, #D6FCFF 75.51%, #E8C9FF 91.03%, #FFFDBD 100%)',
-            filter: 'blur(20px)',
-            top: '35%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      </div>
+    <div 
+      className={`min-h-screen flex flex-col safe-area-inset overscroll-contain relative transition-opacity duration-500 ${
+        isTransitioning ? 'opacity-0' : 'opacity-100'
+      }`}
+    >
+      {/* Blurry Blob 배경은 AppFlow에서 관리 */}
+      {showBlob && (
+        <div className="fixed inset-0 z-0 pointer-events-none">
+          {/* BlobBackground는 AppFlow에서 렌더링됨 */}
+        </div>
+      )}
 
       {/* 상단 상태바 */}
       <div className="relative z-10 w-full h-1 bg-black"></div>
@@ -87,8 +92,9 @@ export default function OnboardingPage({ onNext }: OnboardingPageProps) {
       {/* Next 버튼 - 화면 하단 고정 */}
       <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
         <button
-          onClick={onNext}
-          className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+          onClick={handleNextClick}
+          disabled={isTransitioning}
+          className="w-full touch-manipulation active:scale-95 flex justify-center items-center disabled:opacity-50"
           style={{
             height: '56px',
             padding: '15px 85px',
