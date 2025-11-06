@@ -9,6 +9,7 @@ import { requestTTS, AudioManager } from '@/lib/ttsUtils';
 import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
+import ChatTypewriter from '@/components/ui/ChatTypewriter';
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -920,21 +921,17 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   className="p-6 w-full"
                 >
                   <div className="flex justify-center">
-                    <SplitWords
+                    <ChatTypewriter
                       text="안녕하세요! 이솔이에요"
+                      speed={50}
                       delay={0}
-                      duration={1.2}
-                      stagger={0.05}
-                      animation="fadeIn"
                     />
                   </div>
                   <div className="flex justify-center mt-2">
-                    <SplitWords
+                    <ChatTypewriter
                       text="코엑스 안내를 도와드릴게요"
+                      speed={50}
                       delay={800}
-                      duration={1.2}
-                      stagger={0.05}
-                      animation="fadeIn"
                     />
                   </div>
                 </div>

@@ -23,15 +23,52 @@ export default function ChatTypewriter({
 }: ChatTypewriterProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
+  const [dotColor, setDotColor] = useState({ r: 0, g: 0, b: 0 });
   const onCompleteRef = useRef(onComplete);
   const textRef = useRef(text);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const isRunningRef = useRef(false);
+  const colorIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 콜백 함수를 최신으로 유지
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  // Dot 색상이 실시간으로 변하는 애니메이션
+  useEffect(() => {
+    if (!isComplete) {
+      // 랜덤 RGB 색상 생성 함수
+      const generateRandomColor = () => {
+        return {
+          r: Math.floor(Math.random() * 256),
+          g: Math.floor(Math.random() * 256),
+          b: Math.floor(Math.random() * 256),
+        };
+      };
+
+      // 초기 색상 설정
+      setDotColor(generateRandomColor());
+
+      // 주기적으로 색상 변경 (200ms마다)
+      colorIntervalRef.current = setInterval(() => {
+        setDotColor(generateRandomColor());
+      }, 200);
+
+      return () => {
+        if (colorIntervalRef.current) {
+          clearInterval(colorIntervalRef.current);
+          colorIntervalRef.current = null;
+        }
+      };
+    } else {
+      // 타이핑이 완료되면 색상 애니메이션 중지
+      if (colorIntervalRef.current) {
+        clearInterval(colorIntervalRef.current);
+        colorIntervalRef.current = null;
+      }
+    }
+  }, [isComplete]);
 
   useEffect(() => {
     if (text.length === 0) return;
@@ -95,10 +132,22 @@ export default function ChatTypewriter({
     return <>{render(displayedText, isComplete)}</>;
   }
 
+  const dotColorString = `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`;
+
   return (
     <span className={className} style={style}>
       {displayedText}
-      {!isComplete && <span className="inline-block">●</span>}
+      {!isComplete && (
+        <span 
+          className="inline-block"
+          style={{
+            color: dotColorString,
+            transition: 'color 0.2s ease',
+          }}
+        >
+          ●
+        </span>
+      )}
     </span>
   );
 }
