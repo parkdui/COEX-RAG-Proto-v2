@@ -72,17 +72,13 @@ export default function BlobBackground({
           pointerEvents: 'none'
         }}
       >
-        {/* T2 스타일 블롭 2개 (위/아래) - 최적화: 불필요한 레이어 제거 */}
+        {/* T2 스타일 블롭 2개 (위/아래) - 최적화: 보라색-핑크색 그라디언트 제거 */}
         <div className="t2-stage">
           <div className="t2-blob top">
-            <div className="t2-flow f1" />
             <div className="t2-core" />
-            <div className="t2-ring" />
           </div>
           <div className="t2-blob bottom">
-            <div className="t2-flow f1" />
             <div className="t2-core" />
-            <div className="t2-ring" />
           </div>
         </div>
       </div>
@@ -167,27 +163,12 @@ export default function BlobBackground({
         .blob-container.moved .t2-blob.top::before { animation: t2BlurRiseTop 1100ms cubic-bezier(0.4, 0, 1, 1) 0s 1 forwards; }
         .blob-container.arrived .t2-blob::before { animation: t2BlurSettle 220ms ease-out 0s 1 forwards; }
 
-        .t2-ring {
-          position: absolute;
-          inset: 0;
-          border-radius: 50%;
-          pointer-events: none;
-          background:
-            radial-gradient(circle at 72% 78%,
-              rgba(235, 201, 255, 0) 0 74%,
-              rgba(179, 225, 255, 0.28) 82%,
-              rgba(235, 201, 255, 0.55) 90%,
-              rgba(255, 189, 228, 0.8) 100%
-            );
-          filter: blur(50px);
-        }
-
         .t2-core { 
           position: absolute; 
           inset: 0; 
           border-radius: 50%; 
           pointer-events: none; 
-          background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, rgba(235,201,255,0.12) 30%, rgba(255,189,228,0.08) 48%, rgba(0,0,0,0) 70%); 
+          background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, rgba(200,240,220,0.08) 30%, rgba(180,230,210,0.05) 48%, rgba(0,0,0,0) 70%); 
           filter: blur(18px); 
           opacity: 0.14; 
           transform: scale(0.99); 
@@ -198,35 +179,6 @@ export default function BlobBackground({
         @keyframes t2CorePulse {
           0%, 100% { opacity: 0.14; transform: scale(0.99); }
           50% { opacity: 0.20; transform: scale(1.02); }
-        }
-
-        /* directional flow overlay - 최적화: 필터 단순화 */
-        .t2-flow {
-          position: absolute;
-          inset: -6%;
-          border-radius: 50%;
-          pointer-events: none;
-          background: linear-gradient(90deg,
-            rgba(199,125,255,0.18) 0%,
-            rgba(235,201,255,0.26) 20%,
-            rgba(255,189,228,0.18) 40%,
-            rgba(235,201,255,0.10) 60%,
-            rgba(199,125,255,0.00) 80%
-          );
-          filter: blur(32px);
-          background-size: 300% 100%;
-          background-position: 0% 50%;
-          animation: flowX 2.2s linear infinite;
-          opacity: 0.38;
-          z-index: 1;
-        }
-        .t2-flow.f1 { animation-duration: 2.0s; opacity: 0.32; }
-        .blob-container.moved .t2-flow { animation: flowX 1.2s linear infinite; opacity: 0.55; filter: blur(36px); }
-        .blob-container.arrived .t2-flow { animation: flowX 1.4s linear infinite; opacity: 0.48; filter: blur(34px); }
-
-        @keyframes flowX {
-          0% { background-position: 0% 50%; }
-          100% { background-position: 200% 50%; }
         }
 
         /* wave mode 1: orbit hotspot (animate gradient origin) - 최적화: 애니메이션 속도 증가 */

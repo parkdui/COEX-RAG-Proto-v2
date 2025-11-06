@@ -8,6 +8,7 @@ import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMi
 import { requestTTS, AudioManager } from '@/lib/ttsUtils';
 import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
+import TextPressure from '@/components/ui/TextPressure';
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -186,6 +187,11 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const [showEndMessage, setShowEndMessage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
+  const [keywordToTurnMap, setKeywordToTurnMap] = useState<Map<string, number>>(new Map());
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [selectedKeywordTurn, setSelectedKeywordTurn] = useState<number | null>(null);
+  const [showFinalMessage, setShowFinalMessage] = useState(false);
+  const [isKeywordsAnimatingOut, setIsKeywordsAnimatingOut] = useState(false);
   const [showFifthAnswerWarning, setShowFifthAnswerWarning] = useState(false);
 
   // 랜덤으로 3개 선택
@@ -540,13 +546,42 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     }
   }, [handleSubmit]);
 
-  // 정보성 키워드 추출 함수
-  const extractInfoKeywords = useCallback(() => {
-    const assistantMessages = chatState.messages
-      .filter(msg => msg.role === 'assistant')
-      .map(msg => msg.content);
+  // 정보 요구 질문인지 확인하는 함수
+  const isInfoRequestQuestion = useCallback((question: string) => {
+    const infoRequestPatterns = [
+      /추천|알려|정보|위치|어디|어떤|어때|어떠|있어|찾아|보여|가르쳐|안내|소개|추천해|알려줘|알려줄|가르쳐줘/i,
+      /카페|식당|레스토랑|맛집|음식|장소|공간|장소|이벤트|전시|체험|활동|프로그램/i,
+      /어디서|어디에|어디로|어디가|어디서|어디에|어디로|어디가/i,
+    ];
     
-    const keywords: Set<string> = new Set();
+    return infoRequestPatterns.some(pattern => pattern.test(question));
+  }, []);
+
+  // 정보성 키워드 추출 함수 (각 turn별로 추출)
+  const extractInfoKeywords = useCallback(() => {
+    const keywords: Array<{ keyword: string; turnIndex: number }> = [];
+    const keywordMap = new Map<string, number>();
+    
+    // 대화를 turn별로 그룹화 (사용자 질문 + AI 답변)
+    const turns: Array<{ userMessage: Message; assistantMessage: Message; turnIndex: number }> = [];
+    
+    for (let i = 0; i < chatState.messages.length; i++) {
+      if (chatState.messages[i].role === 'user') {
+        const userMessage = chatState.messages[i];
+        const assistantMessage = chatState.messages[i + 1];
+        
+        if (assistantMessage && assistantMessage.role === 'assistant') {
+          // 정보 요구 질문인지 확인
+          if (isInfoRequestQuestion(userMessage.content)) {
+            turns.push({
+              userMessage,
+              assistantMessage,
+              turnIndex: Math.floor(turns.length) + 1 // 1-based turn index
+            });
+          }
+        }
+      }
+    }
     
     // 알려진 장소 및 추천 키워드 패턴
     const knownKeywords = [
@@ -592,29 +627,31 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       '트렌디한 음식점',
     ];
     
-    // 메시지 내용에서 키워드 찾기
-    assistantMessages.forEach(message => {
+    // 각 turn에서 키워드 추출
+    turns.forEach(({ assistantMessage, turnIndex }) => {
+      const messageContent = assistantMessage.content;
+      const foundKeywords: Set<string> = new Set();
+      
+      // 알려진 키워드 찾기
       knownKeywords.forEach(keyword => {
-        if (message.includes(keyword) || 
-            message.includes(keyword.replace(/\s/g, '')) ||
-            keyword.split(' ').every(word => message.includes(word))) {
-          keywords.add(keyword);
+        if (messageContent.includes(keyword) || 
+            messageContent.includes(keyword.replace(/\s/g, '')) ||
+            keyword.split(' ').every(word => messageContent.includes(word))) {
+          foundKeywords.add(keyword);
         }
       });
-    });
-    
-    // 메시지에서 추천 문구 패턴 찾기
-    const recommendationPatterns = [
-      /([가-힣\s]+(?:추천|정보|위치|어때요|어때|어떠실까요|있어요))/g,
-      /([가-힣\s]+(?:카페|식당|레스토랑|공간|장소|아트|전시|이벤트))/g,
-    ];
-    
-    assistantMessages.forEach(message => {
+      
+      // 추천 문구 패턴 찾기
+      const recommendationPatterns = [
+        /([가-힣\s]+(?:추천|정보|위치|어때요|어때|어떠실까요|있어요))/g,
+        /([가-힣\s]+(?:카페|식당|레스토랑|공간|장소|아트|전시|이벤트))/g,
+      ];
+      
       recommendationPatterns.forEach(pattern => {
-        const matches = message.matchAll(pattern);
+        const matches = messageContent.matchAll(pattern);
         for (const match of matches) {
           const keyword = match[1]?.trim();
-          // 불완전한 키워드 필터링 (조사로 시작하거나 끝나는 경우 제외)
+          // 불완전한 키워드 필터링
           if (keyword && 
               keyword.length >= 3 && 
               keyword.length <= 20 && 
@@ -631,31 +668,32 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               !keyword.endsWith('라는') &&
               !keyword.endsWith('라는 카페') &&
               !keyword.endsWith('를 추천')) {
-            keywords.add(keyword);
+            foundKeywords.add(keyword);
           }
+        }
+      });
+      
+      // 각 키워드를 turn에 매핑 (같은 키워드가 여러 turn에 있으면 첫 번째만 저장)
+      foundKeywords.forEach(keyword => {
+        if (!keywordMap.has(keyword)) {
+          keywordMap.set(keyword, turnIndex);
+          keywords.push({ keyword, turnIndex });
         }
       });
     });
     
-    // 최대 6개까지만 반환 (중복 제거 및 정렬)
-    let uniqueKeywords = Array.from(keywords);
-    
-    // 불완전한 키워드 제거 (조사로만 이루어진 키워드 제외)
-    uniqueKeywords = uniqueKeywords.filter(keyword => {
+    // 불완전한 키워드 제거
+    let filteredKeywords = keywords.filter(({ keyword }) => {
       const trimmed = keyword.trim();
       
-      // 빈 키워드 제거
       if (!trimmed || trimmed.length < 2) return false;
       
-      // 조사로 시작하는 키워드 제거
       const startsWithParticle = /^(를|은|는|이|가|의|와|과|로|으로|에게|에게서|에서|까지|부터|보다|처럼|같이|만|도|조차|마저|까지|까지도|뿐|따라|통해|위해|대해|관해|대한|위한|관한)\s/.test(trimmed);
       if (startsWithParticle) return false;
       
-      // 조사로 끝나는 키워드 제거
       const endsWithParticle = /\s?(라는|라는\s+카페|를\s+추천|는|은|이|가|를|을|의|와|과|로|으로|에서|까지|부터|보다)$/.test(trimmed);
       if (endsWithParticle) return false;
       
-      // 특정 불완전한 패턴 제거
       const invalidPatterns = [
         '를 추천',
         '라는 카페',
@@ -672,7 +710,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         return false;
       }
       
-      // 명사나 의미있는 단어로 시작해야 함 (조사만으로는 안 됨)
       const startsWithNoun = /^[가-힣]+/.test(trimmed);
       if (!startsWithNoun) return false;
       
@@ -680,10 +717,17 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     });
     
     // 키워드를 길이 순으로 정렬 (짧은 것부터)
-    uniqueKeywords.sort((a, b) => a.length - b.length);
+    filteredKeywords.sort((a, b) => a.keyword.length - b.keyword.length);
     
-    return uniqueKeywords.slice(0, 6);
-  }, [chatState.messages]);
+    // 최대 6개까지만 반환
+    const limitedKeywords = filteredKeywords.slice(0, 6);
+    
+    // 키워드 배열과 맵을 반환
+    return {
+      keywords: limitedKeywords.map(k => k.keyword),
+      keywordMap: new Map(limitedKeywords.map(k => [k.keyword, k.turnIndex]))
+    };
+  }, [chatState.messages, isInfoRequestQuestion]);
 
   // 대화 요약 보러가기 버튼 클릭 핸들러 (종료 메시지 화면으로 이동)
   const handleShowSummary = useCallback(() => {
@@ -692,10 +736,35 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
   // 종료 메시지 화면에서 Next 버튼 클릭 핸들러 (키워드 요약 화면으로 이동)
   const handleNextToSummary = useCallback(() => {
-    const keywords = extractInfoKeywords();
+    const { keywords, keywordMap } = extractInfoKeywords();
     setExtractedKeywords(keywords);
+    setKeywordToTurnMap(keywordMap);
     setShowSummary(true);
   }, [extractInfoKeywords]);
+
+  // 키워드 클릭 핸들러 (해당 turn의 AI 답변 보여주기)
+  const handleKeywordClick = useCallback((keyword: string) => {
+    const turnIndex = keywordToTurnMap.get(keyword);
+    if (turnIndex !== undefined) {
+      setSelectedKeyword(keyword);
+      setSelectedKeywordTurn(turnIndex);
+    }
+  }, [keywordToTurnMap]);
+
+  // 키워드 답변 화면에서 뒤로가기 핸들러
+  const handleBackToKeywords = useCallback(() => {
+    setSelectedKeyword(null);
+    setSelectedKeywordTurn(null);
+  }, []);
+
+  // End 버튼 클릭 핸들러 (키워드 애니메이션 후 최종 메시지 표시)
+  const handleEndButton = useCallback(() => {
+    setIsKeywordsAnimatingOut(true);
+    // 애니메이션 완료 후 최종 메시지 표시
+    setTimeout(() => {
+      setShowFinalMessage(true);
+    }, 800); // ease 애니메이션 시간에 맞춤
+  }, []);
 
   // 추천 버튼 클릭 핸들러
   const handleRecommendationClick = useCallback(async (recommendation: string) => {
@@ -874,24 +943,161 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
             {chatState.messages.length > 0 && (
               <>
                 {showSummary ? (
-                  // 키워드 요약 화면
-                  <div 
-                    className="fixed inset-0"
-                    style={{
-                      background: '#D0ECE6',
-                      zIndex: 10,
-                    }}
-                  >
+                  showFinalMessage ? (
+                    // 최종 메시지 화면
                     <div 
-                      className="absolute inset-0"
+                      className="fixed inset-0 flex items-center justify-center"
                       style={{
-                        paddingTop: '15vh', // 로고 영역 고려
-                        paddingBottom: '20vh', // End 버튼 영역 고려
-                        paddingLeft: '20px',
-                        paddingRight: '20px',
+                        background: '#D0ECE6',
+                        zIndex: 10,
                       }}
                     >
-                      {extractedKeywords.map((keyword, index) => {
+                      <div style={{ padding: '0 24px', textAlign: 'left' }}>
+                        <TextPressure
+                          text="COEX에서"
+                          trigger="auto"
+                          duration={1.2}
+                          style={{
+                            color: '#FFF',
+                            fontFamily: 'Pretendard Variable',
+                            fontSize: '45px',
+                            fontStyle: 'normal',
+                            fontWeight: 700,
+                            lineHeight: '120%',
+                            letterSpacing: '-1.8px',
+                            display: 'block',
+                            marginBottom: '0.2em',
+                          }}
+                        />
+                        <TextPressure
+                          text="즐거운 시간"
+                          trigger="auto"
+                          duration={1.2}
+                          style={{
+                            color: '#FFF',
+                            fontFamily: 'Pretendard Variable',
+                            fontSize: '45px',
+                            fontStyle: 'normal',
+                            fontWeight: 700,
+                            lineHeight: '120%',
+                            letterSpacing: '-1.8px',
+                            display: 'block',
+                            marginBottom: '0.2em',
+                          }}
+                        />
+                        <TextPressure
+                          text="보내세요!"
+                          trigger="auto"
+                          duration={1.2}
+                          style={{
+                            color: '#FFF',
+                            fontFamily: 'Pretendard Variable',
+                            fontSize: '45px',
+                            fontStyle: 'normal',
+                            fontWeight: 700,
+                            lineHeight: '120%',
+                            letterSpacing: '-1.8px',
+                            display: 'block',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : selectedKeyword && selectedKeywordTurn !== null ? (
+                    // 키워드 클릭 시 해당 turn의 AI 답변 보여주기
+                    <div 
+                      className="fixed inset-0"
+                      style={{
+                        background: '#D0ECE6',
+                        zIndex: 10,
+                      }}
+                    >
+                      <div 
+                        className="absolute inset-0"
+                        style={{
+                          paddingTop: '15vh',
+                          paddingBottom: '20vh',
+                          paddingLeft: '20px',
+                          paddingRight: '20px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {/* 뒤로가기 버튼 */}
+                        <div className="mb-4">
+                          <button
+                            onClick={handleBackToKeywords}
+                            className="touch-manipulation active:scale-95"
+                            style={{
+                              fontFamily: 'Pretendard Variable',
+                              fontSize: '16px',
+                              fontWeight: 500,
+                              color: '#4E5363',
+                              padding: '8px 16px',
+                              background: 'rgba(255, 255, 255, 0.8)',
+                              borderRadius: '20px',
+                              border: 'none',
+                            }}
+                          >
+                            ← 뒤로가기
+                          </button>
+                        </div>
+                        
+                        {/* AI 답변 표시 */}
+                        {(() => {
+                          // turnIndex에 해당하는 AI 답변 찾기
+                          let currentTurn = 0;
+                          let targetAssistantMessage: Message | null = null;
+                          
+                          for (let i = 0; i < chatState.messages.length; i++) {
+                            if (chatState.messages[i].role === 'user') {
+                              const assistantMessage = chatState.messages[i + 1];
+                              if (assistantMessage && assistantMessage.role === 'assistant') {
+                                if (isInfoRequestQuestion(chatState.messages[i].content)) {
+                                  currentTurn++;
+                                  if (currentTurn === selectedKeywordTurn) {
+                                    targetAssistantMessage = assistantMessage;
+                                    break;
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          
+                          if (targetAssistantMessage) {
+                            return (
+                              <ChatBubble 
+                                message={targetAssistantMessage}
+                                onPlayTTS={ttsState.playTTS}
+                                isPlayingTTS={ttsState.isPlayingTTS}
+                                isGlobalLoading={false}
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    // 키워드 요약 화면
+                    <div 
+                      className="fixed inset-0"
+                      style={{
+                        background: '#D0ECE6',
+                        zIndex: 10,
+                      }}
+                    >
+                      <div 
+                        className="absolute inset-0"
+                        style={{
+                          paddingTop: '15vh', // 로고 영역 고려
+                          paddingBottom: '20vh', // End 버튼 영역 고려
+                          paddingLeft: '20px',
+                          paddingRight: '20px',
+                          transition: isKeywordsAnimatingOut ? 'transform 0.8s ease-out, opacity 0.8s ease-out' : 'none',
+                          transform: isKeywordsAnimatingOut ? 'translateY(-100vh)' : 'translateY(0)',
+                          opacity: isKeywordsAnimatingOut ? 0 : 1,
+                        }}
+                      >
+                        {extractedKeywords.map((keyword, index) => {
                         // 키워드 길이에 비례하여 ellipse 크기 결정 (1.2배 증가)
                         const keywordLength = keyword.length;
                         const baseSize = 120; // 기본 크기 (100 * 1.2)
@@ -1009,21 +1215,37 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                         return (
                           <div
                             key={index}
-                            className="absolute"
+                            className="absolute cursor-pointer"
+                            onClick={() => handleKeywordClick(keyword)}
                             style={{
                               top: `${topPercent}%`,
                               left: `${leftPercent}%`,
                               width: `${ellipseSize}px`,
                               height: `${ellipseSize}px`,
                               borderRadius: '297px',
-                              opacity: 0.65,
+                              opacity: isKeywordsAnimatingOut ? 0 : 0.65,
                               background: 'radial-gradient(50% 50% at 50% 50%, #DEE6FF 43.75%, #FFF 65.87%, rgba(255, 255, 255, 0.61) 100%)',
                               boxShadow: '0 -14px 20px 0 #FFEFFC, 0 20px 20px 0 #CBD7F3, 0 4px 100px 0 #CFE9FF',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               position: 'absolute',
-                              transform: 'translate(-50%, -50%)',
+                              transform: isKeywordsAnimatingOut 
+                                ? `translate(-50%, calc(-50% - ${topPercent + 50}vh))` 
+                                : 'translate(-50%, -50%)',
+                              transition: isKeywordsAnimatingOut 
+                                ? `transform 0.8s ease-out ${index * 0.1}s, opacity 0.8s ease-out ${index * 0.1}s` 
+                                : 'transform 0.2s ease-out',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isKeywordsAnimatingOut) {
+                                e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1.05)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isKeywordsAnimatingOut) {
+                                e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1)';
+                              }
                             }}
                           >
                             <span
@@ -1036,6 +1258,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                                 lineHeight: '1.4',
                                 padding: `${padding}px`,
                                 whiteSpace: 'nowrap',
+                                pointerEvents: 'none',
                               }}
                             >
                               {keyword}
@@ -1045,32 +1268,33 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                       })}
                     </div>
                     
-                    {/* End 버튼 - 하단 고정 */}
-                    <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
-                      <button
-                        onClick={() => {
-                          // End 버튼 클릭 시 처리 (필요한 로직 추가)
-                        }}
-                        className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
-                        style={{
-                          height: '56px',
-                          padding: '15px 85px',
-                          borderRadius: '68px',
-                          background: 'rgba(135, 254, 200, 0.75)',
-                          boxShadow: '0 0 50px 0 #EEE inset',
-                          color: '#000',
-                          textAlign: 'center',
-                          fontFamily: 'Pretendard Variable',
-                          fontSize: '16px',
-                          fontWeight: 700,
-                          lineHeight: '110%',
-                          letterSpacing: '-0.64px',
-                        }}
-                      >
-                        End
-                      </button>
-                    </div>
+                    {/* End 버튼 - 하단 고정 (키워드 화면에서만 표시) */}
+                    {!selectedKeyword && !showFinalMessage && (
+                      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+                        <button
+                          onClick={handleEndButton}
+                          className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+                          style={{
+                            height: '56px',
+                            padding: '15px 85px',
+                            borderRadius: '68px',
+                            background: 'rgba(135, 254, 200, 0.75)',
+                            boxShadow: '0 0 50px 0 #EEE inset',
+                            color: '#000',
+                            textAlign: 'center',
+                            fontFamily: 'Pretendard Variable',
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            lineHeight: '110%',
+                            letterSpacing: '-0.64px',
+                          }}
+                        >
+                          End
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  )
                 ) : showEndMessage ? (
                   // 종료 메시지 화면
                   <div className="flex flex-col items-center justify-center min-h-full py-12">
