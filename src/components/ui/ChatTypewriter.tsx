@@ -138,9 +138,7 @@ export default function ChatTypewriter({
   const getDotSize = () => {
     // style prop에서 fontSize 추출
     if (style?.fontSize) {
-      const fontSize = typeof style.fontSize === 'string' 
-        ? parseFloat(style.fontSize) 
-        : style.fontSize;
+      const fontSize = style.fontSize;
       
       // fontSize의 1.2배로 dot 크기 설정 (예: 16px -> 19.2px)
       if (typeof fontSize === 'number') {
