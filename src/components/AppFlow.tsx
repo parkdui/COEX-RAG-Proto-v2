@@ -12,7 +12,7 @@ export default function AppFlow() {
   const [currentPage, setCurrentPage] = useState<PageType>('landing');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [blobAnimating, setBlobAnimating] = useState(false);
-  const [showBlobBackground, setShowBlobBackground] = useState(true);
+  const [showBlobBackground] = useState(true);
 
   const handleStart = () => {
     setCurrentPage('onboarding');

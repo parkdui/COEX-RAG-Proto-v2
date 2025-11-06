@@ -39,7 +39,7 @@ export default function BlobBackground({
           if (onAnimationCompleteRef.current) {
             try {
               onAnimationCompleteRef.current();
-            } catch (error) {
+            } catch {
               // 콜백 실행 중 에러는 조용히 처리
             }
           }

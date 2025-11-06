@@ -683,7 +683,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     });
     
     // 불완전한 키워드 제거
-    let filteredKeywords = keywords.filter(({ keyword }) => {
+    const filteredKeywords = keywords.filter(({ keyword }) => {
       const trimmed = keyword.trim();
       
       if (!trimmed || trimmed.length < 2) return false;
