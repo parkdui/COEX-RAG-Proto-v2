@@ -909,12 +909,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                 {/* AI 환영 메시지 */}
                 <div 
                   style={{ 
-                    color: '#4E5363', 
+                    color: '#000', 
                     textAlign: 'center', 
                     fontFamily: 'Pretendard Variable', 
                     fontSize: '22px', 
                     fontStyle: 'normal', 
-                    fontWeight: 600, 
+                    fontWeight: 500, 
                     lineHeight: '110%', 
                     letterSpacing: '-0.88px' 
                   }}

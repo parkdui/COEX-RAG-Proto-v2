@@ -134,6 +134,40 @@ export default function ChatTypewriter({
 
   const dotColorString = `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`;
 
+  // 텍스트 크기에 따라 dot 사이즈 계산
+  const getDotSize = () => {
+    // style prop에서 fontSize 추출
+    if (style?.fontSize) {
+      const fontSize = typeof style.fontSize === 'string' 
+        ? parseFloat(style.fontSize) 
+        : style.fontSize;
+      
+      // fontSize의 1.2배로 dot 크기 설정 (예: 16px -> 19.2px)
+      if (typeof fontSize === 'number') {
+        return fontSize * 1.2;
+      }
+      // 'px' 단위인 경우
+      if (typeof fontSize === 'string' && fontSize.includes('px')) {
+        const numValue = parseFloat(fontSize);
+        return `${numValue * 1.2}px`;
+      }
+      // 'pt' 단위인 경우
+      if (typeof fontSize === 'string' && fontSize.includes('pt')) {
+        const numValue = parseFloat(fontSize);
+        return `${numValue * 1.2}pt`;
+      }
+      // 'em' 단위인 경우
+      if (typeof fontSize === 'string' && fontSize.includes('em')) {
+        const numValue = parseFloat(fontSize);
+        return `${numValue * 1.2}em`;
+      }
+    }
+    // 기본값: 16px의 1.2배 = 19.2px
+    return '19.2px';
+  };
+
+  const dotSize = getDotSize();
+
   return (
     <span className={className} style={style}>
       {displayedText}
@@ -142,7 +176,11 @@ export default function ChatTypewriter({
           className="inline-block"
           style={{
             color: dotColorString,
+            fontSize: dotSize,
             transition: 'color 0.2s ease',
+            lineHeight: 1,
+            verticalAlign: 'middle',
+            marginLeft: '2px',
           }}
         >
           ●

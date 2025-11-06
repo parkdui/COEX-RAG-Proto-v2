@@ -13,8 +13,8 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const logoHeight = 20; // 각 로고 div의 높이 (간격 최소화)
-    const containerHeight = 20; // 외부 컨테이너 높이 (로고 하나 높이와 동일)
+    const logoHeight = 12; // 각 로고 div의 높이 (간격 최소화)
+    const containerHeight = 12; // 외부 컨테이너 높이 (로고 하나 높이와 동일)
     const holdDuration = 3000; // 중앙에 도착했을 때 3초 대기
     const moveDuration = 2000; // 로고가 올라가는 시간 (2초)
     const cycleHeight = logoHeight * 2; // SORI → COEX (2개 로고 높이)
@@ -52,12 +52,12 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
       else if (cycleProgress >= holdDuration && cycleProgress <= holdDuration + moveDuration) {
         const moveProgress = Math.min((cycleProgress - holdDuration) / moveDuration, 1);
         const easedProgress = easeInOutCubic(moveProgress);
-        // 0에서 -20px로 이동 (SORI 올라가고 COEX 나타남)
+        // 0에서 -12px로 이동 (SORI 올라가고 COEX 나타남)
         translateY = verticalOffset - easedProgress * logoHeight;
       } 
       // 3단계: COEX 중앙에 3초 대기 (5000-8000ms)
       else if (cycleProgress > holdDuration + moveDuration && cycleProgress < holdDuration * 2 + moveDuration) {
-        // 정확히 -20px 위치에서 고정 (COEX 대기)
+        // 정확히 -12px 위치에서 고정 (COEX 대기)
         translateY = verticalOffset - logoHeight;
       } 
       // 4단계: COEX 올라가고 SORI 올라옴 (8000-10000ms)
@@ -93,7 +93,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
       className={className}
       style={{
         width: '402px',
-        height: '20px', // 로고 하나 높이와 동일 (한 번에 하나만 보이도록)
+        height: '12px', // 로고 하나 높이와 동일 (한 번에 하나만 보이도록)
         padding: '0 15px',
         background: 'rgba(0, 0, 0, 0.00)',
         flexShrink: 0,
@@ -129,9 +129,9 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '20px', // 정확히 40px로 고정 (간격 제거)
+            height: '12px', // 정확히 12px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
+            alignItems: 'flex-start', // 상단 정렬 (간격 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
@@ -160,7 +160,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
               border: 'none',
               outline: 'none',
               boxSizing: 'border-box',
-              alignSelf: 'flex-start', // 이미지 상단 정렬
+              alignSelf: 'flex-start', // 이미지 상단 정렬 (간격 제거)
               marginTop: '0', // 상단 마진 명시적 제거
               marginBottom: '0' // 하단 마진 명시적 제거
             }}
@@ -171,9 +171,9 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '20px', // 정확히 40px로 고정 (간격 제거)
+            height: '12px', // 정확히 12px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
+            alignItems: 'flex-start', // 상단 정렬 (간격 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
@@ -202,7 +202,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
               border: 'none',
               outline: 'none',
               boxSizing: 'border-box',
-              alignSelf: 'flex-start', // 이미지 상단 정렬
+              alignSelf: 'flex-start', // 이미지 상단 정렬 (간격 제거)
               marginTop: '0', // 상단 마진 명시적 제거
               marginBottom: '0' // 하단 마진 명시적 제거
             }}
@@ -213,9 +213,9 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '20px', // 정확히 40px로 고정 (간격 제거)
+            height: '12px', // 정확히 12px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
+            alignItems: 'flex-start', // 상단 정렬 (간격 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
@@ -244,7 +244,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
               border: 'none',
               outline: 'none',
               boxSizing: 'border-box',
-              alignSelf: 'flex-start', // 이미지 상단 정렬
+              alignSelf: 'flex-start', // 이미지 상단 정렬 (간격 제거)
               marginTop: '0', // 상단 마진 명시적 제거
               marginBottom: '0' // 하단 마진 명시적 제거
             }}
@@ -255,9 +255,9 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '20px', // 정확히 40px로 고정 (간격 제거)
+            height: '12px', // 정확히 12px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
+            alignItems: 'flex-start', // 상단 정렬 (간격 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
@@ -286,7 +286,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
               border: 'none',
               outline: 'none',
               boxSizing: 'border-box',
-              alignSelf: 'flex-start', // 이미지 상단 정렬
+              alignSelf: 'flex-start', // 이미지 상단 정렬 (간격 제거)
               marginTop: '0', // 상단 마진 명시적 제거
               marginBottom: '0' // 하단 마진 명시적 제거
             }}
@@ -297,9 +297,9 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         <div
           style={{
             width: '100%',
-            height: '20px', // 정확히 40px로 고정 (간격 제거)
+            height: '12px', // 정확히 12px로 고정 (간격 제거)
             display: 'flex',
-            alignItems: 'flex-start', // 상단 정렬 (마진 제거)
+            alignItems: 'flex-start', // 상단 정렬 (간격 제거)
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden', // 이미지가 div 밖으로 나가지 않도록
@@ -328,7 +328,7 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
               border: 'none',
               outline: 'none',
               boxSizing: 'border-box',
-              alignSelf: 'flex-start', // 이미지 상단 정렬
+              alignSelf: 'flex-start', // 이미지 상단 정렬 (간격 제거)
               marginTop: '0', // 상단 마진 명시적 제거
               marginBottom: '0' // 하단 마진 명시적 제거
             }}

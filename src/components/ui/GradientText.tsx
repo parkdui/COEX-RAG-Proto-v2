@@ -11,34 +11,52 @@ interface GradientTextProps {
 export default function GradientText({
   children,
   className = '',
-  colors = ['#ffffff', '#9c40ff', '#ffffff'],
+  colors = ['#ffaa40', '#9c40ff', '#ffaa40'],
   animationSpeed = 8,
   showBorder = false
 }: GradientTextProps) {
   const gradientStyle = {
-    backgroundImage: `linear-gradient(to right, ${colors.join(', ')})`,
+    backgroundImage: colors.length === 3 
+      ? `linear-gradient(270deg, ${colors[0]} 32.69%, ${colors[1]} 48.08%, ${colors[2]} 63.46%)`
+      : `linear-gradient(to right, ${colors.join(', ')})`,
     animationDuration: `${animationSpeed}s`
   };
 
   return (
     <div
-      className={`relative inline-block ${className}`}
-      style={{
-        WebkitBackgroundClip: 'text',
-        backgroundClip: 'text',
-      }}
+      className={`relative mx-auto flex max-w-fit flex-row items-center justify-center rounded-[1.25rem] font-medium backdrop-blur transition-shadow duration-500 overflow-hidden cursor-pointer ${className}`}
     >
-      <span
-        className="inline-block text-transparent animate-gradient"
+      {showBorder && (
+        <div
+          className="absolute inset-0 bg-cover z-0 pointer-events-none animate-gradient"
+          style={{
+            ...gradientStyle,
+            backgroundSize: '300% 100%'
+          }}
+        >
+          <div
+            className="absolute inset-0 bg-black rounded-[1.25rem] z-[-1]"
+            style={{
+              width: 'calc(100% - 2px)',
+              height: 'calc(100% - 2px)',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)'
+            }}
+          ></div>
+        </div>
+      )}
+      <div
+        className="inline-block relative z-2 text-transparent bg-cover animate-gradient"
         style={{
           ...gradientStyle,
-          backgroundSize: '300% 100%',
-          WebkitBackgroundClip: 'text',
           backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          backgroundSize: '300% 100%'
         }}
       >
         {children}
-      </span>
+      </div>
     </div>
   );
 }

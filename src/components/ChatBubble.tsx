@@ -314,7 +314,9 @@ const SegmentedMessage: React.FC<{
 }> = ({ message, onPlayTTS, isPlayingTTS }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [dotColor, setDotColor] = useState({ r: 0, g: 0, b: 0 });
   const contentRef = useRef<HTMLDivElement>(null);
+  const colorIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // 첫 번째 세그먼트의 첫 번째 문장 추출
   const getFirstSentence = (text: string) => {
@@ -343,6 +345,30 @@ const SegmentedMessage: React.FC<{
   // 전체 텍스트 구성: 첫 번째 문장 + 첫 번째 세그먼트 나머지 + 나머지 세그먼트들
   const fullText = firstSentence + (restOfFirstSegment ? '\n\n' + restOfFirstSegment : '') + (remainingText ? '\n\n' + remainingText : '');
   
+  // Dot 색상이 실시간으로 변하는 애니메이션
+  useEffect(() => {
+    const generateRandomColor = () => {
+      return {
+        r: Math.floor(Math.random() * 256),
+        g: Math.floor(Math.random() * 256),
+        b: Math.floor(Math.random() * 256),
+      };
+    };
+
+    setDotColor(generateRandomColor());
+
+    colorIntervalRef.current = setInterval(() => {
+      setDotColor(generateRandomColor());
+    }, 200);
+
+    return () => {
+      if (colorIntervalRef.current) {
+        clearInterval(colorIntervalRef.current);
+        colorIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   // 하이라이트 애니메이션 트리거
   useEffect(() => {
     setShowHighlight(true);
@@ -479,22 +505,84 @@ const SegmentedMessage: React.FC<{
               // ●를 표시할 위치 결정 (마지막 텍스트가 있는 곳)
               const showCursor = !isComplete;
               
+              // 텍스트 크기에 따라 dot 사이즈 계산
+              const getDotSize = (fontSize: string | number | undefined) => {
+                if (!fontSize) return '19.2px';
+                const size = typeof fontSize === 'string' ? parseFloat(fontSize) : fontSize;
+                if (typeof fontSize === 'string' && fontSize.includes('px')) {
+                  return `${size * 1.2}px`;
+                }
+                if (typeof fontSize === 'string' && fontSize.includes('pt')) {
+                  return `${size * 1.2}pt`;
+                }
+                if (typeof fontSize === 'string' && fontSize.includes('em')) {
+                  return `${size * 1.2}em`;
+                }
+                if (typeof size === 'number') {
+                  return `${size * 1.2}px`;
+                }
+                return '19.2px';
+              };
+              
+              const firstDotSize = getDotSize(firstBubbleStyle.fontSize);
+              const textDotSize = getDotSize(textStyle.fontSize);
+              
               return (
                 <div className="flex flex-col gap-2">
                   {displayedFirstSentence && (
                     <div className="whitespace-pre-wrap mb-3 flex justify-center" style={firstBubbleStyle}>
                       <QuotedTextRenderer text={displayedFirstSentence} />
-                      {showCursor && displayedRest.length === 0 && <span className="inline-block">●</span>}
+                      {showCursor && displayedRest.length === 0 && (
+                        <span 
+                          className="inline-block"
+                          style={{
+                            fontSize: firstDotSize,
+                            lineHeight: 1,
+                            verticalAlign: 'middle',
+                            marginLeft: '2px',
+                            color: `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`,
+                            transition: 'color 0.2s ease',
+                          }}
+                        >
+                          ●
+                        </span>
+                      )}
                     </div>
                   )}
                   {cleanedRest && (
                     <div className="whitespace-pre-wrap" style={textStyle}>
                       <QuotedTextRenderer text={cleanedRest} />
-                      {showCursor && <span className="inline-block">●</span>}
+                      {showCursor && (
+                        <span 
+                          className="inline-block"
+                          style={{
+                            fontSize: textDotSize,
+                            lineHeight: 1,
+                            verticalAlign: 'middle',
+                            marginLeft: '2px',
+                            color: `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`,
+                            transition: 'color 0.2s ease',
+                          }}
+                        >
+                          ●
+                        </span>
+                      )}
                     </div>
                   )}
                   {!displayedFirstSentence && !cleanedRest && showCursor && (
-                    <span className="inline-block">●</span>
+                    <span 
+                      className="inline-block"
+                      style={{
+                        fontSize: textDotSize,
+                        lineHeight: 1,
+                        verticalAlign: 'middle',
+                        marginLeft: '2px',
+                        color: `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`,
+                        transition: 'color 0.2s ease',
+                      }}
+                    >
+                      ●
+                    </span>
                   )}
                 </div>
               );
@@ -563,6 +651,8 @@ const SingleMessage: React.FC<{
   const [hasAssistantMessageStarted, setHasAssistantMessageStarted] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [dotColor, setDotColor] = useState({ r: 0, g: 0, b: 0 });
+  const colorIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const textStyle = {
     color: '#000',
@@ -579,6 +669,32 @@ const SingleMessage: React.FC<{
 
   // 사용자 메시지는 계속 표시되어야 함 (AI 답변과 함께 표시)
   // fade-out 제거: 사용자 메시지는 AI 답변과 함께 유지
+
+  // Dot 색상이 실시간으로 변하는 애니메이션
+  useEffect(() => {
+    if (message.role === 'assistant' && !isThinking) {
+      const generateRandomColor = () => {
+        return {
+          r: Math.floor(Math.random() * 256),
+          g: Math.floor(Math.random() * 256),
+          b: Math.floor(Math.random() * 256),
+        };
+      };
+
+      setDotColor(generateRandomColor());
+
+      colorIntervalRef.current = setInterval(() => {
+        setDotColor(generateRandomColor());
+      }, 200);
+
+      return () => {
+        if (colorIntervalRef.current) {
+          clearInterval(colorIntervalRef.current);
+          colorIntervalRef.current = null;
+        }
+      };
+    }
+  }, [message.role, isThinking]);
 
   // AI 메시지가 시작되면 상태 업데이트 (전역 상태 관리를 위해)
   useEffect(() => {
@@ -694,10 +810,45 @@ const SingleMessage: React.FC<{
                     }
                   }}
                   render={(displayedText, isComplete) => {
+                    // 텍스트 크기에 따라 dot 사이즈 계산
+                    const getDotSize = (fontSize: string | number | undefined) => {
+                      if (!fontSize) return '19.2px';
+                      const size = typeof fontSize === 'string' ? parseFloat(fontSize) : fontSize;
+                      if (typeof fontSize === 'string' && fontSize.includes('px')) {
+                        return `${size * 1.2}px`;
+                      }
+                      if (typeof fontSize === 'string' && fontSize.includes('pt')) {
+                        return `${size * 1.2}pt`;
+                      }
+                      if (typeof fontSize === 'string' && fontSize.includes('em')) {
+                        return `${size * 1.2}em`;
+                      }
+                      if (typeof size === 'number') {
+                        return `${size * 1.2}px`;
+                      }
+                      return '19.2px';
+                    };
+                    
+                    const dotSize = getDotSize(textStyle.fontSize);
+                    
                     return (
                       <>
                         <QuotedTextRenderer text={displayedText} />
-                        {!isComplete && <span className="inline-block">●</span>}
+                        {!isComplete && (
+                          <span 
+                            className="inline-block"
+                            style={{
+                              fontSize: dotSize,
+                              lineHeight: 1,
+                              verticalAlign: 'middle',
+                              marginLeft: '2px',
+                              color: `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`,
+                              transition: 'color 0.2s ease',
+                            }}
+                          >
+                            ●
+                          </span>
+                        )}
                       </>
                     );
                   }}

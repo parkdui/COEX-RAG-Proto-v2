@@ -1,22 +1,88 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
 import BlobBackground from './ui/BlobBackground';
+import GradientText from './ui/GradientText';
 
 interface LandingPageProps {
   onStart: () => void; // 이제 blob 애니메이션 시작을 트리거
   showBlob?: boolean;
 }
 
+// 'Sori'의 'r'이 등장했을 때를 감지하는 컴포넌트
+function SoriIndexTracker({ onReachR }: { onReachR: () => void }) {
+  useEffect(() => {
+    // 'Sori'가 등장하면 약간의 지연 후 'r' 타이밍 계산
+    // "Sori"는 4글자: S(0), o(1), r(2), i(3)
+    // 'r'은 인덱스 2이므로, 전체 텍스트의 약 50% 지점
+    // 약 200ms 후 두 번째 줄 시작
+    const timer = setTimeout(() => {
+      onReachR();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [onReachR]);
+  
+  return null;
+}
+
+// Gradient 애니메이션 완료를 감지하는 컴포넌트
+function GradientAnimationTimer({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    // Gradient 애니메이션 1회 재생 (2.5초)
+    const timer = setTimeout(() => {
+      onComplete();
+    }, 2500);
+    
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+  
+  return null;
+}
+
+// Coex Guide의 'i'가 나타났을 때를 감지하는 컴포넌트
+function CoexGuideIndexTracker({ onReachIndex }: { onReachIndex: () => void }) {
+  useEffect(() => {
+    // TextPressure 애니메이션: duration 2.5s + (문자 수 - 1) * 0.08s
+    // "Coex Guide"는 10글자이므로: 2.5 + 9 * 0.08 = 3.22s
+    // 'i'는 인덱스 7이므로: 7 * 0.08 = 0.56s 지연
+    // TextPressure는 0.05s delay 후 시작하므로 총: 0.05 + 0.56 = 0.61s
+    const timer = setTimeout(() => {
+      onReachIndex();
+    }, 610);
+    
+    return () => clearTimeout(timer);
+  }, [onReachIndex]);
+  
+  return null;
+}
+
+// 'Guide'의 'G'가 등장했을 때를 감지하는 컴포넌트
+function GuideIndexTracker({ onReachG }: { onReachG: () => void }) {
+  useEffect(() => {
+    // TextPressure 애니메이션: duration 2.5s + (문자 수 - 1) * 0.08s
+    // "Coex Guide"는 10글자이므로: 2.5 + 9 * 0.08 = 3.22s
+    // 'G'는 인덱스 5이므로: 5 * 0.08 = 0.40s 지연
+    // TextPressure는 0.05s delay 후 시작하므로 총: 0.05 + 0.40 = 0.45s
+    const timer = setTimeout(() => {
+      onReachG();
+    }, 450);
+    
+    return () => clearTimeout(timer);
+  }, [onReachG]);
+  
+  return null;
+}
+
 export default function LandingPage({ onStart, showBlob = true }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
   const [showSori, setShowSori] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
-  const [startLoopTogether, setStartLoopTogether] = useState(false);
   const [moveToBottom, setMoveToBottom] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [soriGradientComplete, setSoriGradientComplete] = useState(false);
 
   const handleStartClick = () => {
     // 페이드아웃 시작
@@ -36,7 +102,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div 
-        className="relative z-10 flex-1 flex flex-col justify-start px-6 pb-32 transition-all duration-1000 ease-in-out"
+        className="relative z-10 flex-1 flex flex-col justify-start px-6 pb-32 transition-all duration-[5000ms] ease-in-out"
         style={{
           paddingTop: moveToBottom ? '20px' : '80px',
           transform: moveToBottom ? 'translateY(calc(100vh - 300px))' : 'translateY(0)',
@@ -65,25 +131,34 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
           <div className="mb-[16px]">
             {/* 첫 번째 줄: Sori */}
             {showSori && (
-              <div>
-                <TextPressure
-                  text="Sori"
-                  trigger="auto"
-                  duration={2.5}
-                  loop={startLoopTogether}
-                  style={{ 
-                    fontFamily: 'Pretendard Variable', 
-                    fontWeight: 700, 
-                    lineHeight: '90%', 
-                    letterSpacing: '-1.8px', 
-                    fontSize: '45pt',
-                    color: '#1f2937'
-                  }}
-                  onComplete={() => {
-                    // 'Sori'의 마지막 문자 'i'의 애니메이션이 끝나면 두 번째 줄 시작
-                    setShowSecondLine(true);
-                  }}
-                />
+              <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}>
+                {!soriGradientComplete ? (
+                  <GradientText
+                    colors={['#000000', '#ffffff', '#000000']}
+                    animationSpeed={2.5}
+                    className="sori-gradient-once"
+                  >
+                    <span style={{ fontWeight: 700 }}>Sori</span>
+                  </GradientText>
+                ) : (
+                  <span style={{ color: '#000000', fontWeight: 700 }}>Sori</span>
+                )}
+                {/* 'Sori'의 'r'이 등장했을 때 두 번째 줄 시작 */}
+                {showSori && !showSecondLine && (
+                  <SoriIndexTracker
+                    onReachR={() => {
+                      setShowSecondLine(true);
+                    }}
+                  />
+                )}
+                {/* Gradient 애니메이션 완료 후 black으로 고정 */}
+                {showSori && !soriGradientComplete && (
+                  <GradientAnimationTimer
+                    onComplete={() => {
+                      setSoriGradientComplete(true);
+                    }}
+                  />
+                )}
               </div>
             )}
             
@@ -94,7 +169,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                   text="Coex Guide"
                   trigger="auto"
                   duration={2.5}
-                  loop={startLoopTogether}
+                  loop={false}
                   style={{ 
                     fontFamily: 'Pretendard Variable', 
                     fontWeight: 700, 
@@ -104,12 +179,29 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                     color: '#1f2937'
                   }}
                   onComplete={() => {
-                    // 두 번째 줄의 초기 애니메이션이 끝나면 두 줄 모두 반복 애니메이션 시작
-                    setStartLoopTogether(true);
+                    // 두 번째 줄의 초기 애니메이션이 끝나면 카운터 표시
                     setShowCounter(true);
                   }}
                 />
               </div>
+            )}
+            
+            {/* 'Guide'의 'G'가 등장했을 때 카운터 시작 */}
+            {showSecondLine && !showCounter && (
+              <GuideIndexTracker
+                onReachG={() => {
+                  setShowCounter(true);
+                }}
+              />
+            )}
+            
+            {/* Coex Guide의 'i'가 나타났을 때 하단으로 이동 */}
+            {showSecondLine && !moveToBottom && (
+              <CoexGuideIndexTracker
+                onReachIndex={() => {
+                  setMoveToBottom(true);
+                }}
+              />
             )}
           </div>
           
@@ -120,14 +212,6 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                 text="오늘 538번째로 대화하는 중이에요"
                 speed={50}
                 delay={200}
-                onIndexReach={(index) => {
-                  // '중'까지 나왔을 때
-                  // "오늘 538번째로 대화하는 중이에요"에서 '중'은 인덱스 15
-                  // Typewriter는 currentIndex++ 후에 호출하므로, '중'까지 표시된 후 index는 16
-                  if (index === 16 && !moveToBottom) {
-                    setMoveToBottom(true);
-                  }
-                }}
               />
             </div>
           ) : null}

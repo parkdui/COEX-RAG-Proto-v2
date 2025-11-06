@@ -72,6 +72,43 @@ body {
     animation: gradient-rotate 15s ease infinite;
   }
   
+  /* Sori Gradient 1회 재생 - GradientText와 호환 */
+  .sori-gradient-once {
+    display: inline-block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    cursor: default !important;
+  }
+  
+  /* GradientText의 외부 div 스타일 조정 */
+  .sori-gradient-once > div {
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: inline-block !important;
+    font-weight: 700 !important;
+  }
+  
+  /* GradientText 내부의 gradient div - 1회만 재생 */
+  .sori-gradient-once .animate-gradient {
+    animation: soriGradient 3s ease-in-out 1 forwards !important;
+    overflow: visible !important;
+    font-weight: 700 !important;
+  }
+  
+  /* span에 gradient 적용 - 전체 텍스트에 하나의 gradient */
+  .sori-gradient-once .animate-gradient span {
+    background: inherit !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    font-weight: 700 !important;
+  }
+  
   /* Highlight Rotate Animation */
   @keyframes rotate {
     from {
@@ -92,6 +129,75 @@ body {
       font-weight: 300;
       transform: scale(0.95);
     }
+  }
+  
+  /* Sori Color Gradient Animation */
+  @keyframes soriGradient {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  .sori-gradient-animation {
+    background: linear-gradient(
+      90deg,
+      #E987FE 0%,
+      #FFE68A 25%,
+      #C629FF 50%,
+      #FFE68A 75%,
+      #E987FE 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: soriGradient 3s ease-in-out infinite;
+  }
+  
+  .sori-gradient-animation * {
+    background: inherit;
+    -webkit-background-clip: inherit;
+    background-clip: inherit;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  
+  /* Sori Gradient Wrapper - TextPressure와 호환 */
+  .sori-gradient-wrapper {
+    display: inline-block;
+  }
+  
+  .sori-gradient-wrapper > div {
+    background: linear-gradient(
+      90deg,
+      #E987FE 0%,
+      #FFE68A 25%,
+      #C629FF 50%,
+      #FFE68A 75%,
+      #E987FE 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: soriGradient 3s ease-in-out infinite;
+  }
+  
+  .sori-gradient-wrapper > div > div {
+    background: inherit;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .sori-gradient-wrapper span {
+    background: inherit;
+    -webkit-background-clip: inherit;
+    background-clip: inherit;
+    -webkit-text-fill-color: inherit;
+    color: transparent;
   }
   
   /* 스크롤바 숨김 */
