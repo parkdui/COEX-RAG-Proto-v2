@@ -118,6 +118,7 @@ const QuotedTextRenderer: React.FC<{ text: string }> = ({ text }) => {
                 fontWeight: 600, // Semibold
                 borderRadius: '25px',
                 background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
+                whiteSpace: 'nowrap' as const, // 줄바꿈 시 통째로 다음 줄로
               }}
             >
               {/* 보더 그라데이션을 위한 wrapper */}
@@ -212,6 +213,8 @@ const MessageSegment: React.FC<{
     fontWeight: 400,
     lineHeight: '140%',
     letterSpacing: '-0.64px',
+    wordBreak: 'normal' as const,
+    overflowWrap: 'break-word' as const,
   };
 
   // 첫 번째 말풍선 스타일
@@ -225,6 +228,8 @@ const MessageSegment: React.FC<{
     fontWeight: 600,
     lineHeight: '132%',
     letterSpacing: '-0.88px',
+    wordBreak: 'normal' as const,
+    overflowWrap: 'break-word' as const,
   };
 
   const isFirst = segmentIndex === 0;
@@ -268,7 +273,7 @@ const MessageSegment: React.FC<{
       <div className={isFirst ? "w-full" : "w-full"}>
         {isFirst ? (
           <>
-            <div className="whitespace-pre-wrap break-words mb-3 flex justify-center" style={firstBubbleStyle}>
+            <div className="whitespace-pre-wrap mb-3 flex justify-center" style={firstBubbleStyle}>
               <Typewriter
                 text={firstSentence}
                 speed={typewriterSpeed}
@@ -276,7 +281,7 @@ const MessageSegment: React.FC<{
               />
             </div>
             {restOfText && (
-              <div className="whitespace-pre-wrap break-words" style={textStyle}>
+              <div className="whitespace-pre-wrap" style={textStyle}>
                 <Typewriter
                   text={restOfText}
                   speed={typewriterSpeed}
@@ -392,6 +397,8 @@ const SegmentedMessage: React.FC<{
     lineHeight: '140%',
     letterSpacing: '-0.64px',
     textAlign: 'center' as const,
+    wordBreak: 'normal' as const,
+    overflowWrap: 'break-word' as const,
   };
 
   const firstBubbleStyle = {
@@ -404,6 +411,8 @@ const SegmentedMessage: React.FC<{
     fontWeight: 600,
     lineHeight: '132%',
     letterSpacing: '-0.88px',
+    wordBreak: 'normal' as const,
+    overflowWrap: 'break-word' as const,
   };
   
   return (
@@ -473,13 +482,13 @@ const SegmentedMessage: React.FC<{
               return (
                 <div className="flex flex-col gap-2">
                   {displayedFirstSentence && (
-                    <div className="whitespace-pre-wrap break-words mb-3 flex justify-center" style={firstBubbleStyle}>
+                    <div className="whitespace-pre-wrap mb-3 flex justify-center" style={firstBubbleStyle}>
                       <QuotedTextRenderer text={displayedFirstSentence} />
                       {showCursor && displayedRest.length === 0 && <span className="inline-block">●</span>}
                     </div>
                   )}
                   {cleanedRest && (
-                    <div className="whitespace-pre-wrap break-words" style={textStyle}>
+                    <div className="whitespace-pre-wrap" style={textStyle}>
                       <QuotedTextRenderer text={cleanedRest} />
                       {showCursor && <span className="inline-block">●</span>}
                     </div>
@@ -564,6 +573,8 @@ const SingleMessage: React.FC<{
     lineHeight: '140%',
     letterSpacing: '-0.64px',
     textAlign: 'center' as const,
+    wordBreak: 'normal' as const,
+    overflowWrap: 'break-word' as const,
   };
 
   // 사용자 메시지는 계속 표시되어야 함 (AI 답변과 함께 표시)
@@ -668,7 +679,7 @@ const SingleMessage: React.FC<{
               }}
             />
           )}
-          <div ref={contentRef} className="whitespace-pre-wrap break-words" style={{ position: 'relative', zIndex: 2 }}>
+          <div ref={contentRef} className="whitespace-pre-wrap" style={{ position: 'relative', zIndex: 2, wordBreak: 'normal', overflowWrap: 'break-word' }}>
             {!isThinking ? (
               // AI 메시지: ChatTypewriter 효과 적용
               <div style={textStyle}>
@@ -710,7 +721,7 @@ const SingleMessage: React.FC<{
             transition: 'opacity 0.5s ease-out',
           }}
         >
-          <div className="whitespace-pre-wrap break-words">
+          <div className="whitespace-pre-wrap" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
             <div style={textStyle}>
               <SplitText
                 text={message.content}

@@ -946,24 +946,24 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   showFinalMessage ? (
                     // 최종 메시지 화면
                     <div 
-                      className="fixed inset-0 flex items-center justify-center"
+                      className="fixed inset-0 flex flex-col justify-start pt-20 px-6"
                       style={{
                         background: '#D0ECE6',
                         zIndex: 10,
                       }}
                     >
-                      <div style={{ padding: '0 24px', textAlign: 'left' }}>
+                      <div className="text-left">
                         <TextPressure
                           text="COEX에서"
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#FFF',
+                            color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45px',
+                            fontSize: '45pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
-                            lineHeight: '120%',
+                            lineHeight: '90%',
                             letterSpacing: '-1.8px',
                             display: 'block',
                             marginBottom: '0.2em',
@@ -974,12 +974,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#FFF',
+                            color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45px',
+                            fontSize: '45pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
-                            lineHeight: '120%',
+                            lineHeight: '90%',
                             letterSpacing: '-1.8px',
                             display: 'block',
                             marginBottom: '0.2em',
@@ -990,12 +990,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#FFF',
+                            color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45px',
+                            fontSize: '45pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
-                            lineHeight: '120%',
+                            lineHeight: '90%',
                             letterSpacing: '-1.8px',
                             display: 'block',
                           }}
