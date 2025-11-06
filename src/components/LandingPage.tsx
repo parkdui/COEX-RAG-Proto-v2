@@ -105,7 +105,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         className="relative z-10 flex-1 flex flex-col justify-start px-6 pb-32 transition-all duration-[5000ms] ease-in-out"
         style={{
           paddingTop: moveToBottom ? '20px' : '80px',
-          transform: moveToBottom ? 'translateY(calc(100vh - 300px))' : 'translateY(0)',
+          transform: moveToBottom ? 'translateY(calc(100vh - 450px))' : 'translateY(0)',
         }}
       >
         <div className="text-left">
