@@ -2,21 +2,16 @@
 
 import { useState } from 'react';
 import LandingPage from './LandingPage';
-import OnboardingPage from './OnboardingPage';
 import MainPage from './MainPage';
 import BlobBackground from './ui/BlobBackground';
 
-type PageType = 'landing' | 'onboarding' | 'main';
+type PageType = 'landing' | 'main';
 
 export default function AppFlow() {
   const [currentPage, setCurrentPage] = useState<PageType>('landing');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [blobAnimating, setBlobAnimating] = useState(false);
   const [showBlobBackground] = useState(true);
-
-  const handleStart = () => {
-    setCurrentPage('onboarding');
-  };
 
   const handleNext = () => {
     setIsTransitioning(true);
@@ -39,13 +34,10 @@ export default function AppFlow() {
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'landing':
-        return <LandingPage onStart={handleStart} showBlob={false} />;
-      case 'onboarding':
         return (
-          <OnboardingPage 
-            onNext={handleNext} 
-            onBlobAnimationStart={handleBlobAnimationStart}
-            showBlob={false}
+          <LandingPage 
+            onStart={handleBlobAnimationStart} 
+            showBlob={false} 
           />
         );
       case 'main':
@@ -61,7 +53,12 @@ export default function AppFlow() {
           </div>
         );
       default:
-        return <LandingPage onStart={handleStart} showBlob={false} />;
+        return (
+          <LandingPage 
+            onStart={handleBlobAnimationStart} 
+            showBlob={false} 
+          />
+        );
     }
   };
 

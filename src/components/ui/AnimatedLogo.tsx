@@ -147,10 +147,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             src="/SORI.svg" 
             alt="SORI Logo"
             style={{
+              width: '100%',
+              height: '100%',
               maxWidth: '100%',
-              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
-              width: 'auto',
-              height: 'auto',
+              maxHeight: '100%',
               objectFit: 'contain',
               display: 'block',
               margin: '0',
@@ -189,10 +189,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             src="/Coex CI_White 2.svg" 
             alt="COEX Logo"
             style={{
+              width: '100%',
+              height: '100%',
               maxWidth: '100%',
-              maxHeight: '40px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
-              width: 'auto',
-              height: 'auto',
+              maxHeight: '100%',
               objectFit: 'contain',
               display: 'block',
               margin: '0',
@@ -231,10 +231,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             src="/SORI.svg" 
             alt="SORI Logo"
             style={{
+              width: '100%',
+              height: '100%',
               maxWidth: '100%',
-              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
-              width: 'auto',
-              height: 'auto',
+              maxHeight: '100%',
               objectFit: 'contain',
               display: 'block',
               margin: '0',
@@ -273,10 +273,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             src="/Coex CI_White 2.svg" 
             alt="COEX Logo"
             style={{
+              width: '100%',
+              height: '100%',
               maxWidth: '100%',
-              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
-              width: 'auto',
-              height: 'auto',
+              maxHeight: '100%',
               objectFit: 'contain',
               display: 'block',
               margin: '0',
@@ -315,10 +315,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             src="/SORI.svg" 
             alt="SORI Logo"
             style={{
+              width: '100%',
+              height: '100%',
               maxWidth: '100%',
-              maxHeight: '20px', // 최대 높이 제한 (비율 유지 - 사용자가 좋아하는 크기)
-              width: 'auto',
-              height: 'auto',
+              maxHeight: '100%',
               objectFit: 'contain',
               display: 'block',
               margin: '0',

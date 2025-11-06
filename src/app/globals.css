@@ -82,6 +82,18 @@ body {
     }
   }
   
+  /* Text Pressure Loop Animation */
+  @keyframes textPressureLoop {
+    0%, 100% {
+      font-weight: 700;
+      transform: scale(1);
+    }
+    50% {
+      font-weight: 300;
+      transform: scale(0.95);
+    }
+  }
+  
   /* 스크롤바 숨김 */
   .hide-scrollbar {
     -ms-overflow-style: none;

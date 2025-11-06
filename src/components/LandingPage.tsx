@@ -6,22 +6,42 @@ import Typewriter from './ui/Typewriter';
 import BlobBackground from './ui/BlobBackground';
 
 interface LandingPageProps {
-  onStart: () => void;
+  onStart: () => void; // 이제 blob 애니메이션 시작을 트리거
   showBlob?: boolean;
 }
 
 export default function LandingPage({ onStart, showBlob = true }: LandingPageProps) {
   const [showCounter, setShowCounter] = useState(false);
-  const [showSecondLine, setShowSecondLine] = useState(false);
   const [showSori, setShowSori] = useState(false);
+  const [showSecondLine, setShowSecondLine] = useState(false);
+  const [startLoopTogether, setStartLoopTogether] = useState(false);
+  const [moveToBottom, setMoveToBottom] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const handleStartClick = () => {
+    // 페이드아웃 시작
+    setIsTransitioning(true);
+    // blob 애니메이션 시작
+    onStart();
+  };
 
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
+    <div 
+      className={`min-h-screen flex flex-col safe-area-inset overscroll-contain relative transition-opacity duration-500 ${
+        isTransitioning ? 'opacity-0' : 'opacity-100'
+      }`}
+    >
       {/* Blurry Blob 배경 - 2개의 gradient blob (V4/IN1 스타일) */}
       {showBlob && <BlobBackground />}
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
-      <div className="relative z-10 flex-1 flex flex-col justify-start pt-20 px-6 pb-32">
+      <div 
+        className="relative z-10 flex-1 flex flex-col justify-start px-6 pb-32 transition-all duration-1000 ease-in-out"
+        style={{
+          paddingTop: moveToBottom ? '20px' : '80px',
+          transform: moveToBottom ? 'translateY(calc(100vh - 300px))' : 'translateY(0)',
+        }}
+      >
         <div className="text-left">
           {/* Welcome To */}
           <div className="text-gray-800 mb-[12px]" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.44px', fontSize: '22px' }}>
@@ -49,7 +69,8 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                 <TextPressure
                   text="Sori"
                   trigger="auto"
-                  duration={1.2}
+                  duration={2.5}
+                  loop={startLoopTogether}
                   style={{ 
                     fontFamily: 'Pretendard Variable', 
                     fontWeight: 700, 
@@ -72,7 +93,8 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                 <TextPressure
                   text="Coex Guide"
                   trigger="auto"
-                  duration={1.2}
+                  duration={2.5}
+                  loop={startLoopTogether}
                   style={{ 
                     fontFamily: 'Pretendard Variable', 
                     fontWeight: 700, 
@@ -82,6 +104,8 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                     color: '#1f2937'
                   }}
                   onComplete={() => {
+                    // 두 번째 줄의 초기 애니메이션이 끝나면 두 줄 모두 반복 애니메이션 시작
+                    setStartLoopTogether(true);
                     setShowCounter(true);
                   }}
                 />
@@ -96,6 +120,14 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                 text="오늘 538번째로 대화하는 중이에요"
                 speed={50}
                 delay={200}
+                onIndexReach={(index) => {
+                  // '중'까지 나왔을 때
+                  // "오늘 538번째로 대화하는 중이에요"에서 '중'은 인덱스 15
+                  // Typewriter는 currentIndex++ 후에 호출하므로, '중'까지 표시된 후 index는 16
+                  if (index === 16 && !moveToBottom) {
+                    setMoveToBottom(true);
+                  }
+                }}
               />
             </div>
           ) : null}
@@ -105,8 +137,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       {/* 시작하기 버튼 - 화면 하단 고정 */}
       <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
         <button
-          onClick={onStart}
-          className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+          onClick={handleStartClick}
+          disabled={isTransitioning}
+          className="w-full touch-manipulation active:scale-95 flex justify-center items-center disabled:opacity-50"
           style={{
             height: '56px',
             padding: '15px 85px',
