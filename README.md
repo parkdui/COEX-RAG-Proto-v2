@@ -39,6 +39,10 @@ cp env.example .env.local
 - `GOOGLE_SHEET_ID`: Google Sheets ID
 - `GOOGLE_SERVICE_ACCOUNT_EMAIL`: Google 서비스 계정 이메일
 - `GOOGLE_PRIVATE_KEY`: Google 서비스 계정 개인 키
+- `LOG_GOOGLE_SHEET_ID`: 로그 전용 Google Sheets ID
+- `LOG_GOOGLE_SHEET_NAME`: 로그 시트 이름
+- `LOG_GOOGLE_SHEET_ACCOUNT_EMAIL`: 로그용 서비스 계정 이메일
+- `LOG_GOOGLE_SHEET_PRIVATE_KEY`: 로그용 서비스 계정 개인 키
 
 ### 3. 개발 서버 실행
 

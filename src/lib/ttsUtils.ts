@@ -7,7 +7,11 @@ import { TTSRequest } from '@/types';
 /**
  * TTS API 요청을 보내는 함수
  */
-export async function requestTTS(text: string): Promise<Blob> {
+interface RequestTTSOptions {
+  signal?: AbortSignal;
+}
+
+export async function requestTTS(text: string, options: RequestTTSOptions = {}): Promise<Blob> {
   const request: TTSRequest = {
     text,
     speaker: 'vyuna',
@@ -24,6 +28,7 @@ export async function requestTTS(text: string): Promise<Blob> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -36,6 +41,11 @@ export async function requestTTS(text: string): Promise<Blob> {
 /**
  * 오디오 재생을 관리하는 클래스
  */
+interface AudioEventHandlers {
+  onEnded?: () => void;
+  onError?: (error: unknown) => void;
+}
+
 export class AudioManager {
   private audioRef: React.RefObject<HTMLAudioElement | null>;
   private isPlaying: boolean = false;
@@ -44,7 +54,7 @@ export class AudioManager {
     this.audioRef = audioRef;
   }
 
-  async playAudio(audioBlob: Blob): Promise<void> {
+  async playAudio(audioBlob: Blob, handlers?: AudioEventHandlers): Promise<void> {
     const audioUrl = URL.createObjectURL(audioBlob);
 
     // 기존 오디오 정리
@@ -61,23 +71,33 @@ export class AudioManager {
     audio.onended = () => {
       this.isPlaying = false;
       URL.revokeObjectURL(audioUrl);
+      handlers?.onEnded?.();
     };
 
-    audio.onerror = () => {
+    audio.onerror = (event) => {
       this.isPlaying = false;
       URL.revokeObjectURL(audioUrl);
+      handlers?.onError?.(event);
       console.error('TTS audio playback failed');
     };
 
     // 오디오 재생
-    await audio.play();
-    this.isPlaying = true;
+    try {
+      await audio.play();
+      this.isPlaying = true;
+    } catch (error) {
+      this.isPlaying = false;
+      URL.revokeObjectURL(audioUrl);
+      handlers?.onError?.(error);
+      throw error;
+    }
   }
 
   stopAudio(): void {
     if (this.audioRef.current) {
       this.audioRef.current.pause();
       this.audioRef.current.currentTime = 0;
+      URL.revokeObjectURL(this.audioRef.current.src);
     }
     this.isPlaying = false;
   }

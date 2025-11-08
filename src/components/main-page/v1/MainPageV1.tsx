@@ -5,10 +5,10 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { Message } from '@/types';
 import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
-import { requestTTS, AudioManager } from '@/lib/ttsUtils';
 import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
+import useCoexTTS from '@/hooks/useCoexTTS';
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -75,133 +75,6 @@ const useVoiceRecording = () => {
 };
 
 /**
- * 커스텀 훅: TTS 상태 관리
- */
-const useTTS = () => {
-  const [isPlayingTTS, setIsPlayingTTS] = useState(false);
-  const [autoPlayTTS] = useState(true); // 자동 재생 활성화
-  const lastTTSTriggerRef = useRef<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const audioManager = useMemo(() => new AudioManager(audioRef), []);
-
-  const playTTS = useCallback(async (text: string) => {
-    if (audioManager.getIsPlaying()) {
-      audioManager.stopAudio();
-      setIsPlayingTTS(false);
-      return;
-    }
-
-    try {
-      setIsPlayingTTS(true);
-      const audioBlob = await requestTTS(text);
-      await audioManager.playAudio(audioBlob);
-    } catch (error) {
-      console.error('TTS error:', error);
-      setIsPlayingTTS(false);
-      alert('음성 재생에 실패했습니다. 다시 시도해주세요.');
-    }
-  }, [audioManager]);
-
-  const handleAutoTTS = useCallback((message: Message, messageIndex: number) => {
-    if (autoPlayTTS && message.role === 'assistant' && message.content) {
-      // 이미 처리한 메시지면 무시
-      const messageId = `${messageIndex}-${message.content.substring(0, 20)}`;
-      if (lastTTSTriggerRef.current === messageId) {
-        return;
-      }
-      
-      lastTTSTriggerRef.current = messageId;
-      
-      // 큰 글씨로 표시되는 상단 영역(firstSentence)만 TTS 재생
-      let textToPlay = '';
-      
-      // 첫 번째 문장 추출 함수 (ChatBubble.tsx와 동일한 로직)
-      const getFirstSentence = (text: string) => {
-        const match = text.match(/[^.!?]*(?:[.!?]|$)/);
-        return match ? match[0].trim() : text.split(/[.!?]/)[0].trim();
-      };
-
-      const getLastSentence = (text: string) => {
-        const matches = text.match(/[^.!?]+[.!?]?/g);
-        if (!matches || matches.length === 0) {
-          return text.trim();
-        }
-        return matches[matches.length - 1].trim();
-      };
-      const isRecommendationSentence = (sentence: string) => {
-        if (!sentence) return false;
-        const normalized = sentence.replace(/\s+/g, '');
-        const recommendationKeywords = [
-          '제안',
-          '추천',
-          '어떠실까요',
-          '어떠세요',
-          '어떨까요',
-          '해보세요',
-          '해보시는건어때요',
-          '가보세요',
-          '가보시는걸추천',
-          '즐겨보세요',
-          '권해드려요',
-        ];
-        return recommendationKeywords.some(keyword => normalized.includes(keyword));
-      };
-      
-      const sentencesToPlay: string[] = [];
-
-        if (message.segments && message.segments.length > 0) {
-        const firstSegmentText = message.segments[0].text;
-        const lastSegmentText = message.segments[message.segments.length - 1].text;
-
-        const firstSentence = getFirstSentence(firstSegmentText);
-        const lastSentence = getLastSentence(lastSegmentText);
-
-        if (firstSentence) {
-          sentencesToPlay.push(firstSentence);
-        }
-
-          if (
-            lastSentence &&
-            lastSentence !== firstSentence &&
-            isRecommendationSentence(lastSentence)
-          ) {
-          sentencesToPlay.push(lastSentence);
-        }
-      } else {
-        const firstSentence = getFirstSentence(message.content);
-        const lastSentence = getLastSentence(message.content);
-
-        if (firstSentence) {
-          sentencesToPlay.push(firstSentence);
-        }
-
-          if (
-            lastSentence &&
-            lastSentence !== firstSentence &&
-            isRecommendationSentence(lastSentence)
-          ) {
-          sentencesToPlay.push(lastSentence);
-        }
-      }
-
-      textToPlay = sentencesToPlay.join(' ');
-      
-      // TTS를 즉시 재생 (텍스트 애니메이션 시작 전)
-      if (textToPlay) {
-        playTTS(textToPlay);
-      }
-    }
-  }, [autoPlayTTS, playTTS]);
-
-  return {
-    isPlayingTTS,
-    setIsPlayingTTS,
-    playTTS,
-    handleAutoTTS
-  };
-};
-
-/**
  * API 요청 함수들
  */
 const apiRequests = {
@@ -262,9 +135,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const chatRef = useRef<HTMLDivElement>(null);
   const chatState = useChatState();
   const voiceState = useVoiceRecording();
-  const ttsState = useTTS();
+  const { isPlayingTTS, playFull, prepareAuto } = useCoexTTS();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [questionCount, setQuestionCount] = useState(0);
   const [isConversationEnded, setIsConversationEnded] = useState(false);
   const [showEndMessage, setShowEndMessage] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -341,6 +213,39 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
   const randomRecommendations = useMemo(() => getRandomRecommendations(), [getRandomRecommendations]);
 
+  const assistantMessages = useMemo(
+    () => chatState.messages.filter((message) => message.role === 'assistant'),
+    [chatState.messages]
+  );
+
+  const userMessages = useMemo(
+    () => chatState.messages.filter((message) => message.role === 'user'),
+    [chatState.messages]
+  );
+
+  const pushAssistantMessage = useCallback(
+    async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string }) => {
+      const answerText = response.answer || response.defaultAnswer || '(응답 없음)';
+      const playbackStarter = await prepareAuto(answerText);
+
+      const assistantMessage = createAssistantMessage({
+        answer: answerText,
+        tokens: response.tokens,
+        hits: response.hits,
+        defaultAnswer: response.defaultAnswer,
+      });
+
+      chatState.addMessage(assistantMessage);
+
+      if (playbackStarter) {
+        playbackStarter().catch((error) => {
+          console.error('Failed to start prepared TTS playback:', error);
+        });
+      }
+    },
+    [chatState.addMessage, prepareAuto],
+  );
+
   // 스크롤을 맨 아래로 이동
   const scrollToBottom = useCallback(() => {
     if (chatRef.current) {
@@ -366,17 +271,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     return () => clearInterval(intervalId);
   }, [chatState.isLoading, scrollToBottom]);
 
-  // 질문 카운트 추적
-  useEffect(() => {
-    const userMessages = chatState.messages.filter(msg => msg.role === 'user');
-    setQuestionCount(Math.min(userMessages.length, 5));
-  }, [chatState.messages]);
-
   // AI 답변 카운트 추적 및 6번째 답변 감지
   useEffect(() => {
-    const assistantMessages = chatState.messages.filter(msg => msg.role === 'assistant');
     const assistantCount = assistantMessages.length;
-    
+
     // 6번째 답변이 완료되고 로딩이 끝났을 때만 종료 상태로 전환
     if (assistantCount >= 6 && !isConversationEnded && !chatState.isLoading) {
       // 마지막 답변을 볼 수 있도록 약간의 시간 (1초) 후 종료 상태로 전환
@@ -386,13 +284,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [chatState.messages, isConversationEnded, chatState.isLoading]);
+  }, [assistantMessages, isConversationEnded, chatState.isLoading]);
 
   // 5번째 답변 완료 시 안내 메시지 표시
   useEffect(() => {
-    const assistantMessages = chatState.messages.filter(msg => msg.role === 'assistant');
     const assistantCount = assistantMessages.length;
-    
+
     // 5번째 답변 완료 시 안내 메시지 표시 (6번째 이전에만)
     if (assistantCount === 5 && !chatState.isLoading && !isConversationEnded && assistantCount < 6) {
       setShowFifthAnswerWarning(true);
@@ -407,18 +304,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     if (assistantCount >= 6) {
       setShowFifthAnswerWarning(false);
     }
-  }, [chatState.messages, isConversationEnded, chatState.isLoading]);
-
-  // 마지막 AI 메시지에 대해 TTS 자동 재생
-  useEffect(() => {
-    if (chatState.messages.length > 0) {
-      const lastMessage = chatState.messages[chatState.messages.length - 1];
-      if (lastMessage.role === 'assistant' && lastMessage.content) {
-        const messageIndex = chatState.messages.length - 1;
-        ttsState.handleAutoTTS(lastMessage, messageIndex);
-      }
-    }
-  }, [chatState.messages, ttsState.handleAutoTTS]);
+  }, [assistantMessages, isConversationEnded, chatState.isLoading]);
 
   // 시스템 프롬프트 로드
   useEffect(() => {
@@ -456,17 +342,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         try {
           const historyToSend = chatState.chatHistory.slice(-10);
           const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend);
-          
+
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
           } else {
-        const assistantMessage = createAssistantMessage({
-          answer: chatData.answer,
-          tokens: chatData.tokens,
-          hits: chatData.hits,
-          defaultAnswer: '(응답 없음)'
-        });
-            chatState.addMessage(assistantMessage);
+            await pushAssistantMessage({
+              answer: chatData.answer,
+              tokens: chatData.tokens,
+              hits: chatData.hits,
+              defaultAnswer: '(응답 없음)',
+            });
           }
         } catch (error) {
           console.error('AI 응답 요청 실패:', error);
@@ -494,7 +379,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.setInputValue,
     chatState.setIsLoading,
     chatState.systemPrompt,
-    voiceState.setIsProcessingVoice
+    voiceState.setIsProcessingVoice,
+    pushAssistantMessage
   ]);
 
   // 음성 녹음 시작
@@ -608,17 +494,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     try {
       const historyToSend = chatState.chatHistory.slice(-10);
       const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend);
-      
+
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
-        const assistantMessage = createAssistantMessage({
+        await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
           hits: data.hits,
-          defaultAnswer: '(응답 없음)'
+          defaultAnswer: '(응답 없음)',
         });
-        chatState.addMessage(assistantMessage);
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error);
@@ -635,7 +520,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.setInputValue,
     chatState.setIsLoading,
     chatState.systemPrompt,
-    isConversationEnded
+    isConversationEnded,
+    pushAssistantMessage
   ]);
 
   // 대화 시작
@@ -649,17 +535,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         chatState.systemPrompt,
         []
       );
-      
+
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
-        const assistantMessage = createAssistantMessage({
+        await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
           hits: data.hits,
-          defaultAnswer: '안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?'
+          defaultAnswer: '안녕하세요! COEX 이벤트 안내 AI입니다. 무엇을 도와드릴까요?',
         });
-        chatState.addMessage(assistantMessage);
       }
     } catch (error) {
       console.error('대화 시작 실패:', error);
@@ -673,7 +558,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.addMessage,
     chatState.setIsGoButtonDisabled,
     chatState.setIsLoading,
-    chatState.systemPrompt
+    chatState.systemPrompt,
+    pushAssistantMessage
   ]);
 
   // 키보드 이벤트 핸들러
@@ -916,17 +802,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     try {
       const historyToSend = chatState.chatHistory.slice(-10);
       const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend);
-      
+
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
-        const assistantMessage = createAssistantMessage({
+        await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
           hits: data.hits,
-          defaultAnswer: '(응답 없음)'
+          defaultAnswer: '(응답 없음)',
         });
-        chatState.addMessage(assistantMessage);
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error);
@@ -934,7 +819,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     } finally {
       chatState.setIsLoading(false);
     }
-  }, [chatState]);
+  }, [chatState, isConversationEnded, pushAssistantMessage]);
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
@@ -1198,8 +1083,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             return (
                               <ChatBubble 
                                 message={targetAssistantMessage}
-                                onPlayTTS={ttsState.playTTS}
-                                isPlayingTTS={ttsState.isPlayingTTS}
+                                onPlayTTS={playFull}
+                                isPlayingTTS={isPlayingTTS}
                                 isGlobalLoading={false}
                                 typewriterVariant={typewriterVariant}
                               />
@@ -1520,8 +1405,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                         <ChatBubble 
                           key={`${message.role}-${index}`}
                           message={message} 
-                          onPlayTTS={ttsState.playTTS}
-                          isPlayingTTS={ttsState.isPlayingTTS}
+                          onPlayTTS={playFull}
+                          isPlayingTTS={isPlayingTTS}
                           isGlobalLoading={chatState.isLoading}
                           typewriterVariant={typewriterVariant}
                         />

@@ -251,26 +251,26 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
   // 환경 변수 로드
   const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
   const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
-  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+  const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
+    process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let LOG_GOOGLE_PRIVATE_KEY =
+    process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
   
-  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+  if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
   }
 
   // 개인 키 형식 처리
-  if (GOOGLE_PRIVATE_KEY) {
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+  if (LOG_GOOGLE_PRIVATE_KEY) {
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
   }
 
   // Google Auth 설정
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: GOOGLE_PRIVATE_KEY,
-    },
+  const auth = new google.auth.JWT({
+    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: LOG_GOOGLE_PRIVATE_KEY,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
@@ -321,79 +321,40 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       }
     }
 
-    if (existingRowIndex > 0) {
-      // 기존 세션 업데이트 - 기존 대화에 새로운 대화 추가
-      // 기존 세션 업데이트
-      
-      // 기존 데이터 가져오기
-      const existingRowData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
-      });
-
-      const existingConversations = [];
-      if (existingRowData.data.values && existingRowData.data.values[0]) {
-        const existingRow = existingRowData.data.values[0];
-        // D열부터 기존 대화 데이터 추출
-        for (let i = 3; i < existingRow.length; i += 2) {
-          if (existingRow[i] && existingRow[i + 1]) {
-            existingConversations.push({
-              userMessage: existingRow[i],
-              aiMessage: existingRow[i + 1]
-            });
-          }
-        }
-      }
-
-      // 새로운 대화만 추가 (이미 저장된 대화는 제외)
-      const newConversations = logData.conversation.slice(existingConversations.length);
-      
-      // 업데이트할 데이터 준비
-      const updateData = [
+    const buildRowFromLog = (conversation: typeof logData.conversation) => {
+      const row = [
         logData.sessionId,
         logData.timestamp,
-        logData.systemPrompt.substring(0, 1000)
+        logData.systemPrompt.substring(0, 1000),
       ];
-
-      // 기존 대화 + 새로운 대화
-      [...existingConversations, ...newConversations].forEach((conv) => {
-        updateData.push(conv.userMessage.substring(0, 1000));
-        updateData.push(conv.aiMessage.substring(0, 1000));
+      conversation.forEach((conv) => {
+        row.push(conv.userMessage.substring(0, 1000));
+        row.push(conv.aiMessage.substring(0, 1000));
       });
+      return row;
+    };
 
+    if (existingRowIndex > 0) {
+      const targetRow = `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`;
       await sheets.spreadsheets.values.update({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`,
+        range: targetRow,
         valueInputOption: "RAW",
         requestBody: {
-          values: [updateData]
-        }
+          values: [buildRowFromLog(logData.conversation)],
+        },
       });
       console.log(
-        `[Chat Log] Updated existing session ${logData.sessionId} with ${newConversations.length} new entries.`
+        `[Chat Log] Updated existing session ${logData.sessionId} with ${logData.conversation.length} entries at row ${existingRowIndex}.`
       );
     } else {
-      // 새로운 세션 추가
-      // 새 세션 추가
-      const rowData = [
-        logData.sessionId,
-        logData.timestamp,
-        logData.systemPrompt.substring(0, 1000)
-      ];
-
-      // 대화 내용을 D열부터 번갈아가며 배치
-      logData.conversation.forEach((conv) => {
-        rowData.push(conv.userMessage.substring(0, 1000));
-        rowData.push(conv.aiMessage.substring(0, 1000));
-      });
-
       await sheets.spreadsheets.values.append({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
         valueInputOption: "RAW",
         requestBody: {
-          values: [rowData]
-        }
+          values: [buildRowFromLog(logData.conversation)],
+        },
       });
       console.log(
         `[Chat Log] Appended new session ${logData.sessionId} with ${logData.conversation.length} entries.`
@@ -549,9 +510,9 @@ export async function POST(request: NextRequest) {
       // Google Sheets에 세션 기반 로그 저장
       try {
         await saveSessionBasedChatLog(logData);
-        // 세션 기반 채팅 로그 저장 성공
+        console.log('[Chat Log] Saved conversation to Google Sheets.');
       } catch (error) {
-        // 로그 저장 실패 시 에러만 기록
+        console.error('[Chat Log] Failed to save conversation:', error);
       }
     } catch (error) {
       console.error('Error preparing session-based chat log:', error);

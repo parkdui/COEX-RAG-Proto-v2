@@ -4,30 +4,32 @@ import { google } from 'googleapis';
 // 환경 변수 직접 로드
 const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
 const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
+  process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 // 개인 키 형식 처리 - 여러 방법 시도
-let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
-if (GOOGLE_PRIVATE_KEY) {
-  console.log('Original private key (first 100 chars):', GOOGLE_PRIVATE_KEY.substring(0, 100));
+let LOG_GOOGLE_PRIVATE_KEY =
+  process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
+if (LOG_GOOGLE_PRIVATE_KEY) {
+  console.log('Original private key (first 100 chars):', LOG_GOOGLE_PRIVATE_KEY.substring(0, 100));
   
   // 환경 변수에서 개행 문자 처리
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
   // 따옴표 제거 (환경 변수에서 자동으로 추가된 경우)
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
   // 끝의 불필요한 \n 제거
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
   
-  console.log('Processed private key (first 100 chars):', GOOGLE_PRIVATE_KEY.substring(0, 100));
-  console.log('Private key ends with:', GOOGLE_PRIVATE_KEY.substring(GOOGLE_PRIVATE_KEY.length - 50));
+  console.log('Processed private key (first 100 chars):', LOG_GOOGLE_PRIVATE_KEY.substring(0, 100));
+  console.log('Private key ends with:', LOG_GOOGLE_PRIVATE_KEY.substring(LOG_GOOGLE_PRIVATE_KEY.length - 50));
 }
 
 // 디버깅용 로그
 console.log("Log-chat Environment variables check:");
 console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
 console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
-console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
-console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
-console.log("GOOGLE_PRIVATE_KEY starts with:", GOOGLE_PRIVATE_KEY?.substring(0, 50) || "N/A");
+console.log("LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL:", LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
+console.log("LOG_GOOGLE_PRIVATE_KEY:", LOG_GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
+console.log("LOG_GOOGLE_PRIVATE_KEY starts with:", LOG_GOOGLE_PRIVATE_KEY?.substring(0, 50) || "N/A");
 
 // 로그 시트 범위 (로그 전용 시트 사용)
 const LOG_SHEET_RANGE = `${LOG_GOOGLE_SHEET_NAME}!A:Z`;
@@ -45,26 +47,24 @@ async function logToGoogleSheet(logData: ChatLog) {
   console.log('=== logToGoogleSheet called ===');
   console.log('LOG_GOOGLE_SHEET_ID:', LOG_GOOGLE_SHEET_ID ? 'SET' : 'NOT SET');
   console.log('LOG_GOOGLE_SHEET_NAME:', LOG_GOOGLE_SHEET_NAME);
-  console.log('GOOGLE_SERVICE_ACCOUNT_EMAIL:', GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'SET' : 'NOT SET');
-  console.log('GOOGLE_PRIVATE_KEY:', GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET');
-  console.log('GOOGLE_PRIVATE_KEY length:', GOOGLE_PRIVATE_KEY?.length || 0);
+  console.log('LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL:', LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'SET' : 'NOT SET');
+  console.log('LOG_GOOGLE_PRIVATE_KEY:', LOG_GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET');
+  console.log('LOG_GOOGLE_PRIVATE_KEY length:', LOG_GOOGLE_PRIVATE_KEY?.length || 0);
   
-  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+  if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
   }
 
   // 더 현대적인 인증 방식 사용
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: GOOGLE_PRIVATE_KEY,
-    },
+  const auth = new google.auth.JWT({
+    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: LOG_GOOGLE_PRIVATE_KEY,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
   // 인증 테스트
   try {
-    await auth.getClient();
+    await auth.authorize();
     console.log('Google Auth client created successfully');
   } catch (authError) {
     console.error('Google Auth client creation failed:', authError);

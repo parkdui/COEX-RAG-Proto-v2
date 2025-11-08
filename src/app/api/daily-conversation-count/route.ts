@@ -4,27 +4,27 @@ import { google } from 'googleapis';
 // 환경 변수 로드
 const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
 const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-let GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
+  process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+let LOG_GOOGLE_PRIVATE_KEY =
+  process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
 
-if (GOOGLE_PRIVATE_KEY) {
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
-  GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+if (LOG_GOOGLE_PRIVATE_KEY) {
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+  LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
 }
 
 async function getTodayConversationCount(): Promise<number> {
-  if (!LOG_GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+  if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     console.warn("Google Sheets API credentials are not set, returning default count");
     return 538; // 기본값 (fallback)
   }
 
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: GOOGLE_PRIVATE_KEY,
-      },
+    const auth = new google.auth.JWT({
+      email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: LOG_GOOGLE_PRIVATE_KEY,
       scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
     });
 

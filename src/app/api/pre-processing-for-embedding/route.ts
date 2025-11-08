@@ -163,11 +163,9 @@ async function buildVectors() {
     throw new Error("Google Sheets API credentials are not set");
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: GOOGLE_PRIVATE_KEY,
-    },
+  const auth = new google.auth.JWT({
+    email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: GOOGLE_PRIVATE_KEY,
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
 

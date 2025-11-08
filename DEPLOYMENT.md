@@ -35,6 +35,8 @@ MAX_HISTORY=20
 GOOGLE_SHEET_RANGE=Sheet1!A:Z
 LOG_GOOGLE_SHEET_ID=your_log_sheet_id_here
 LOG_GOOGLE_SHEET_NAME=Sheet1
+LOG_GOOGLE_SHEET_ACCOUNT_EMAIL=your_log_service_account_email_here
+LOG_GOOGLE_SHEET_PRIVATE_KEY=your_log_private_key_here
 LOG_TOKENS=0
 ```
 
