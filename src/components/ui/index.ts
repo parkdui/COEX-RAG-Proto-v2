@@ -6,3 +6,6 @@ export { Badge } from './Badge';
 export { LoadingSpinner, PulseLoader } from './LoadingSpinner';
 export { SplitText, SplitWords, TypingEffect } from './SplitText';
 export { default as Typewriter } from './Typewriter';
+export { default as ChatTypewriterV1 } from './ChatTypewriterV1';
+export { default as ChatTypewriterV2 } from './ChatTypewriterV2';
+export { default as ChatTypewriterV3 } from './ChatTypewriterV3';

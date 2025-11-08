@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
 import BlobBackground from './ui/BlobBackground';
-import GradientText from './ui/GradientText';
+import LetterColorAnimation from './ui/LetterColorAnimation';
+import CountingNumber from './ui/CountingNumber';
 
 interface LandingPageProps {
   onStart: () => void; // 이제 blob 애니메이션 시작을 트리거
@@ -14,13 +15,13 @@ interface LandingPageProps {
 // 'Sori'의 'r'이 등장했을 때를 감지하는 컴포넌트
 function SoriIndexTracker({ onReachR }: { onReachR: () => void }) {
   useEffect(() => {
-    // 'Sori'가 등장하면 약간의 지연 후 'r' 타이밍 계산
-    // "Sori"는 4글자: S(0), o(1), r(2), i(3)
-    // 'r'은 인덱스 2이므로, 전체 텍스트의 약 50% 지점
-    // 약 200ms 후 두 번째 줄 시작
+    // TextPressure 애니메이션: duration 2.5s + (문자 수 - 1) * 0.08s
+    // "Sori"는 4글자이므로: 2.5 + 3 * 0.08 = 2.74s
+    // 'r'은 인덱스 2이므로: 2 * 0.08 = 0.16s 지연
+    // TextPressure는 0.05s delay 후 시작하므로 총: 0.05 + 0.16 = 0.21s
     const timer = setTimeout(() => {
       onReachR();
-    }, 100);
+    }, 210);
     
     return () => clearTimeout(timer);
   }, [onReachR]);
@@ -28,33 +29,20 @@ function SoriIndexTracker({ onReachR }: { onReachR: () => void }) {
   return null;
 }
 
-// Gradient 애니메이션 완료를 감지하는 컴포넌트
-function GradientAnimationTimer({ onComplete }: { onComplete: () => void }) {
-  useEffect(() => {
-    // Gradient 애니메이션 1회 재생 (2.5초)
-    const timer = setTimeout(() => {
-      onComplete();
-    }, 2500);
-    
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-  
-  return null;
-}
 
-// Coex Guide의 'i'가 나타났을 때를 감지하는 컴포넌트
-function CoexGuideIndexTracker({ onReachIndex }: { onReachIndex: () => void }) {
+// 'Coex'의 'C'가 나타났을 때를 감지하는 컴포넌트
+function CoexIndexTracker({ onReachC }: { onReachC: () => void }) {
   useEffect(() => {
     // TextPressure 애니메이션: duration 2.5s + (문자 수 - 1) * 0.08s
     // "Coex Guide"는 10글자이므로: 2.5 + 9 * 0.08 = 3.22s
-    // 'i'는 인덱스 7이므로: 7 * 0.08 = 0.56s 지연
-    // TextPressure는 0.05s delay 후 시작하므로 총: 0.05 + 0.56 = 0.61s
+    // 'C'는 인덱스 0이므로: 0 * 0.08 = 0s 지연
+    // TextPressure는 0.05s delay 후 시작하므로 총: 0.05 + 0 = 0.05s
     const timer = setTimeout(() => {
-      onReachIndex();
-    }, 610);
+      onReachC();
+    }, 50);
     
     return () => clearTimeout(timer);
-  }, [onReachIndex]);
+  }, [onReachC]);
   
   return null;
 }
@@ -82,7 +70,26 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [showSecondLine, setShowSecondLine] = useState(false);
   const [moveToBottom, setMoveToBottom] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [soriGradientComplete, setSoriGradientComplete] = useState(false);
+  const [conversationCount, setConversationCount] = useState<number | null>(null);
+  const [isLoadingCount, setIsLoadingCount] = useState(true);
+
+  // 오늘의 대화 횟수 가져오기
+  useEffect(() => {
+    const fetchConversationCount = async () => {
+      try {
+        const response = await fetch('/api/daily-conversation-count');
+        const data = await response.json();
+        setConversationCount(typeof data.count === 'number' ? data.count : 0);
+      } catch (error) {
+        console.error('Failed to fetch conversation count:', error);
+        setConversationCount(0);
+      } finally {
+        setIsLoadingCount(false);
+      }
+    };
+
+    fetchConversationCount();
+  }, []);
 
   const handleStartClick = () => {
     // 페이드아웃 시작
@@ -93,7 +100,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
   return (
     <div 
-      className={`min-h-screen flex flex-col safe-area-inset overscroll-contain relative transition-opacity duration-500 ${
+      className={`h-screen flex flex-col safe-area-inset overscroll-none relative transition-opacity duration-500 overflow-hidden ${
         isTransitioning ? 'opacity-0' : 'opacity-100'
       }`}
     >
@@ -102,10 +109,11 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div 
-        className="relative z-10 flex-1 flex flex-col justify-start px-6 pb-32 transition-all duration-[5000ms] ease-in-out"
+        className="relative z-10 flex-1 flex flex-col justify-start px-6 transition-all duration-[5000ms] ease-in-out overflow-hidden"
         style={{
           paddingTop: moveToBottom ? '20px' : '80px',
-          transform: moveToBottom ? 'translateY(calc(100vh - 450px))' : 'translateY(0)',
+          paddingBottom: '120px', // 버튼 공간 확보
+          transform: moveToBottom ? 'translateY(calc(100vh - 320px))' : 'translateY(0)',
         }}
       >
         <div className="text-left">
@@ -132,30 +140,22 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             {/* 첫 번째 줄: Sori */}
             {showSori && (
               <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}>
-                {!soriGradientComplete ? (
-                  <GradientText
-                    colors={['#000000', '#ffffff', '#000000']}
-                    animationSpeed={2.5}
-                    className="sori-gradient-once"
-                  >
-                    <span style={{ fontWeight: 700 }}>Sori</span>
-                  </GradientText>
-                ) : (
-                  <span style={{ color: '#000000', fontWeight: 700 }}>Sori</span>
-                )}
+                <LetterColorAnimation
+                  text="Sori"
+                  duration={6}
+                  style={{ 
+                    fontFamily: 'Pretendard Variable', 
+                    fontWeight: 700, 
+                    lineHeight: '90%', 
+                    letterSpacing: '-1.8px', 
+                    fontSize: '45pt'
+                  }}
+                />
                 {/* 'Sori'의 'r'이 등장했을 때 두 번째 줄 시작 */}
                 {showSori && !showSecondLine && (
                   <SoriIndexTracker
                     onReachR={() => {
                       setShowSecondLine(true);
-                    }}
-                  />
-                )}
-                {/* Gradient 애니메이션 완료 후 black으로 고정 */}
-                {showSori && !soriGradientComplete && (
-                  <GradientAnimationTimer
-                    onComplete={() => {
-                      setSoriGradientComplete(true);
                     }}
                   />
                 )}
@@ -195,10 +195,10 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
               />
             )}
             
-            {/* Coex Guide의 'i'가 나타났을 때 하단으로 이동 */}
+            {/* 'Coex'의 'C'가 나타났을 때 하단으로 이동 */}
             {showSecondLine && !moveToBottom && (
-              <CoexGuideIndexTracker
-                onReachIndex={() => {
+              <CoexIndexTracker
+                onReachC={() => {
                   setMoveToBottom(true);
                 }}
               />
@@ -206,13 +206,22 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
           </div>
           
           {/* 대화 카운터 */}
-          {showCounter ? (
+          {showCounter && conversationCount !== null ? (
             <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
-              <Typewriter
-                text="오늘 538번째로 대화하는 중이에요"
-                speed={50}
-                delay={200}
+              <span>오늘 </span>
+              <CountingNumber
+                target={conversationCount}
+                duration={1500}
+                startDelay={200}
+                style={{ display: 'inline-block' }}
               />
+              <span>번째로 대화하는 중이에요</span>
+            </div>
+          ) : showCounter && isLoadingCount ? (
+            <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
+              <span>오늘 </span>
+              <span>...</span>
+              <span>번째로 대화하는 중이에요</span>
             </div>
           ) : null}
         </div>

@@ -28,6 +28,8 @@ export interface Message {
   tokens?: TokenInfo;
   hits?: HitInfo[];
   segments?: TextSegment[];
+  thumbnailUrl?: string;
+  siteUrl?: string;
 }
 
 export interface ChatBubbleProps {
@@ -36,6 +38,7 @@ export interface ChatBubbleProps {
   onPlayTTS?: (text: string) => void;
   isPlayingTTS?: boolean;
   isGlobalLoading?: boolean;
+  typewriterVariant?: 'v1' | 'v2' | 'v3';
 }
 
 export interface AudioConstraints {

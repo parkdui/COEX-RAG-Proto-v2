@@ -44,7 +44,7 @@ const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 // CLOVA API 설정
 
 // 파일 경로
-  const VECTORS_JSON = path.join(process.cwd(), "public", "vectors.json");
+  const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
 const systemPromptPath = path.join(process.cwd(), "public", "LLM", "system_prompt.txt");
 
 // ==== Token counters ====
@@ -369,6 +369,9 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
           values: [updateData]
         }
       });
+      console.log(
+        `[Chat Log] Updated existing session ${logData.sessionId} with ${newConversations.length} new entries.`
+      );
     } else {
       // 새로운 세션 추가
       // 새 세션 추가
@@ -392,6 +395,9 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
           values: [rowData]
         }
       });
+      console.log(
+        `[Chat Log] Appended new session ${logData.sessionId} with ${logData.conversation.length} entries.`
+      );
     }
 
     // 세션 기반 채팅 로그 저장 완료

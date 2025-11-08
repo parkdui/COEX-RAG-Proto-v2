@@ -45,6 +45,10 @@ body {
   
   .touch-manipulation {
     touch-action: manipulation;
+}
+
+  .recommendation-scroll::-webkit-scrollbar {
+    display: none;
   }
   
   /* Gradient Animation */
@@ -128,6 +132,63 @@ body {
     50% {
       font-weight: 300;
       transform: scale(0.95);
+    }
+  }
+  
+  /* Sori Letter Color Animation */
+  /* 모든 글자가 동일한 애니메이션 패턴: #000 → #fff → #000 (그 후 #000이 5초 더 지속) */
+  /* 초기 색상만 다름: S(#000), o(#333), r(#666), i(#000) */
+  /* 전체 주기: 6초 (0-8.33%: #000→#fff (0-0.5초), 8.33-16.67%: #fff→#000 (0.5-1초), 16.67-100%: #000 유지 (1-6초)) */
+  
+  /* S: #000(시작) → #fff → #000 → #000 유지 */
+  @keyframes soriLetterColorS {
+    0%, 16.67%, 100% {
+      color: #000000;
+    }
+    8.33% {
+      color: #ffffff;
+    }
+  }
+  
+  /* o: #333(시작) → #000 → #fff → #000 → #000 유지 → #333 */
+  @keyframes soriLetterColorO {
+    0%, 100% {
+      color: #333333;
+    }
+    1.25% {
+      color: #000000;
+    }
+    8.33% {
+      color: #ffffff;
+    }
+    16.67%, 98.75% {
+      color: #000000;
+    }
+  }
+  
+  /* r: #666(시작) → #000 → #fff → #000 → #000 유지 → #666 */
+  @keyframes soriLetterColorR {
+    0%, 100% {
+      color: #666666;
+    }
+    1.25% {
+      color: #000000;
+    }
+    8.33% {
+      color: #ffffff;
+    }
+    16.67%, 98.75% {
+      color: #000000;
+    }
+  }
+  
+  /* i: #000(시작) → #fff → #000 → #000 유지 */
+  @keyframes soriLetterColorI {
+    0%, 16.67%, 100% {
+      color: #000000;
+    }
+    8.33% {
+      color: #ffffff;
     }
   }
   

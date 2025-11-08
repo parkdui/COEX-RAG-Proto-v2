@@ -98,8 +98,10 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         background: 'rgba(0, 0, 0, 0.00)',
         flexShrink: 0,
         overflow: 'hidden', // 마스크 역할
-        position: 'sticky', // 모바일 키보드가 올라와도 상단에 고정
-        top: 0, // 상단에 고정
+        position: 'fixed', // 모바일 키보드가 올라와도 상단에 고정
+        top: '16px', // 상단 여백 추가
+        left: '50%', // 중앙 정렬을 위한 left
+        transform: 'translateX(-50%)', // 중앙 정렬
         zIndex: 30, // 다른 요소 위에 표시
         boxSizing: 'border-box' // 패딩 포함 크기 계산
       }}

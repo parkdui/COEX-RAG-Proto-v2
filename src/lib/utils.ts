@@ -65,6 +65,7 @@ export const FIELD_ALIASES = {
   gender: ["성별"],
   interest: ["관심사"],
   job: ["직업"],
+  thumbnail: ["썸네일", "Thumbnail", "이미지", "Image URL", "이미지URL"],
 };
 
 export function pickByAliases(row: Record<string, unknown>, aliases: string[]) {
@@ -104,6 +105,7 @@ export function mapRow(r: Record<string, unknown>) {
   const gender = pickByAliases(r, FIELD_ALIASES.gender);
   const interest = pickByAliases(r, FIELD_ALIASES.interest);
   const job = pickByAliases(r, FIELD_ALIASES.job);
+  const thumbnail = pickByAliases(r, FIELD_ALIASES.thumbnail);
 
   // 시작일과 종료일을 하나의 날짜 문자열로 조합
   let date = startDate;
@@ -152,6 +154,7 @@ export function mapRow(r: Record<string, unknown>) {
     gender,
     interest,
     job,
+    thumbnail,
     baseText,
   };
 }

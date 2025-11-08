@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 
 // 환경 변수 직접 로드 (Vercel 호환성 개선)
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Coex!A1:T";
+const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Coex!A1:U";
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 

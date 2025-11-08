@@ -6,10 +6,9 @@ import { Message } from '@/types';
 import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
 import { requestTTS, AudioManager } from '@/lib/ttsUtils';
-import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords } from '@/components/ui';
+import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
-import ChatTypewriter from '@/components/ui/ChatTypewriter';
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -32,7 +31,7 @@ const useChatState = () => {
     addMessage(errorMessage);
   }, [addMessage]);
 
-  return {
+  return useMemo(() => ({
     messages,
     chatHistory,
     inputValue,
@@ -45,7 +44,16 @@ const useChatState = () => {
     setIsGoButtonDisabled,
     addMessage,
     addErrorMessage
-  };
+  }), [
+    messages,
+    chatHistory,
+    inputValue,
+    systemPrompt,
+    isLoading,
+    isGoButtonDisabled,
+    addMessage,
+    addErrorMessage
+  ]);
 };
 
 /**
@@ -112,17 +120,76 @@ const useTTS = () => {
         const match = text.match(/[^.!?]*(?:[.!?]|$)/);
         return match ? match[0].trim() : text.split(/[.!?]/)[0].trim();
       };
+
+      const getLastSentence = (text: string) => {
+        const matches = text.match(/[^.!?]+[.!?]?/g);
+        if (!matches || matches.length === 0) {
+          return text.trim();
+        }
+        return matches[matches.length - 1].trim();
+      };
+      const isRecommendationSentence = (sentence: string) => {
+        if (!sentence) return false;
+        const normalized = sentence.replace(/\s+/g, '');
+        const recommendationKeywords = [
+          '제안',
+          '추천',
+          '어떠실까요',
+          '어떠세요',
+          '어떨까요',
+          '해보세요',
+          '해보시는건어때요',
+          '가보세요',
+          '가보시는걸추천',
+          '즐겨보세요',
+          '권해드려요',
+        ];
+        return recommendationKeywords.some(keyword => normalized.includes(keyword));
+      };
       
-      if (message.segments && message.segments.length > 0) {
-        // 세그먼트가 있으면 첫 번째 세그먼트의 첫 번째 문장만 재생
-        textToPlay = getFirstSentence(message.segments[0].text);
+      const sentencesToPlay: string[] = [];
+
+        if (message.segments && message.segments.length > 0) {
+        const firstSegmentText = message.segments[0].text;
+        const lastSegmentText = message.segments[message.segments.length - 1].text;
+
+        const firstSentence = getFirstSentence(firstSegmentText);
+        const lastSentence = getLastSentence(lastSegmentText);
+
+        if (firstSentence) {
+          sentencesToPlay.push(firstSentence);
+        }
+
+          if (
+            lastSentence &&
+            lastSentence !== firstSentence &&
+            isRecommendationSentence(lastSentence)
+          ) {
+          sentencesToPlay.push(lastSentence);
+        }
       } else {
-        // 세그먼트가 없으면 전체 내용의 첫 번째 문장만 재생
-        textToPlay = getFirstSentence(message.content);
+        const firstSentence = getFirstSentence(message.content);
+        const lastSentence = getLastSentence(message.content);
+
+        if (firstSentence) {
+          sentencesToPlay.push(firstSentence);
+        }
+
+          if (
+            lastSentence &&
+            lastSentence !== firstSentence &&
+            isRecommendationSentence(lastSentence)
+          ) {
+          sentencesToPlay.push(lastSentence);
+        }
       }
+
+      textToPlay = sentencesToPlay.join(' ');
       
       // TTS를 즉시 재생 (텍스트 애니메이션 시작 전)
-      playTTS(textToPlay);
+      if (textToPlay) {
+        playTTS(textToPlay);
+      }
     }
   }, [autoPlayTTS, playTTS]);
 
@@ -173,6 +240,20 @@ const recommendationMessages = [
   "트렌디한 음식점을 찾고 있어"
 ];
 
+type TypewriterVariant = 'v1' | 'v2' | 'v3';
+
+const typewriterComponentMap: Record<TypewriterVariant, React.ComponentType<any>> = {
+  v1: ChatTypewriterV1,
+  v2: ChatTypewriterV2,
+  v3: ChatTypewriterV3,
+};
+
+const typewriterOptions: Array<{ label: string; value: TypewriterVariant }> = [
+  { label: 'V1', value: 'v1' },
+  { label: 'V2', value: 'v2' },
+  { label: 'V3', value: 'v3' },
+];
+
 interface MainPageV1Props {
   showBlob?: boolean;
 }
@@ -194,6 +275,29 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const [showFinalMessage, setShowFinalMessage] = useState(false);
   const [isKeywordsAnimatingOut, setIsKeywordsAnimatingOut] = useState(false);
   const [showFifthAnswerWarning, setShowFifthAnswerWarning] = useState(false);
+  const [typewriterVariant, setTypewriterVariant] = useState<TypewriterVariant>('v2');
+
+  const GreetingTypewriter = typewriterComponentMap[typewriterVariant];
+
+  const createTypewriterProps = useCallback(
+    (text: string, delay = 0) => {
+      const baseProps: Record<string, any> = {
+        text,
+        speed: 50,
+        delay,
+        speedVariation: 0.3,
+        minSpeed: 20,
+        maxSpeed: 100,
+      };
+
+      if (typewriterVariant === 'v2') {
+        baseProps.characterChangeInterval = 200;
+      }
+
+      return baseProps;
+    },
+    [typewriterVariant]
+  );
 
   // 랜덤으로 3개 선택
   const getRandomRecommendations = useCallback(() => {
@@ -235,7 +339,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     return text.length > 20 ? text.substring(0, 20) + '...' : text;
   }, []);
 
-  const [randomRecommendations, setRandomRecommendations] = useState(getRandomRecommendations);
+  const randomRecommendations = useMemo(() => getRandomRecommendations(), [getRandomRecommendations]);
 
   // 스크롤을 맨 아래로 이동
   const scrollToBottom = useCallback(() => {
@@ -318,11 +422,21 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
   // 시스템 프롬프트 로드
   useEffect(() => {
+    let isMounted = true;
+
     fetch('/LLM/system_prompt.txt')
       .then(response => response.text())
-      .then(text => chatState.setSystemPrompt(text))
+      .then(text => {
+        if (isMounted) {
+          chatState.setSystemPrompt(text);
+        }
+      })
       .catch(error => console.error('시스템 프롬프트 로드 실패:', error));
-  }, [chatState]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chatState.setSystemPrompt]);
 
   // 오디오 처리 및 STT
   const processAudio = useCallback(async (audioBlob: Blob) => {
@@ -346,12 +460,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
           } else {
-            const assistantMessage = createAssistantMessage({
-              answer: chatData.answer,
-              tokens: chatData.tokens,
-              hits: chatData.hits,
-              defaultAnswer: '(응답 없음)'
-            });
+        const assistantMessage = createAssistantMessage({
+          answer: chatData.answer,
+          tokens: chatData.tokens,
+          hits: chatData.hits,
+          defaultAnswer: '(응답 없음)'
+        });
             chatState.addMessage(assistantMessage);
           }
         } catch (error) {
@@ -373,7 +487,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     } finally {
       voiceState.setIsProcessingVoice(false);
     }
-  }, [chatState, voiceState, ttsState]);
+  }, [
+    chatState.addErrorMessage,
+    chatState.addMessage,
+    chatState.chatHistory,
+    chatState.setInputValue,
+    chatState.setIsLoading,
+    chatState.systemPrompt,
+    voiceState.setIsProcessingVoice
+  ]);
 
   // 음성 녹음 시작
   const startRecording = useCallback(async () => {
@@ -431,7 +553,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       console.error('마이크 접근 오류:', error);
       handleMicrophoneError(error);
     }
-  }, [voiceState, processAudio]);
+  }, [processAudio, voiceState.setIsRecording]);
 
   // 음성 녹음 중지
   const stopRecording = useCallback(() => {
@@ -504,7 +626,17 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     } finally {
       chatState.setIsLoading(false);
     }
-  }, [chatState]);
+  }, [
+    chatState.addErrorMessage,
+    chatState.addMessage,
+    chatState.chatHistory,
+    chatState.inputValue,
+    chatState.isLoading,
+    chatState.setInputValue,
+    chatState.setIsLoading,
+    chatState.systemPrompt,
+    isConversationEnded
+  ]);
 
   // 대화 시작
   const handleGoButton = useCallback(async () => {
@@ -536,7 +668,13 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       chatState.setIsLoading(false);
       chatState.setIsGoButtonDisabled(false);
     }
-  }, [chatState, ttsState]);
+  }, [
+    chatState.addErrorMessage,
+    chatState.addMessage,
+    chatState.setIsGoButtonDisabled,
+    chatState.setIsLoading,
+    chatState.systemPrompt
+  ]);
 
   // 키보드 이벤트 핸들러
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -807,77 +945,82 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         </div>
       )}
       
-      {/* 로고 - 상단에 고정 */}
-      <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-4">
-        <AnimatedLogo />
-      </div>
+      {/* 로고 - 상단에 고정 (AnimatedLogo 자체가 fixed로 설정됨) */}
+      <AnimatedLogo />
 
-      {/* 점 5개 - 로고 아래 고정 */}
-      <div className="fixed top-20 left-0 right-0 z-30 mb-8" style={{ display: 'none' }}>
-        <div className="flex flex-col items-center">
-          <div className="relative flex justify-between items-center" style={{ width: '70%' }}>
-            {questionCount > 1 && [0, 1, 2, 3, 4].map((index) => {
-              if (index >= questionCount - 1) return null;
-              
-              // 점의 위치는 justify-between으로 배치되므로 각 점의 위치는
-              // index 0: 0%, index 1: 25%, index 2: 50%, index 3: 75%, index 4: 100%
-              const startPosition = (index / 4) * 100;
-              const endPosition = ((index + 1) / 4) * 100;
-              const lineWidth = endPosition - startPosition;
-              
+      {/* Typewriter 버전 토글 - 테스트용 */}
+      <div
+        className="fixed top-4 right-4 z-40"
+        style={{ pointerEvents: 'auto' }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '10px 12px',
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            boxShadow: '0 4px 20px rgba(31, 38, 135, 0.18)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            fontFamily: 'Pretendard Variable',
+            color: '#1f2937',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: '#6b7280',
+            }}
+          >
+            Typewriter
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+            }}
+          >
+            {typewriterOptions.map((option) => {
+              const isActive = option.value === typewriterVariant;
               return (
-                <div
-                  key={`gradient-${index}`}
+                <label
+                  key={option.value}
                   style={{
-                    position: 'absolute',
-                    left: `${startPosition}%`,
-                    top: '50%',
-                    width: `${lineWidth}%`,
-                    height: '10px',
-                    transform: 'translateY(-50%)',
-                    background: 'linear-gradient(to right, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0))',
-                    zIndex: 0,
-                    borderRadius: '5px'
+                    position: 'relative',
+                    cursor: 'pointer',
+                    borderRadius: '999px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: isActive ? '#0f172a' : '#4b5563',
+                    background: isActive ? 'rgba(135, 254, 200, 0.6)' : 'rgba(255, 255, 255, 0.55)',
+                    border: isActive ? '1px solid rgba(79, 209, 197, 0.8)' : '1px solid rgba(148, 163, 184, 0.15)',
+                    boxShadow: isActive ? '0 6px 16px rgba(13, 148, 136, 0.24)' : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    userSelect: 'none',
                   }}
-                />
+                >
+                  <input
+                    type="radio"
+                    name="typewriter-variant"
+                    value={option.value}
+                    checked={isActive}
+                    onChange={() => setTypewriterVariant(option.value)}
+                    style={{ display: 'none' }}
+                  />
+                  {option.label}
+                </label>
               );
             })}
-            
-            {[0, 1, 2, 3, 4].map((index) => (
-              <div
-                key={index}
-                className="rounded-full flex-shrink-0"
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  backgroundColor: index < questionCount ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)',
-                  position: 'relative',
-                  zIndex: 1
-                }}
-              />
-            ))}
           </div>
-          
-          {/* 마지막 질문 기회 안내 문구 */}
-          {questionCount === 4 && (
-            <div 
-              className="mt-4 text-center"
-              style={{
-                color: 'rgba(255, 255, 255, 0.8)',
-                fontFamily: 'Pretendard Variable',
-                fontSize: '14px',
-                fontStyle: 'normal',
-                fontWeight: 400,
-                lineHeight: '140%',
-                letterSpacing: '-0.56px'
-              }}
-            >
-              이제 이솔에게 질문할 기회가 한 번 남았습니다
-            </div>
-          )}
         </div>
       </div>
-      
+
       {/* 5번째 답변 후 안내 메시지 */}
       {showFifthAnswerWarning && !showEndMessage && !showSummary && (
         <div className="fixed top-24 left-0 right-0 z-30 flex justify-center">
@@ -901,7 +1044,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       )}
 
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-32">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24">
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -921,18 +1064,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   className="p-6 w-full"
                 >
                   <div className="flex justify-center">
-                    <ChatTypewriter
-                      text="안녕하세요! 이솔이에요"
-                      speed={50}
-                      delay={0}
-                    />
+                    <GreetingTypewriter {...createTypewriterProps("안녕하세요! 이솔이에요", 0)} />
                   </div>
                   <div className="flex justify-center mt-2">
-                    <ChatTypewriter
-                      text="코엑스 안내를 도와드릴게요"
-                      speed={50}
-                      delay={800}
-                    />
+                    <GreetingTypewriter {...createTypewriterProps("코엑스 안내를 도와드릴게요", 800)} />
                   </div>
                 </div>
               </div>
@@ -957,7 +1092,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           style={{
                             color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45pt',
+                            fontSize: '40pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
                             lineHeight: '90%',
@@ -973,7 +1108,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           style={{
                             color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45pt',
+                            fontSize: '40pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
                             lineHeight: '90%',
@@ -989,7 +1124,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           style={{
                             color: '#1f2937',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '45pt',
+                            fontSize: '40pt',
                             fontStyle: 'normal',
                             fontWeight: 700,
                             lineHeight: '90%',
@@ -1066,6 +1201,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                                 onPlayTTS={ttsState.playTTS}
                                 isPlayingTTS={ttsState.isPlayingTTS}
                                 isGlobalLoading={false}
+                                typewriterVariant={typewriterVariant}
                               />
                             );
                           }
@@ -1387,6 +1523,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           onPlayTTS={ttsState.playTTS}
                           isPlayingTTS={ttsState.isPlayingTTS}
                           isGlobalLoading={chatState.isLoading}
+                          typewriterVariant={typewriterVariant}
                         />
                       ))}
                   </div>
@@ -1396,42 +1533,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
           </div>
         </div>
       </main>
-
-      {/* 하단 추천 버튼들 */}
-      {!isConversationEnded && !showSummary && !showEndMessage && (
-      <div className="fixed bottom-20 left-0 right-0 z-20">
-        <div 
-          className="overflow-x-auto px-6 hide-scrollbar" 
-          style={{ 
-            position: 'relative'
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '12px', width: 'max-content' }}>
-            {randomRecommendations.map((message, index) => (
-              <button
-                key={index}
-                onClick={() => handleRecommendationClick(message)}
-                disabled={chatState.isLoading}
-                className="px-4 py-2 transition-opacity duration-200 touch-manipulation active:scale-95 disabled:opacity-50 whitespace-nowrap"
-                style={{
-                  fontFamily: 'Pretendard Variable',
-                  fontSize: '15px',
-                  fontStyle: 'normal',
-                  fontWeight: 500,
-                  lineHeight: '130%',
-                  letterSpacing: '-0.6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#717171',
-                }}
-              >
-                {message}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      )}
 
       {/* 하단 고정 입력창 또는 대화 요약 보러가기 버튼 */}
       {!showSummary && !showEndMessage && (
@@ -1463,6 +1564,58 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         ) : (
           // 일반 입력창
           <form onSubmit={handleSubmit} className="w-full">
+          <div
+            className="recommendation-scroll"
+            style={{
+              display: 'flex',
+              gap: '8px',
+              paddingBottom: '4px',
+              marginBottom: '12px',
+              width: '100%',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {randomRecommendations.map((message, index) => {
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleRecommendationClick(message)}
+                  disabled={chatState.isLoading}
+                  className="touch-manipulation active:scale-95 disabled:opacity-50"
+                  style={{
+                    display: 'inline-flex',
+                    padding: '8px 16px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    flex: '0 0 auto',
+                    borderRadius: '40px',
+                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(244,244,244,0.2), rgba(255,255,255,0.4))',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                  type="button"
+                >
+                  <span
+                    style={{
+                      fontFamily: 'Pretendard Variable',
+                      fontSize: '14px',
+                      fontStyle: 'normal' as const,
+                      fontWeight: 600,
+                      lineHeight: '190%',
+                      letterSpacing: '-0.48px',
+                      color: '#757575',
+                      whiteSpace: 'nowrap' as const,
+                    }}
+                  >
+                    {message}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           <div 
             className="flex items-center"
             style={{
@@ -1478,14 +1631,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               placeholder="메시지 보내기..."
               disabled={chatState.isLoading || voiceState.isProcessingVoice}
               style={{
-                color: '#FFF',
+                color: '#878181',
                 fontFamily: 'Pretendard Variable',
-                fontSize: '15px',
+                fontSize: '14px',
                 fontStyle: 'normal',
                 fontWeight: 400,
                 lineHeight: '150%',
+                caretColor: '#FFF',
               }}
-              className="flex-1 px-4 py-3 bg-transparent placeholder-white/70 focus:outline-none"
+              className="flex-1 px-4 py-3 bg-transparent focus:outline-none placeholder-[#878181]"
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
@@ -1502,11 +1656,11 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               {voiceState.isRecording ? (
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V7z" clipRule="evenodd" />
                 </svg>
               ) : (
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
                 </svg>
               )}
