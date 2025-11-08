@@ -9,6 +9,7 @@ interface CountingNumberProps {
   className?: string;
   style?: React.CSSProperties;
   onComplete?: () => void;
+  shouldStart?: boolean;
 }
 
 export default function CountingNumber({
@@ -18,8 +19,9 @@ export default function CountingNumber({
   className = '',
   style,
   onComplete,
+  shouldStart = true,
 }: CountingNumberProps) {
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState<number>(target > 0 ? 1 : 0);
   const [isComplete, setIsComplete] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -30,12 +32,23 @@ export default function CountingNumber({
   }, [onComplete]);
 
   useEffect(() => {
+    const initialValue = target > 0 ? 1 : 0;
+
     // 초기화
-    setCurrent(0);
+    setCurrent(initialValue);
     setIsComplete(false);
     startTimeRef.current = null;
 
-    if (target === 0) {
+    if (!shouldStart) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      return;
+    }
+
+    if (target <= 1) {
+      setCurrent(initialValue);
       setIsComplete(true);
       onCompleteRef.current?.();
       return;
@@ -52,7 +65,8 @@ export default function CountingNumber({
 
         // easing function (ease-out)
         const easeOut = 1 - Math.pow(1 - progress, 3);
-        const nextValue = Math.floor(easeOut * target);
+        const easedValue = 1 + easeOut * (target - 1);
+        const nextValue = Math.min(target, Math.floor(easedValue));
 
         setCurrent(nextValue);
 
@@ -85,7 +99,7 @@ export default function CountingNumber({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [target, duration, startDelay]);
+  }, [target, duration, startDelay, shouldStart]);
 
   return (
     <span className={className} style={style}>

@@ -72,6 +72,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [conversationCount, setConversationCount] = useState<number | null>(null);
   const [isLoadingCount, setIsLoadingCount] = useState(true);
+  const [hasCountingStarted, setHasCountingStarted] = useState(false);
 
   // 오늘의 대화 횟수 가져오기
   useEffect(() => {
@@ -179,8 +180,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                     color: '#1f2937'
                   }}
                   onComplete={() => {
-                    // 두 번째 줄의 초기 애니메이션이 끝나면 카운터 표시
+                    // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
                     setShowCounter(true);
+                    setHasCountingStarted(true);
                   }}
                 />
               </div>
@@ -191,6 +193,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
               <GuideIndexTracker
                 onReachG={() => {
                   setShowCounter(true);
+                  setHasCountingStarted(true);
                 }}
               />
             )}
@@ -214,10 +217,11 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                 duration={1500}
                 startDelay={200}
                 style={{ display: 'inline-block' }}
+                shouldStart={hasCountingStarted}
               />
               <span>번째로 대화하는 중이에요</span>
             </div>
-          ) : showCounter && isLoadingCount ? (
+          ) : hasCountingStarted && isLoadingCount ? (
             <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
               <span>오늘 </span>
               <span>...</span>
