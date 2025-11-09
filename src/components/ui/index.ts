@@ -9,3 +9,4 @@ export { default as Typewriter } from './Typewriter';
 export { default as ChatTypewriterV1 } from './ChatTypewriterV1';
 export { default as ChatTypewriterV2 } from './ChatTypewriterV2';
 export { default as ChatTypewriterV3 } from './ChatTypewriterV3';
+export { default as BlobBackgroundV2 } from './BlobBackgroundV2';

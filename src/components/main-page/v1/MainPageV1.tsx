@@ -822,7 +822,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   }, [chatState, isConversationEnded, pushAssistantMessage]);
 
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative">
+    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative" style={{ background: 'transparent' }}>
       {/* Blurry Blob 배경은 AppFlow에서 관리 (키워드 요약 화면에서는 숨김) */}
       {showBlob && !showSummary && (
         <div className="fixed inset-0 z-0 pointer-events-none">
@@ -929,7 +929,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       )}
 
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24">
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
@@ -1453,14 +1453,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
             className="recommendation-scroll"
             style={{
               display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
               gap: '8px',
               paddingBottom: '4px',
               marginBottom: '12px',
               width: '100%',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
             }}
           >
             {randomRecommendations.map((message, index) => {

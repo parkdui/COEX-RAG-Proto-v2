@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
-import BlobBackground from './ui/BlobBackground';
+import BlobBackgroundV2 from './ui/BlobBackgroundV2';
 import LetterColorAnimation from './ui/LetterColorAnimation';
 import CountingNumber from './ui/CountingNumber';
 
@@ -101,16 +101,16 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
   return (
     <div 
-      className={`h-screen flex flex-col safe-area-inset overscroll-none relative transition-opacity duration-500 overflow-hidden ${
+      className={`h-screen flex flex-col safe-area-inset overscroll-none relative transition-opacity duration-500 overflow-hidden bg-transparent ${
         isTransitioning ? 'opacity-0' : 'opacity-100'
       }`}
     >
       {/* Blurry Blob 배경 - 2개의 gradient blob (V4/IN1 스타일) */}
-      {showBlob && <BlobBackground />}
+      {showBlob && <BlobBackgroundV2 />}
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div 
-        className="relative z-10 flex-1 flex flex-col justify-start px-6 transition-all duration-[5000ms] ease-in-out overflow-hidden"
+        className="relative z-10 flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
           paddingTop: moveToBottom ? '20px' : '80px',
           paddingBottom: '120px', // 버튼 공간 확보
@@ -236,24 +236,72 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         <button
           onClick={handleStartClick}
           disabled={isTransitioning}
-          className="w-full touch-manipulation active:scale-95 flex justify-center items-center disabled:opacity-50"
+          className="landing-start-btn touch-manipulation active:scale-95 disabled:opacity-50"
           style={{
-            height: '56px',
-            padding: '15px 85px',
-            borderRadius: '68px',
-            background: 'rgba(255, 255, 255, 0.21)',
             color: '#000',
             textAlign: 'center',
             fontFamily: 'Pretendard Variable',
             fontSize: '16px',
             fontWeight: 700,
             lineHeight: '110%',
-            letterSpacing: '-0.64px',
+            letterSpacing: '-0.64px'
           }}
         >
           시작하기
         </button>
       </div>
+      <style jsx>{`
+        .landing-start-btn {
+          position: relative;
+          margin: 0 auto;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: min(420px, 100%);
+          padding: 0 clamp(20px, 5vw, 38px);
+          height: clamp(52px, 10vw, 60px);
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.45);
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%);
+          box-shadow:
+            0 18px 36px rgba(36, 82, 94, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.88);
+          backdrop-filter: blur(22px) saturate(1.55);
+          -webkit-backdrop-filter: blur(22px) saturate(1.55);
+          transition:
+            transform 160ms ease,
+            box-shadow 160ms ease,
+            background 160ms ease;
+        }
+        @media (max-width: 480px) {
+          .landing-start-btn {
+            padding: 0 clamp(18px, 12vw, 32px);
+          }
+        }
+        .landing-start-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          opacity: 0;
+          transition: opacity 160ms ease;
+          pointer-events: none;
+        }
+        .landing-start-btn:not(:disabled):hover {
+          transform: translateY(-2px);
+          box-shadow:
+            0 24px 46px rgba(36, 82, 94, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.92);
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.52) 48%, rgba(255, 255, 255, 0.26) 100%);
+        }
+        .landing-start-btn:not(:disabled):hover::after {
+          opacity: 0.4;
+        }
+        .landing-start-btn:disabled {
+          cursor: not-allowed;
+        }
+      `}</style>
     </div>
   );
 }
