@@ -15,76 +15,64 @@ const typewriterComponents: Record<TypewriterVariant, React.ComponentType<any>> 
   v3: ChatTypewriterV3,
 };
 
+const assistantGlassWrapperStyle: React.CSSProperties = {
+  width: 'min(360px, 92vw)',
+  margin: '0 auto',
+  pointerEvents: 'none',
+  position: 'relative',
+  zIndex: 10,
+};
+
+const assistantGlassContentStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 'clamp(18px, 3.6vw, 26px)',
+  padding: 'clamp(22px, 5.2vw, 30px)',
+  borderRadius: '28px',
+  background: 'rgba(255, 255, 255, 0.025)',
+  border: '1px solid rgba(255, 255, 255, 0.4)',
+  boxShadow:
+    '0 14px 24px rgba(22, 42, 58, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -5px 14px rgba(255, 255, 255, 0.12)',
+  backdropFilter: 'blur(42px) saturate(2.35) contrast(1.08)',
+  WebkitBackdropFilter: 'blur(42px) saturate(2.35) contrast(1.08)',
+  textAlign: 'center',
+  color: '#0f2420',
+  position: 'relative',
+  overflow: 'hidden',
+  pointerEvents: 'auto',
+};
+
 const AssistantGlassStyles = () => (
-  <style jsx>{`
-    .glass-overlay {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: clamp(16px, 6vw, 48px);
-      pointer-events: none;
-      position: relative;
-      z-index: 3;
-    }
-    .glass-overlay--visible {
-      pointer-events: auto;
-    }
-    .glass-modal {
-      width: min(360px, 82vw);
-      pointer-events: none;
-      display: grid;
-      place-items: center;
-    }
-    .glass-content {
-      position: relative;
-      display: grid;
-      gap: clamp(18px, 3.6vw, 26px);
-      padding: clamp(22px, 5.2vw, 30px);
-      border-radius: 28px;
-      background: linear-gradient(180deg, rgba(255, 161, 235, 0.2) -8.33%, rgba(255, 255, 255, 0.52) 94.9%);
-      border: 1px solid rgba(255, 255, 255, 0.75);
-      box-shadow:
-        0 32px 60px rgba(22, 42, 58, 0.42),
-        inset 0 1px 0 rgba(255, 255, 255, 0.88),
-        inset 0 -18px 32px rgba(255, 255, 255, 0.22);
-      backdrop-filter: blur(48px) saturate(2.5) contrast(1.08);
-      -webkit-backdrop-filter: blur(48px) saturate(2.5) contrast(1.08);
-      text-align: center;
-      color: #0f2420;
-      overflow: hidden;
-      pointer-events: auto;
-    }
-    .glass-content::before {
+  <style jsx global>{`
+    .assistant-glass-content::before {
       content: '';
       position: absolute;
       inset: 0;
       border-radius: inherit;
-      background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 55%, rgba(255, 255, 255, 0.12) 100%);
+      background: linear-gradient(145deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.08) 55%, rgba(255,255,255,0) 100%);
       mix-blend-mode: screen;
-      opacity: 0.75;
+      opacity: 0.48;
       pointer-events: none;
     }
-    .glass-content::after {
+    .assistant-glass-content::after {
       content: '';
       position: absolute;
       inset: -30%;
       background:
-        radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.24), transparent 60%),
-        radial-gradient(circle at 86% 78%, rgba(118, 212, 255, 0.18), transparent 70%),
-        rgba(255, 255, 255, 0.018);
-      opacity: 0.32;
-      filter: blur(70px) saturate(1.6);
+        radial-gradient(circle at 18% 14%, rgba(255,255,255,0.24), transparent 60%),
+        radial-gradient(circle at 86% 78%, rgba(118,212,255,0.18), transparent 70%),
+        rgba(255,255,255,0.018);
+      opacity: 0.16;
+      filter: blur(60px) saturate(1.4);
       pointer-events: none;
     }
-    .glass-highlight {
+    .assistant-glass-highlight {
       position: absolute;
       inset: 0;
       border-radius: inherit;
       padding: 2px;
       background: linear-gradient(45deg, transparent 25%, rgba(255, 255, 255, 0.6) 50%, transparent 75%, transparent 100%);
       background-size: 400% 400%;
-      animation: gradient-rotate 2.2s linear;
+      animation: gradient-rotate 2s linear;
       pointer-events: none;
       z-index: 1;
       mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -92,11 +80,9 @@ const AssistantGlassStyles = () => (
       mask-composite: exclude;
       -webkit-mask-composite: xor;
     }
-    .glass-body {
+    .assistant-glass-body {
       position: relative;
       z-index: 2;
-      color: #0f2420;
-      text-align: center;
     }
     @keyframes gradient-rotate {
       0% {
@@ -412,43 +398,6 @@ const QuotedTextRenderer: React.FC<{ text: string; enableKeywordLineBreak?: bool
 };
 
 /**
- * TTS 버튼 컴포넌트
- */
-const TTSButton: React.FC<{
-  text: string;
-  onPlayTTS: (text: string) => void;
-  isPlayingTTS: boolean;
-  title?: string;
-}> = ({ text, onPlayTTS, isPlayingTTS, title = '음성으로 듣기' }) => (
-  <div className="mt-2 flex items-center gap-2">
-    <button
-      onClick={() => onPlayTTS(text)}
-      disabled={isPlayingTTS}
-      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-        isPlayingTTS 
-          ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-          : 'bg-blue-600 hover:bg-blue-700 text-white'
-      }`}
-      title={isPlayingTTS ? '음성 재생 중...' : title}
-    >
-      {isPlayingTTS ? (
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-          재생 중...
-        </span>
-      ) : (
-        <span className="flex items-center gap-1">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.794L4.617 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.617l3.766-3.794a1 1 0 011.617.794zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
-          </svg>
-          🔊 듣기
-        </span>
-      )}
-    </button>
-  </div>
-);
-
-/**
  * 토큰 정보 컴포넌트 (사용하지 않음)
  */
 const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => null;
@@ -677,11 +626,10 @@ const SegmentedMessage: React.FC<{
   
   return (
     <div className="flex justify-center mb-4">
-      <div className="glass-overlay">
-            <div className="glass-modal">
-              <div className="glass-content">
-                {showHighlight && <div className="glass-highlight" />}
-                <div className="glass-body">
+      <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
+        <div className="assistant-glass-content" style={assistantGlassContentStyle}>
+          {showHighlight && <div className="assistant-glass-highlight" />}
+          <div className="assistant-glass-body">
           {(() => {
             const TypewriterComponent = typewriterComponents[typewriterVariant];
             const typewriterProps: Record<string, any> = {
@@ -836,8 +784,7 @@ const SegmentedMessage: React.FC<{
             {message.tokens && <TokenInfo tokens={message.tokens} />}
             {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
           </div>
-          </div>
-      </div>
+        </div>
       </div>
       <AssistantGlassStyles />
     </div>
@@ -950,28 +897,25 @@ const SingleMessage: React.FC<{
   useEffect(() => {
     setIsSiteVisible(false);
   }, [message, isThinking]);
-
+ 
   return (
     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
       {message.role === 'assistant' ? (
         <>
-          <div className="glass-overlay glass-overlay--visible">
-            <div className="glass-modal">
-              <div className="glass-content">
-                {showHighlight && <div className="glass-highlight" />}
-                <div className="whitespace-pre-wrap glass-body" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
-            {!isThinking ? (
-              <div style={textStyle}>
+          <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
+            <div className="assistant-glass-content" style={assistantGlassContentStyle}>
+              {showHighlight && <div className="assistant-glass-highlight" />}
+              <div className="assistant-glass-body">
                 {(() => {
                   const TypewriterComponent = typewriterComponents[typewriterVariant];
-                  const assistantText = message.role === 'assistant' ? contentWithoutLastSentence : (message.content || '');
+                  const assistantText = message.role === 'assistant' ? contentWithoutLastSentence : message.content || '';
                   const typewriterProps: Record<string, any> = {
                     text: assistantText,
                     speed: 50,
                     delay: 500,
                     speedVariation: 0.3,
                     minSpeed: 20,
-                    maxSpeed: 100,
+                    maxSpeed: 100
                   };
 
                   if (typewriterVariant === 'v2') {
@@ -1015,7 +959,7 @@ const SingleMessage: React.FC<{
                                         verticalAlign: 'middle',
                                         marginLeft: '2px',
                                         color: '#000',
-                                        transition: 'none',
+                                        transition: 'none'
                                       }}
                                     >
                                       {cursorChar}
@@ -1025,14 +969,8 @@ const SingleMessage: React.FC<{
                               </div>
                             )}
                             <div className="flex flex-col gap-2">
-                              {imageShouldRender && (
-                                <div
-                                  className="mb-3 flex justify-center"
-                                  style={{
-                                    width: '100%',
-                                    maxWidth: '100%',
-                                  }}
-                                >
+                              {shouldShowImage && (
+                                <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
                                   <div
                                     style={{
                                       width: '100%',
@@ -1044,7 +982,7 @@ const SingleMessage: React.FC<{
                                       transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
                                       transformOrigin: 'top',
                                       opacity: imageShouldRender ? 1 : 0,
-                                      transition: 'transform 0.6s ease-in-out, opacity 0.6s ease-in-out',
+                                      transition: 'transform 0.6s ease-in-out'
                                     }}
                                   >
                                     <img
@@ -1053,7 +991,7 @@ const SingleMessage: React.FC<{
                                       style={{
                                         width: '100%',
                                         height: '100%',
-                                        objectFit: 'cover',
+                                        objectFit: 'cover'
                                       }}
                                     />
                                   </div>
@@ -1071,7 +1009,7 @@ const SingleMessage: React.FC<{
                                         verticalAlign: 'middle',
                                         marginLeft: '2px',
                                         color: '#000',
-                                        transition: 'none',
+                                        transition: 'none'
                                       }}
                                     >
                                       {cursorChar}
@@ -1088,7 +1026,7 @@ const SingleMessage: React.FC<{
                                     verticalAlign: 'middle',
                                     marginLeft: '2px',
                                     color: '#000',
-                                    transition: 'none',
+                                    transition: 'none'
                                   }}
                                 >
                                   {cursorChar}
@@ -1101,25 +1039,19 @@ const SingleMessage: React.FC<{
                     />
                   );
                 })()}
-              </div>
-            ) : (
-              <>
-                <span style={textStyle}>{message.content}</span>
-                <span className="inline-block ml-2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
-              </>
-            )}
-                </div>
+
                 <div
                   className="mt-4 flex justify-center"
                   style={{
                     opacity: shouldShowSite && isSiteVisible ? 1 : 0,
                     transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
                     transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
+                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none'
                   }}
                 >
                   {shouldShowSite && <SiteLink url={siteUrl} />}
                 </div>
+
                 {message.tokens && <TokenInfo tokens={message.tokens} />}
                 {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
               </div>
