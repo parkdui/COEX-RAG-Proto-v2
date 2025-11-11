@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
 import BlobBackgroundV2 from './ui/BlobBackgroundV2';
@@ -92,12 +92,12 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
     fetchConversationCount();
   }, []);
 
-  const handleStartClick = () => {
+  const handleStartClick = useCallback(() => {
     // 페이드아웃 시작
     setIsTransitioning(true);
     // blob 애니메이션 시작
     onStart();
-  };
+  }, [onStart]);
 
   return (
     <div 

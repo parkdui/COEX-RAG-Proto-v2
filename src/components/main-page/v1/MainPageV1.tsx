@@ -1503,7 +1503,11 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
             className="flex items-center"
             style={{
               borderRadius: '22px',
-              background: 'rgba(217, 217, 217, 0.60)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.18) 100%)',
+              border: '1px solid rgba(255,255,255,0.65)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.78), 0 16px 34px rgba(60,34,88,0.16)',
+              backdropFilter: 'blur(28px) saturate(1.6)',
+              WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
             }}
           >
             <input

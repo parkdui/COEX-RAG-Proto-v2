@@ -2,7 +2,7 @@
  * ChatBubble 컴포넌트
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText, Typewriter, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
@@ -40,6 +40,99 @@ const assistantGlassContentStyle: React.CSSProperties = {
   overflow: 'hidden',
   pointerEvents: 'auto',
 };
+
+const assistantPrimaryTextStyle: React.CSSProperties = {
+  color: '#000',
+  fontFamily: 'Pretendard Variable',
+  fontSize: '16px',
+  fontStyle: 'normal',
+  fontWeight: 400,
+  lineHeight: '140%',
+  letterSpacing: '-0.64px',
+  textAlign: 'center',
+  wordBreak: 'keep-all',
+  overflowWrap: 'break-word',
+  width: '86%',
+  marginLeft: 'auto',
+  marginRight: 'auto',
+} as const;
+
+const assistantHeadlineTextStyle: React.CSSProperties = {
+  color: '#000000',
+  textAlign: 'center',
+  fontFamily: 'Pretendard Variable',
+  fontSize: '18px',
+  fontStyle: 'normal',
+  fontWeight: 600,
+  lineHeight: '130%',
+  letterSpacing: '-0.72px',
+  wordBreak: 'normal',
+  overflowWrap: 'break-word',
+} as const;
+
+const quotedSpanStyle: React.CSSProperties = {
+  fontWeight: 600,
+  borderRadius: '25px',
+  background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'baseline',
+  lineHeight: '1.4',
+  display: 'inline-flex',
+  alignItems: 'center',
+  marginLeft: 0,
+  marginRight: '0.3rem',
+} as const;
+
+const quotedSpanBackdropStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  borderRadius: '25px',
+  padding: '1px',
+  background: 'linear-gradient(45deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 1) 100%)',
+  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+  WebkitMaskComposite: 'xor',
+  mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+  maskComposite: 'exclude',
+  pointerEvents: 'none',
+  zIndex: 1,
+} as const;
+
+const quotedSpanContentStyle: React.CSSProperties = {
+  position: 'relative',
+  zIndex: 0,
+} as const;
+
+const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
+
+const siteLinkWrapperStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  padding: '8px 20px',
+  alignItems: 'center',
+  gap: '10px',
+  borderRadius: '99px',
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.18) 100%)',
+  border: '1px solid rgba(255,255,255,0.65)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.78), 0 16px 34px rgba(60,34,88,0.16)',
+  backdropFilter: 'blur(28px) saturate(1.6)',
+  WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
+  textDecoration: 'none',
+} as const;
+
+const siteLinkTextStyle: React.CSSProperties = {
+  color: '#000',
+  textAlign: 'center',
+  fontFamily: 'Pretendard Variable',
+  fontSize: '15px',
+  fontStyle: 'normal',
+  fontWeight: 500,
+  lineHeight: '150%',
+  letterSpacing: '-0.36px',
+} as const;
+
+const siteLinkIconStyle: React.CSSProperties = {
+  width: '22px',
+  height: '22px',
+} as const;
 
 const AssistantGlassStyles = () => (
   <style jsx global>{`
@@ -283,112 +376,86 @@ const removeLastSentence = (text: string) => {
 /**
  * 텍스트를 작은따옴표, 큰따옴표, '**' 파싱 결과로 렌더링하는 컴포넌트
  */
-const QuotedTextRenderer: React.FC<{ text: string; enableKeywordLineBreak?: boolean }> = ({ text, enableKeywordLineBreak = false }) => {
-  const parts = parseQuotedText(text);
+const QuotedTextRendererComponent: React.FC<{ text: string; enableKeywordLineBreak?: boolean }> = ({ text, enableKeywordLineBreak = false }) => {
+  const parts = useMemo(() => parseQuotedText(text), [text]);
 
-  const renderQuotedSpan = (partText: string, spanKey: React.Key) => (
-    <span
-      key={spanKey}
-      className="px-2 py-1 relative"
-      style={{
-        fontWeight: 600,
-        borderRadius: '25px',
-        background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
-        whiteSpace: 'nowrap',
-        verticalAlign: 'baseline',
-        lineHeight: '1.4',
-        display: 'inline-flex',
-        alignItems: 'center',
-        marginLeft: 0,
-        marginRight: '0.3rem',
-      }}
-    >
-      <span
-        style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '25px',
-          padding: '1px',
-          background: 'linear-gradient(45deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 1) 100%)',
-          WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-          WebkitMaskComposite: 'xor',
-          mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-          maskComposite: 'exclude',
-          pointerEvents: 'none',
-          zIndex: 1,
-        }}
-      />
-      <span style={{ position: 'relative', zIndex: 0 }}>
-        {partText}
+  const renderQuotedSpan = useCallback(
+    (partText: string, spanKey: React.Key) => (
+      <span key={spanKey} className="px-2 py-1 relative" style={quotedSpanStyle}>
+        <span style={quotedSpanBackdropStyle} />
+        <span style={quotedSpanContentStyle}>{partText}</span>
       </span>
-    </span>
+    ),
+    []
   );
 
-  const renderSegmentNodes = (segments: Array<{ text: string; isQuoted: boolean }>, keyPrefix: string): React.ReactNode[] => {
-    const nodes: React.ReactNode[] = [];
+  const renderSegmentNodes = useCallback(
+    (segments: Array<{ text: string; isQuoted: boolean }>, keyPrefix: string): React.ReactNode[] => {
+      const nodes: React.ReactNode[] = [];
 
-    segments.forEach((segment, index) => {
-      const nodeKey = `${keyPrefix}-${index}`;
-      if (segment.isQuoted) {
-        nodes.push(renderQuotedSpan(segment.text, `${nodeKey}-quoted`));
-      } else if (segment.text) {
-        const lines = segment.text.split('\n');
-        lines.forEach((line, lineIdx) => {
-          nodes.push(
-            <React.Fragment key={`${nodeKey}-text-${lineIdx}`}>
-              {line}
-            </React.Fragment>
-          );
-          if (lineIdx < lines.length - 1) {
-            nodes.push(<br key={`${nodeKey}-br-${lineIdx}`} />);
-          }
-        });
-      }
-    });
+      segments.forEach((segment, index) => {
+        const nodeKey = `${keyPrefix}-${index}`;
+        if (segment.isQuoted) {
+          nodes.push(renderQuotedSpan(segment.text, `${nodeKey}-quoted`));
+        } else if (segment.text) {
+          const lines = segment.text.split('\n');
+          lines.forEach((line, lineIdx) => {
+            nodes.push(<React.Fragment key={`${nodeKey}-text-${lineIdx}`}>{line}</React.Fragment>);
+            if (lineIdx < lines.length - 1) {
+              nodes.push(<br key={`${nodeKey}-br-${lineIdx}`} />);
+            }
+          });
+        }
+      });
 
-    return nodes;
-  };
+      return nodes;
+    },
+    [renderQuotedSpan]
+  );
 
-  if (enableKeywordLineBreak) {
-    const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
-    const keywordMatch = KEYWORD_MATCH_REGEX.exec(text);
+  const keywordInfo = useMemo(() => {
+    if (!enableKeywordLineBreak) {
+      return null;
+    }
 
+    const keywordMatch = text.match(KEYWORD_MATCH_REGEX);
     if (!keywordMatch || keywordMatch.index === undefined) {
-      return <>{renderSegmentNodes(parts, 'default')}</>;
+      return null;
     }
 
     const fullMatch = keywordMatch[0];
     const keywordText = keywordMatch[1] ?? keywordMatch[2] ?? keywordMatch[3] ?? keywordMatch[4] ?? '';
-
     if (!keywordText) {
-      return <>{renderSegmentNodes(parts, 'default')}</>;
+      return null;
     }
 
     const beforeText = text.slice(0, keywordMatch.index);
     const afterText = text.slice(keywordMatch.index + fullMatch.length);
-
-    const beforeSegments = renderSegmentNodes(parseQuotedText(beforeText), 'before');
-    const afterSegments = renderSegmentNodes(parseQuotedText(afterText), 'after');
     const hasBeforeContent = beforeText.trim().length > 0;
 
+    return {
+      beforeSegments: renderSegmentNodes(parseQuotedText(beforeText), 'before'),
+      afterSegments: renderSegmentNodes(parseQuotedText(afterText), 'after'),
+      hasBeforeContent,
+      keywordText,
+    };
+  }, [enableKeywordLineBreak, text, renderSegmentNodes]);
+
+  if (keywordInfo) {
     return (
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: hasBeforeContent ? '0.35rem' : 0,
+          gap: keywordInfo.hasBeforeContent ? '0.35rem' : 0,
           width: '100%',
         }}
       >
-        {hasBeforeContent && (
-          <div style={{ width: '100%', textAlign: 'center' }}>
-            {beforeSegments}
-          </div>
-        )}
+        {keywordInfo.hasBeforeContent && <div style={{ width: '100%', textAlign: 'center' }}>{keywordInfo.beforeSegments}</div>}
         <div style={{ width: '100%', textAlign: 'center' }}>
-          {renderQuotedSpan(keywordText, 'keyword-main')}
-          {afterSegments}
+          {renderQuotedSpan(keywordInfo.keywordText, 'keyword-main')}
+          {keywordInfo.afterSegments}
         </div>
       </div>
     );
@@ -396,6 +463,9 @@ const QuotedTextRenderer: React.FC<{ text: string; enableKeywordLineBreak?: bool
 
   return <>{renderSegmentNodes(parts, 'default')}</>;
 };
+
+const QuotedTextRenderer = React.memo(QuotedTextRendererComponent);
+QuotedTextRenderer.displayName = 'QuotedTextRenderer';
 
 /**
  * 토큰 정보 컴포넌트 (사용하지 않음)
@@ -407,45 +477,15 @@ const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => null;
  */
 const HitInfo: React.FC<{ hits: any[] }> = ({ hits }) => null;
 
-const SiteLink: React.FC<{ url: string }> = ({ url }) => (
-  <a
-    href={url}
-    target="_blank"
-    rel="noopener noreferrer"
-    style={{
-      display: 'inline-flex',
-      padding: '8px 20px',
-      alignItems: 'center',
-      gap: '10px',
-      borderRadius: '99px',
-      background: '#FFF',
-      textDecoration: 'none',
-    }}
-  >
-    <span
-      style={{
-        color: '#000',
-        textAlign: 'center',
-        fontFamily: 'Pretendard Variable',
-        fontSize: '15px',
-        fontStyle: 'normal',
-        fontWeight: 500,
-        lineHeight: '150%',
-        letterSpacing: '-0.36px',
-      }}
-    >
-      행사 홈페이지 바로가기
-    </span>
-    <img
-      src="/link-external-01.svg"
-      alt=""
-      style={{
-        width: '22px',
-        height: '22px',
-      }}
-    />
+const SiteLinkComponent: React.FC<{ url: string }> = ({ url }) => (
+  <a href={url} target="_blank" rel="noopener noreferrer" style={siteLinkWrapperStyle}>
+    <span style={siteLinkTextStyle}>행사 홈페이지 바로가기</span>
+    <img src="/link-external-01.svg" alt="" style={siteLinkIconStyle} />
   </a>
 );
+
+const SiteLink = React.memo(SiteLinkComponent);
+SiteLink.displayName = 'SiteLink';
 
 /**
  * 분할된 메시지 세그먼트 컴포넌트
@@ -473,15 +513,14 @@ const MessageSegment: React.FC<{
 
   // 첫 번째 말풍선 스타일
   const firstBubbleStyle = {
-    color: '#4E5363',
+    color: '#215F74',
     textAlign: 'center' as const,
-    textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
     fontFamily: 'Pretendard Variable',
-    fontSize: '20px',
+    fontSize: '18px',
     fontStyle: 'normal' as const,
     fontWeight: 600,
-    lineHeight: '132%',
-    letterSpacing: '-0.88px',
+    lineHeight: '130%',
+    letterSpacing: '-0.72px',
     wordBreak: 'normal' as const,
     overflowWrap: 'break-word' as const,
   };
@@ -552,222 +591,195 @@ const MessageSegment: React.FC<{
 /**
  * 분할된 메시지 컴포넌트 - 전체 텍스트를 한 번에 Typewriter로 처리
  */
-const SegmentedMessage: React.FC<{
+const SegmentedMessageComponent: React.FC<{
   message: any;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
   typewriterVariant: TypewriterVariant;
-}> = ({ message, onPlayTTS, isPlayingTTS, typewriterVariant }) => {
+}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
 
-  const firstSegmentText = message.segments?.[0]?.text || message.content || '';
-  const {
-    highlightedText: firstSegmentHighlight,
-    remainderText: restOfFirstSegment,
-  } = getHighlightedTextParts(firstSegmentText);
-  
-  // 나머지 세그먼트들
-  const remainingSegments = message.segments?.slice(1) || [];
-  const remainingText = remainingSegments.map((seg: any) => seg.text).join('\n\n');
-  const imageUrl = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
-  const shouldShowImage = imageUrl.length > 0;
-  const siteUrl = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
-  const shouldShowSite = siteUrl.length > 0;
+  const segments = message.segments ?? [];
+
+  const { firstSegmentHighlight, displayText } = useMemo(() => {
+    const firstSegmentText = segments[0]?.text || message.content || '';
+    const { highlightedText, remainderText } = getHighlightedTextParts(firstSegmentText);
+    const remainingText = segments.slice(1).map((seg: any) => seg.text).join('\n\n');
+    const fullText =
+      highlightedText +
+      (remainderText ? `\n\n${remainderText}` : '') +
+      (remainingText ? `\n\n${remainingText}` : '');
+    const textWithoutLastSentence = removeLastSentence(fullText);
+
+    return {
+      firstSegmentHighlight: highlightedText,
+      displayText: textWithoutLastSentence || '',
+    };
+  }, [segments, message.content]);
+
+  const { imageUrl, shouldShowImage } = useMemo(() => {
+    const url = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
+    return { imageUrl: url, shouldShowImage: url.length > 0 };
+  }, [message.thumbnailUrl]);
+
+  const { siteUrl, shouldShowSite } = useMemo(() => {
+    const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
+    return { siteUrl: url, shouldShowSite: url.length > 0 };
+  }, [message.siteUrl]);
 
   useEffect(() => {
     setIsSiteVisible(false);
   }, [message]);
-  
-  // 전체 텍스트 구성: 첫 번째 문장 + 첫 번째 세그먼트 나머지 + 나머지 세그먼트들
-  const fullText =
-    firstSegmentHighlight +
-    (restOfFirstSegment ? '\n\n' + restOfFirstSegment : '') +
-    (remainingText ? '\n\n' + remainingText : '');
-  const textWithoutLastSentence = removeLastSentence(fullText);
-  const displayText = textWithoutLastSentence || '';
-  
-  // 하이라이트 애니메이션 트리거
+
   useEffect(() => {
     setShowHighlight(true);
     const timer = setTimeout(() => setShowHighlight(false), 2000);
     return () => clearTimeout(timer);
-  }, [message.segments]);
-  
-  const textStyle = {
-    color: '#000',
-    fontFamily: 'Pretendard Variable',
-    fontSize: '16px',
-    fontStyle: 'normal' as const,
-    fontWeight: 400,
-    lineHeight: '140%',
-    letterSpacing: '-0.64px',
-    textAlign: 'center' as const,
-    wordBreak: 'keep-all' as const,
-    overflowWrap: 'break-word' as const,
-    width: '86%',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-  };
+  }, [segments]);
 
-  const firstBubbleStyle = {
-    color: '#4E5363',
-    textAlign: 'center' as const,
-    textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
-    fontFamily: 'Pretendard Variable',
-    fontSize: '20px',
-    fontStyle: 'normal' as const,
-    fontWeight: 600,
-    lineHeight: '132%',
-    letterSpacing: '-0.88px',
-    wordBreak: 'normal' as const,
-    overflowWrap: 'break-word' as const,
-  };
-  
+  const typewriterProps = useMemo(() => {
+    const baseProps: Record<string, any> = {
+      text: displayText,
+      speed: 50,
+      delay: 500,
+      speedVariation: 0.3,
+      minSpeed: 20,
+      maxSpeed: 100,
+    };
+
+    if (typewriterVariant === 'v2') {
+      baseProps.characterChangeInterval = 200;
+    }
+
+    return baseProps;
+  }, [displayText, typewriterVariant]);
+
+  const renderTypewriter = useCallback(
+    (displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
+      const cursorChar = currentCursorChar ?? '●';
+      const targetHighlightLength = Math.min(firstSegmentHighlight.length, displayText.length);
+      const displayedHighlight = displayedText.substring(0, targetHighlightLength);
+      const displayedRest = displayedText.substring(targetHighlightLength);
+      const cleanedRest = trimLeadingWhitespace(displayedRest);
+      const showCursor = !isComplete;
+      const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
+      const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
+      const imageShouldRender =
+        shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      return (
+        <div>
+          {displayedHighlight && (
+            <div className="flex justify-center mb-3">
+              <div className="whitespace-pre-wrap flex justify-center" style={assistantHeadlineTextStyle}>
+                <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
+                {showCursor && displayedRest.length === 0 && (
+                  <span
+                    className="inline-block"
+                    style={{
+                      fontSize: firstDotSize,
+                      lineHeight: 1,
+                      verticalAlign: 'middle',
+                      marginLeft: '2px',
+                      color: '#000',
+                      transition: 'none',
+                    }}
+                  >
+                    {cursorChar}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            {shouldShowImage && (
+              <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1 / 1',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    background: '#f3f4f6',
+                    transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
+                    transformOrigin: 'top',
+                    opacity: imageShouldRender ? 1 : 0,
+                    transition: 'transform 0.6s ease-in-out, opacity 0.6s ease-in-out',
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt="이벤트 썸네일"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {cleanedRest && (
+              <div className="whitespace-pre-wrap" style={assistantPrimaryTextStyle}>
+                <QuotedTextRenderer text={cleanedRest} />
+                {showCursor && (
+                  <span
+                    className="inline-block"
+                    style={{
+                      fontSize: textDotSize,
+                      lineHeight: 1,
+                      verticalAlign: 'middle',
+                      marginLeft: '2px',
+                      color: '#000',
+                      transition: 'none',
+                    }}
+                  >
+                    {cursorChar}
+                  </span>
+                )}
+              </div>
+            )}
+            {!displayedHighlight && !cleanedRest && showCursor && (
+              <span
+                className="inline-block"
+                style={{
+                  fontSize: textDotSize,
+                  lineHeight: 1,
+                  verticalAlign: 'middle',
+                  marginLeft: '2px',
+                  color: '#000',
+                  transition: 'none',
+                }}
+              >
+                {cursorChar}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    },
+    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage]
+  );
+
+  const TypewriterComponent = typewriterComponents[typewriterVariant];
+
   return (
     <div className="flex justify-center mb-4">
       <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
         <div className="assistant-glass-content" style={assistantGlassContentStyle}>
           {showHighlight && <div className="assistant-glass-highlight" />}
           <div className="assistant-glass-body">
-          {(() => {
-            const TypewriterComponent = typewriterComponents[typewriterVariant];
-            const typewriterProps: Record<string, any> = {
-              text: displayText,
-              speed: 50,
-              delay: 500,
-              speedVariation: 0.3,
-              minSpeed: 20,
-              maxSpeed: 100,
-            };
-
-            if (typewriterVariant === 'v2') {
-              typewriterProps.characterChangeInterval = 200;
-            }
-
-            return (
-              <TypewriterComponent
-                {...typewriterProps}
-                onComplete={() => {
-                  if (shouldShowSite) {
-                    setIsSiteVisible(true);
-                  }
-                }}
-                render={(displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
-                  const cursorChar = currentCursorChar ?? '●';
-                  const targetHighlightLength = Math.min(firstSegmentHighlight.length, displayText.length);
-                  const displayedHighlight = displayedText.substring(0, targetHighlightLength);
-                  const displayedRest = displayedText.substring(targetHighlightLength);
-                  const cleanedRest = trimLeadingWhitespace(displayedRest);
-                  const showCursor = !isComplete;
-                  const firstDotSize = computeDotSize(firstBubbleStyle.fontSize);
-                  const textDotSize = computeDotSize(textStyle.fontSize);
-                  const imageShouldRender =
-                    shouldShowImage &&
-                    displayedHighlight &&
-                    displayedHighlight.length === targetHighlightLength;
-
-                        return (
-                          <div>
-                            {displayedHighlight && (
-                              <div className="flex justify-center mb-3">
-                                <div className="whitespace-pre-wrap flex justify-center" style={firstBubbleStyle}>
-                                  <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
-                                  {showCursor && displayedRest.length === 0 && (
-                                    <span
-                                      className="inline-block"
-                                      style={{
-                                        fontSize: firstDotSize,
-                                        lineHeight: 1,
-                                        verticalAlign: 'middle',
-                                        marginLeft: '2px',
-                                        color: '#000',
-                                        transition: 'none',
-                                      }}
-                                    >
-                                      {cursorChar}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex flex-col gap-2">
-                              {shouldShowImage && (
-                                <div
-                                  className="mb-3 flex justify-center"
-                                  style={{
-                                    width: '100%',
-                                    maxWidth: '100%',
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      width: '100%',
-                                      aspectRatio: '1 / 1',
-                                      borderRadius: '16px',
-                                      overflow: 'hidden',
-                                      position: 'relative',
-                                      background: '#f3f4f6',
-                                      transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
-                                      transformOrigin: 'top',
-                                      opacity: imageShouldRender ? 1 : 0,
-                                      transition: 'transform 0.6s ease-in-out, opacity 0.6s ease-in-out',
-                                    }}
-                                  >
-                                    <img
-                                      src={imageUrl}
-                                      alt="이벤트 썸네일"
-                                      style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover',
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                              {cleanedRest && (
-                                <div className="whitespace-pre-wrap" style={textStyle}>
-                                  <QuotedTextRenderer text={cleanedRest} />
-                                  {showCursor && (
-                                    <span
-                                      className="inline-block"
-                                      style={{
-                                        fontSize: textDotSize,
-                                        lineHeight: 1,
-                                        verticalAlign: 'middle',
-                                        marginLeft: '2px',
-                                        color: '#000',
-                                        transition: 'none',
-                                      }}
-                                    >
-                                      {cursorChar}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {!displayedHighlight && !cleanedRest && showCursor && (
-                                <span
-                                  className="inline-block"
-                                  style={{
-                                    fontSize: textDotSize,
-                                    lineHeight: 1,
-                                    verticalAlign: 'middle',
-                                    marginLeft: '2px',
-                                    color: '#000',
-                                    transition: 'none',
-                                  }}
-                                >
-                                  {cursorChar}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                }}
-              />
-            );
-          })()}
+            <TypewriterComponent
+              {...typewriterProps}
+              onComplete={() => {
+                if (shouldShowSite) {
+                  setIsSiteVisible(true);
+                }
+              }}
+              render={renderTypewriter}
+            />
 
             <div
               className="mt-4 flex justify-center"
@@ -790,6 +802,9 @@ const SegmentedMessage: React.FC<{
     </div>
   );
 };
+
+const SegmentedMessage = React.memo(SegmentedMessageComponent);
+SegmentedMessage.displayName = 'SegmentedMessage';
 
 /**
  * 텍스트를 줄 단위로 분할하는 컴포넌트 (Line by Line Split)
@@ -833,59 +848,50 @@ const getLineCount = (text: string): number => {
 /**
  * 단일 메시지 컴포넌트
  */
-const SingleMessage: React.FC<{
+const SingleMessageComponent: React.FC<{
   message: any;
   isThinking: boolean;
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
   isGlobalLoading?: boolean;
   typewriterVariant: TypewriterVariant;
-}> = ({ message, isThinking, onPlayTTS, isPlayingTTS, isGlobalLoading = false, typewriterVariant }) => {
+}> = ({
+  message,
+  isThinking,
+  onPlayTTS: _onPlayTTS,
+  isPlayingTTS: _isPlayingTTS,
+  isGlobalLoading: _isGlobalLoading = false,
+  typewriterVariant,
+}) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
-  
-  const textStyle = {
-    color: '#000',
-    fontFamily: 'Pretendard Variable',
-    fontSize: '16px',
-    fontStyle: 'normal' as const,
-    fontWeight: 400,
-    lineHeight: '140%',
-    letterSpacing: '-0.64px',
-    textAlign: 'center' as const,
-    wordBreak: 'keep-all' as const,
-    overflowWrap: 'break-word' as const,
-    width: '86%',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-  };
 
-  const firstBubbleStyle = {
-    color: '#4E5363',
-    textAlign: 'center' as const,
-    textShadow: '0 0 7.9px rgba(0, 0, 0, 0.16)',
-    fontFamily: 'Pretendard Variable',
-    fontSize: '20px',
-    fontStyle: 'normal' as const,
-    fontWeight: 600,
-    lineHeight: '132%',
-    letterSpacing: '-0.88px',
-    wordBreak: 'normal' as const,
-    overflowWrap: 'break-word' as const,
-  };
+  const { assistantText, assistantHighlight } = useMemo(() => {
+    if (message.role !== 'assistant') {
+      return {
+        assistantText: message.content || '',
+        assistantHighlight: '',
+      };
+    }
 
-  const contentWithoutLastSentence = message.role === 'assistant'
-    ? removeLastSentence(message.content || '')
-    : message.content || '';
-  const assistantHighlight = message.role === 'assistant'
-    ? getHighlightedTextParts(contentWithoutLastSentence).highlightedText
-    : '';
-  const imageUrl = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
-  const shouldShowImage = imageUrl.length > 0;
-  const siteUrl = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
-  const shouldShowSite = siteUrl.length > 0;
+    const textWithoutLastSentence = removeLastSentence(message.content || '');
+    const highlight = getHighlightedTextParts(textWithoutLastSentence).highlightedText;
+    return {
+      assistantText: textWithoutLastSentence,
+      assistantHighlight: highlight,
+    };
+  }, [message.content, message.role]);
 
-  // AI 메시지 등장 시 하이라이트 애니메이션 트리거
+  const { imageUrl, shouldShowImage } = useMemo(() => {
+    const url = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
+    return { imageUrl: url, shouldShowImage: url.length > 0 };
+  }, [message.thumbnailUrl]);
+
+  const { siteUrl, shouldShowSite } = useMemo(() => {
+    const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
+    return { siteUrl: url, shouldShowSite: url.length > 0 };
+  }, [message.siteUrl]);
+
   useEffect(() => {
     if (message.role === 'assistant' && !isThinking && message.content) {
       setShowHighlight(true);
@@ -897,7 +903,134 @@ const SingleMessage: React.FC<{
   useEffect(() => {
     setIsSiteVisible(false);
   }, [message, isThinking]);
- 
+
+  const typewriterProps = useMemo(() => {
+    const baseProps: Record<string, any> = {
+      text: assistantText,
+      speed: 50,
+      delay: 500,
+      speedVariation: 0.3,
+      minSpeed: 20,
+      maxSpeed: 100,
+    };
+
+    if (typewriterVariant === 'v2') {
+      baseProps.characterChangeInterval = 200;
+    }
+
+    return baseProps;
+  }, [assistantText, typewriterVariant]);
+
+  const renderTypewriter = useCallback(
+    (displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
+      const cursorChar = currentCursorChar ?? '●';
+      const targetHighlightLength = Math.min(assistantHighlight.length, assistantText.length);
+      const displayedHighlight = displayedText.substring(0, targetHighlightLength);
+      const displayedRest = displayedText.substring(targetHighlightLength);
+      const cleanedRest = trimLeadingWhitespace(displayedRest);
+      const showCursor = !isComplete;
+      const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
+      const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
+      const imageShouldRender =
+        shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      return (
+        <div>
+          {displayedHighlight && (
+            <div className="flex justify-center mb-3">
+              <div className="whitespace-pre-wrap flex justify-center" style={assistantHeadlineTextStyle}>
+                <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
+                {showCursor && displayedRest.length === 0 && (
+                  <span
+                    className="inline-block"
+                    style={{
+                      fontSize: firstDotSize,
+                      lineHeight: 1,
+                      verticalAlign: 'middle',
+                      marginLeft: '2px',
+                      color: '#000',
+                      transition: 'none',
+                    }}
+                  >
+                    {cursorChar}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            {shouldShowImage && (
+              <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1 / 1',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    background: '#f3f4f6',
+                    transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
+                    transformOrigin: 'top',
+                    opacity: imageShouldRender ? 1 : 0,
+                    transition: 'transform 0.6s ease-in-out',
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt="이벤트 썸네일"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {cleanedRest && (
+              <div className="whitespace-pre-wrap" style={assistantPrimaryTextStyle}>
+                <QuotedTextRenderer text={cleanedRest} />
+                {showCursor && (
+                  <span
+                    className="inline-block"
+                    style={{
+                      fontSize: textDotSize,
+                      lineHeight: 1,
+                      verticalAlign: 'middle',
+                      marginLeft: '2px',
+                      color: '#000',
+                      transition: 'none',
+                    }}
+                  >
+                    {cursorChar}
+                  </span>
+                )}
+              </div>
+            )}
+            {!displayedHighlight && !cleanedRest && showCursor && (
+              <span
+                className="inline-block"
+                style={{
+                  fontSize: textDotSize,
+                  lineHeight: 1,
+                  verticalAlign: 'middle',
+                  marginLeft: '2px',
+                  color: '#000',
+                  transition: 'none',
+                }}
+              >
+                {cursorChar}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    },
+    [assistantHighlight, assistantText, imageUrl, shouldShowImage]
+  );
+
+  const TypewriterComponent = typewriterComponents[typewriterVariant];
+
   return (
     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
       {message.role === 'assistant' ? (
@@ -906,139 +1039,15 @@ const SingleMessage: React.FC<{
             <div className="assistant-glass-content" style={assistantGlassContentStyle}>
               {showHighlight && <div className="assistant-glass-highlight" />}
               <div className="assistant-glass-body">
-                {(() => {
-                  const TypewriterComponent = typewriterComponents[typewriterVariant];
-                  const assistantText = message.role === 'assistant' ? contentWithoutLastSentence : message.content || '';
-                  const typewriterProps: Record<string, any> = {
-                    text: assistantText,
-                    speed: 50,
-                    delay: 500,
-                    speedVariation: 0.3,
-                    minSpeed: 20,
-                    maxSpeed: 100
-                  };
-
-                  if (typewriterVariant === 'v2') {
-                    typewriterProps.characterChangeInterval = 200;
-                  }
-
-                  return (
-                    <TypewriterComponent
-                      {...typewriterProps}
-                      onComplete={() => {
-                        if (shouldShowSite) {
-                          setIsSiteVisible(true);
-                        }
-                      }}
-                      render={(displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
-                        const cursorChar = currentCursorChar ?? '●';
-                        const targetHighlightLength = Math.min(assistantHighlight.length, assistantText.length);
-                        const displayedHighlight = displayedText.substring(0, targetHighlightLength);
-                        const displayedRest = displayedText.substring(targetHighlightLength);
-                        const cleanedRest = trimLeadingWhitespace(displayedRest);
-                        const showCursor = !isComplete;
-                        const firstDotSize = computeDotSize(firstBubbleStyle.fontSize);
-                        const textDotSize = computeDotSize(textStyle.fontSize);
-                        const imageShouldRender =
-                          shouldShowImage &&
-                          displayedHighlight &&
-                          displayedHighlight.length === targetHighlightLength;
-
-                        return (
-                          <div>
-                            {displayedHighlight && (
-                              <div className="flex justify-center mb-3">
-                                <div className="whitespace-pre-wrap flex justify-center" style={firstBubbleStyle}>
-                                  <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
-                                  {showCursor && displayedRest.length === 0 && (
-                                    <span
-                                      className="inline-block"
-                                      style={{
-                                        fontSize: firstDotSize,
-                                        lineHeight: 1,
-                                        verticalAlign: 'middle',
-                                        marginLeft: '2px',
-                                        color: '#000',
-                                        transition: 'none'
-                                      }}
-                                    >
-                                      {cursorChar}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex flex-col gap-2">
-                              {shouldShowImage && (
-                                <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
-                                  <div
-                                    style={{
-                                      width: '100%',
-                                      aspectRatio: '1 / 1',
-                                      borderRadius: '16px',
-                                      overflow: 'hidden',
-                                      position: 'relative',
-                                      background: '#f3f4f6',
-                                      transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
-                                      transformOrigin: 'top',
-                                      opacity: imageShouldRender ? 1 : 0,
-                                      transition: 'transform 0.6s ease-in-out'
-                                    }}
-                                  >
-                                    <img
-                                      src={imageUrl}
-                                      alt="이벤트 썸네일"
-                                      style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover'
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                              {cleanedRest && (
-                                <div className="whitespace-pre-wrap" style={textStyle}>
-                                  <QuotedTextRenderer text={cleanedRest} />
-                                  {showCursor && (
-                                    <span
-                                      className="inline-block"
-                                      style={{
-                                        fontSize: textDotSize,
-                                        lineHeight: 1,
-                                        verticalAlign: 'middle',
-                                        marginLeft: '2px',
-                                        color: '#000',
-                                        transition: 'none'
-                                      }}
-                                    >
-                                      {cursorChar}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {!displayedHighlight && !cleanedRest && showCursor && (
-                                <span
-                                  className="inline-block"
-                                  style={{
-                                    fontSize: textDotSize,
-                                    lineHeight: 1,
-                                    verticalAlign: 'middle',
-                                    marginLeft: '2px',
-                                    color: '#000',
-                                    transition: 'none'
-                                  }}
-                                >
-                                  {cursorChar}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }}
-                    />
-                  );
-                })()}
+                <TypewriterComponent
+                  {...typewriterProps}
+                  onComplete={() => {
+                    if (shouldShowSite) {
+                      setIsSiteVisible(true);
+                    }
+                  }}
+                  render={renderTypewriter}
+                />
 
                 <div
                   className="mt-4 flex justify-center"
@@ -1046,7 +1055,7 @@ const SingleMessage: React.FC<{
                     opacity: shouldShowSite && isSiteVisible ? 1 : 0,
                     transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
                     transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none'
+                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
                   }}
                 >
                   {shouldShowSite && <SiteLink url={siteUrl} />}
@@ -1060,21 +1069,10 @@ const SingleMessage: React.FC<{
           <AssistantGlassStyles />
         </>
       ) : (
-        // 사용자 메시지: SplitText 애니메이션 + fade-out
-        <div className="max-w-[86%] px-4 py-3"
-          style={{
-            opacity: 1,
-          }}
-        >
+        <div className="max-w-[86%] px-4 py-3" style={{ opacity: 1 }}>
           <div className="whitespace-pre-wrap" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
-            <div style={textStyle}>
-              <SplitText
-                text={message.content}
-                delay={0}
-                duration={0.8}
-                stagger={0.03}
-                animation="fadeIn"
-              />
+            <div style={assistantPrimaryTextStyle}>
+              <SplitText text={message.content} delay={0} duration={0.8} stagger={0.03} animation="fadeIn" />
             </div>
           </div>
           {message.tokens && <TokenInfo tokens={message.tokens} />}
@@ -1084,6 +1082,9 @@ const SingleMessage: React.FC<{
     </div>
   );
 };
+
+const SingleMessage = React.memo(SingleMessageComponent);
+SingleMessage.displayName = 'SingleMessage';
 
 /**
  * 메인 ChatBubble 컴포넌트

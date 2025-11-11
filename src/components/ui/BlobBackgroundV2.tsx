@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CanvasBackground, type CanvasPhase } from './BlobBackgroundV2Canvas';
 
 interface BlobBackgroundV2Props {
@@ -113,15 +113,19 @@ export default function BlobBackgroundV2({
     }
   }, [moved]);
 
-  const containerClassName = [
-    'coex-blob-container',
-    'wave-orbit',
-    moved ? 'moved' : '',
-    arrived ? 'arrived' : '',
-    className
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const containerClassName = useMemo(
+    () =>
+      [
+        'coex-blob-container',
+        'wave-orbit',
+        moved ? 'moved' : '',
+        arrived ? 'arrived' : '',
+        className
+      ]
+        .filter(Boolean)
+        .join(' '),
+    [arrived, className, moved]
+  );
 
   return (
     <>
@@ -281,7 +285,7 @@ export default function BlobBackgroundV2({
           z-index: 0;
           width: 100%;
           height: 100vh;
-          background: #ffffff;
+          background: radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%);
           overflow: hidden;
           pointer-events: none;
           isolation: isolate;
