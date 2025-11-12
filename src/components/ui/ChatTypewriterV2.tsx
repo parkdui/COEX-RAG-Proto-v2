@@ -22,7 +22,7 @@ interface ChatTypewriterV2Props {
  * Version 2: Random character cursor with variable speed
  * Cursor character changes randomly from a pool of symbols, color is fixed to black
  */
-export default function ChatTypewriterV2({
+function ChatTypewriterV2({
   text,
   speed = 50,
   delay = 0,
@@ -221,4 +221,7 @@ export default function ChatTypewriterV2({
     </span>
   );
 }
+
+export default ChatTypewriterV2;
+export { ChatTypewriterV2 };
 

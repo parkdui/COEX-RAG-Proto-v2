@@ -23,7 +23,7 @@ interface ChatTypewriterV3Props {
  * Version 3: Black circle cursor with pendulum motion (sin wave) and variable speed
  * Cursor moves up and down using sin() function for pendulum-like motion
  */
-export default function ChatTypewriterV3({
+function ChatTypewriterV3({
   text,
   speed = 50,
   delay = 0,
@@ -201,4 +201,7 @@ export default function ChatTypewriterV3({
     </span>
   );
 }
+
+export default ChatTypewriterV3;
+export { ChatTypewriterV3 };
 

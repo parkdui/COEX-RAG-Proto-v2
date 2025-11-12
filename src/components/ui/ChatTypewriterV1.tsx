@@ -20,7 +20,7 @@ interface ChatTypewriterV1Props {
  * Version 1: Variable speed typewriter effect
  * Text appears with dynamic speed variation for each character
  */
-export default function ChatTypewriterV1({
+function ChatTypewriterV1({
   text,
   speed = 50,
   delay = 0,
@@ -196,4 +196,7 @@ export default function ChatTypewriterV1({
     </span>
   );
 }
+
+export default ChatTypewriterV1;
+export { ChatTypewriterV1 };
 
