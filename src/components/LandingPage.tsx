@@ -6,11 +6,14 @@ import Typewriter from './ui/Typewriter';
 import BlobBackgroundV2 from './ui/BlobBackgroundV2';
 import LetterColorAnimation from './ui/LetterColorAnimation';
 import CountingNumber from './ui/CountingNumber';
+import VerticalCarouselText from './ui/VerticalCarouselText';
 
 interface LandingPageProps {
   onStart: () => void; // 이제 blob 애니메이션 시작을 트리거
   showBlob?: boolean;
 }
+
+const TITLE_VARIANT: 'v1' | 'v2' = 'v2';
 
 // 'Sori'의 'r'이 등장했을 때를 감지하는 컴포넌트
 function SoriIndexTracker({ onReachR }: { onReachR: () => void }) {
@@ -73,6 +76,8 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [conversationCount, setConversationCount] = useState<number | null>(null);
   const [isLoadingCount, setIsLoadingCount] = useState(true);
   const [hasCountingStarted, setHasCountingStarted] = useState(false);
+  const isTitleV1 = TITLE_VARIANT === 'v1';
+  const secondLineText = 'Coex Guide';
 
   // 오늘의 대화 횟수 가져오기
   useEffect(() => {
@@ -91,6 +96,26 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
     fetchConversationCount();
   }, []);
+
+  useEffect(() => {
+    if (!showSecondLine || isTitleV1 || hasCountingStarted) {
+      return;
+    }
+
+    const moveTimer = window.setTimeout(() => {
+      setMoveToBottom(true);
+    }, 50);
+
+    const counterTimer = window.setTimeout(() => {
+      setShowCounter(true);
+      setHasCountingStarted(true);
+    }, 450);
+
+    return () => {
+      window.clearTimeout(moveTimer);
+      window.clearTimeout(counterTimer);
+    };
+  }, [showSecondLine, isTitleV1, hasCountingStarted, setMoveToBottom, setShowCounter, setHasCountingStarted]);
 
   const handleStartClick = useCallback(() => {
     // 페이드아웃 시작
@@ -137,21 +162,41 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
           </div>
           
           {/* Sori Coex Guide 타이틀 - 2줄로 분리 */}
-          <div className="mb-[16px]">
+          <div>
             {/* 첫 번째 줄: Sori */}
             {showSori && (
               <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}>
-                <LetterColorAnimation
-                  text="Sori"
-                  duration={6}
-                  style={{ 
-                    fontFamily: 'Pretendard Variable', 
-                    fontWeight: 700, 
-                    lineHeight: '90%', 
-                    letterSpacing: '-1.8px', 
-                    fontSize: '45pt'
-                  }}
-                />
+                {isTitleV1 ? (
+                  <LetterColorAnimation
+                    text="Sori"
+                    duration={6}
+                    style={{ 
+                      fontFamily: 'Pretendard Variable', 
+                      fontWeight: 700, 
+                      lineHeight: '90%', 
+                      letterSpacing: '-1.8px', 
+                      fontSize: '45pt'
+                    }}
+                  />
+                ) : (
+                  <div style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em' }}>
+                    <VerticalCarouselText
+                      text="Sori"
+                      duration={4500}
+                      stagger={180}
+                      enableColorAnimation={true}
+                      characterClassName="vertical-carousel-first-line-char"
+                      className="vertical-carousel-first-line"
+                      style={{ 
+                        fontFamily: 'Pretendard Variable', 
+                        fontWeight: 700, 
+                        lineHeight: '90%', 
+                        letterSpacing: '-1.8px', 
+                        fontSize: '45pt'
+                      }}
+                    />
+                  </div>
+                )}
                 {/* 'Sori'의 'r'이 등장했을 때 두 번째 줄 시작 */}
                 {showSori && !showSecondLine && (
                   <SoriIndexTracker
@@ -165,31 +210,49 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             
             {/* 두 번째 줄: Coex Guide */}
             {showSecondLine && (
-              <div>
-                <TextPressure
-                  text="Coex Guide"
-                  trigger="auto"
-                  duration={2.5}
-                  loop={false}
-                  style={{ 
-                    fontFamily: 'Pretendard Variable', 
-                    fontWeight: 700, 
-                    lineHeight: '90%', 
-                    letterSpacing: '-1.8px', 
-                    fontSize: '45pt',
-                    color: '#1f2937'
-                  }}
-                  onComplete={() => {
-                    // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
-                    setShowCounter(true);
-                    setHasCountingStarted(true);
-                  }}
-                />
+              <div style={{ minHeight: '1.2em', overflow: 'visible', lineHeight: '1em', marginBottom: '16px' }}>
+                {isTitleV1 ? (
+                  <TextPressure
+                    text={secondLineText}
+                    trigger="auto"
+                    duration={2.5}
+                    loop={false}
+                    style={{ 
+                      fontFamily: 'Pretendard Variable', 
+                      fontWeight: 700, 
+                      lineHeight: '90%', 
+                      letterSpacing: '-1.8px', 
+                      fontSize: '45pt',
+                      color: '#1f2937'
+                    }}
+                    onComplete={() => {
+                      // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
+                      setShowCounter(true);
+                      setHasCountingStarted(true);
+                    }}
+                  />
+                ) : (
+                  <VerticalCarouselText
+                    text={secondLineText}
+                    duration={4500}
+                    stagger={180}
+                    characterClassName="vertical-carousel-second-line-char"
+                    className="vertical-carousel-second-line"
+                    style={{ 
+                      fontFamily: 'Pretendard Variable', 
+                      fontWeight: 700, 
+                      lineHeight: '90%', 
+                      letterSpacing: '-1.8px', 
+                      fontSize: '45pt',
+                      color: '#1f2937'
+                    }}
+                  />
+                )}
               </div>
             )}
             
             {/* 'Guide'의 'G'가 등장했을 때 카운터 시작 */}
-            {showSecondLine && !showCounter && (
+            {isTitleV1 && showSecondLine && !showCounter && (
               <GuideIndexTracker
                 onReachG={() => {
                   setShowCounter(true);
@@ -199,7 +262,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             )}
             
             {/* 'Coex'의 'C'가 나타났을 때 하단으로 이동 */}
-            {showSecondLine && !moveToBottom && (
+            {isTitleV1 && showSecondLine && !moveToBottom && (
               <CoexIndexTracker
                 onReachC={() => {
                   setMoveToBottom(true);
@@ -208,12 +271,13 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             )}
           </div>
           
-          {/* 대화 카운터 */}
+          {/* 대화 카운터 - 별도 블록으로 분리 */}
           {showCounter && conversationCount !== null ? (
+            <div style={{ marginTop: '16px' }}>
             <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
               <span>오늘 </span>
               <CountingNumber
-                target={conversationCount}
+                target={conversationCount + 1}
                 duration={1500}
                 startDelay={200}
                 style={{ display: 'inline-block' }}
@@ -221,11 +285,14 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
               />
               <span>번째로 대화하는 중이에요</span>
             </div>
+            </div>
           ) : hasCountingStarted && isLoadingCount ? (
+            <div style={{ marginTop: '16px' }}>
             <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
               <span>오늘 </span>
               <span>...</span>
               <span>번째로 대화하는 중이에요</span>
+            </div>
             </div>
           ) : null}
         </div>
@@ -300,6 +367,12 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         }
         .landing-start-btn:disabled {
           cursor: not-allowed;
+        }
+        .vertical-carousel-second-line :global(.vertical-carousel-second-line-char:not(:last-child)) {
+          margin-right: -1.8px;
+        }
+        .vertical-carousel-first-line :global(.vertical-carousel-first-line-char:not(:last-child)) {
+          margin-right: -1.8px;
         }
       `}</style>
     </div>
