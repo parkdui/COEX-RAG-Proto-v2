@@ -125,7 +125,7 @@ const assistantGlassContentStyle: React.CSSProperties = {
 };
 
 const assistantPrimaryTextStyle: React.CSSProperties = {
-  color: '#000',
+  color: '#215F74',
   fontFamily: 'Pretendard Variable',
   fontSize: '16px',
   fontStyle: 'normal',
@@ -141,7 +141,7 @@ const assistantPrimaryTextStyle: React.CSSProperties = {
 } as const;
 
 const assistantHeadlineTextStyle: React.CSSProperties = {
-  color: '#000000',
+  color: '#215F74',
   textAlign: 'center',
   fontFamily: 'Pretendard Variable',
   fontSize: '18px',
@@ -155,8 +155,9 @@ const assistantHeadlineTextStyle: React.CSSProperties = {
 
 const quotedSpanStyle: React.CSSProperties = {
   fontWeight: 600,
-  borderRadius: '25px',
-  background: 'linear-gradient(1deg, rgba(255, 255, 255, 0.10) 40.15%, rgba(229, 255, 249, 0.40) 99.12%)',
+  borderRadius: '5px',
+  background: 'rgba(255, 255, 255, 0.6)',
+  border: 'none',
   whiteSpace: 'nowrap',
   verticalAlign: 'baseline',
   lineHeight: '1.4',
@@ -164,12 +165,13 @@ const quotedSpanStyle: React.CSSProperties = {
   alignItems: 'center',
   marginLeft: 0,
   marginRight: '0.3rem',
+  position: 'relative',
 } as const;
 
 const quotedSpanBackdropStyle: React.CSSProperties = {
   position: 'absolute',
   inset: 0,
-  borderRadius: '25px',
+  borderRadius: '5px',
   padding: '1px',
   background: 'linear-gradient(45deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 1) 100%)',
   WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
@@ -182,8 +184,11 @@ const quotedSpanBackdropStyle: React.CSSProperties = {
 
 const quotedSpanContentStyle: React.CSSProperties = {
   position: 'relative',
-  zIndex: 0,
+  zIndex: 2,
   fontSize: 'calc(1em - 1px)', // 부모 크기에서 1px 줄임
+  color: '#215F74',
+  fontWeight: 600,
+  letterSpacing: '-0.36px',
 } as const;
 
 const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
@@ -634,7 +639,7 @@ const QuotedTextRendererComponent: React.FC<{ text: string; enableKeywordLineBre
 
   const renderQuotedSpan = useCallback(
     (partText: string, spanKey: React.Key) => (
-      <span key={spanKey} className="px-2 py-1 relative" style={quotedSpanStyle}>
+      <span key={spanKey} className="px-2 py-0.5 relative" style={quotedSpanStyle}>
         <span style={quotedSpanBackdropStyle} />
         <span style={quotedSpanContentStyle}>{partText}</span>
       </span>

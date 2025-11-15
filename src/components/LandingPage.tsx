@@ -263,7 +263,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
               <>
                 {/* Version 2: Sori at COEX (1줄) */}
                 {showSori && (
-                  <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt', marginBottom: '16px' }}>
+                  <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 600, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '40.5pt', marginBottom: '16px' }}>
                     <div className="v2-title-container" style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em', display: 'inline-flex', alignItems: 'flex-end' }}>
                       {/* Sori - 색상 애니메이션 적용 */}
                       <VerticalCarouselText
@@ -275,10 +275,10 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                         className="vertical-carousel-v2"
                         style={{ 
                           fontFamily: 'Pretendard Variable', 
-                          fontWeight: 700, 
+                          fontWeight: 600, 
                           lineHeight: '90%', 
                           letterSpacing: '-1.8px', 
-                          fontSize: '45pt'
+                          fontSize: '40.5pt'
                         }}
                       />
                       {/* at - 색상 애니메이션 없음, black 색상 */}
@@ -291,10 +291,10 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                         className="vertical-carousel-v2"
                         style={{ 
                           fontFamily: 'Pretendard Variable', 
-                          fontWeight: 700, 
+                          fontWeight: 600, 
                           lineHeight: '90%', 
                           letterSpacing: '-1.8px', 
-                          fontSize: '45pt',
+                          fontSize: '40.5pt',
                           color: '#000000'
                         }}
                       />
@@ -308,10 +308,10 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                         className="vertical-carousel-v2"
                         style={{ 
                           fontFamily: 'Pretendard Variable', 
-                          fontWeight: 700, 
+                          fontWeight: 600, 
                           lineHeight: '90%', 
                           letterSpacing: '-1.8px', 
-                          fontSize: '45pt',
+                          fontSize: '40.5pt',
                           color: '#000000'
                         }}
                       />

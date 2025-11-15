@@ -11,6 +11,87 @@ import TextPressure from '@/components/ui/TextPressure';
 import useCoexTTS from '@/hooks/useCoexTTS';
 
 /**
+ * 로딩 중 사용자 메시지 요약 표시 컴포넌트
+ */
+const LoadingUserMessageSummary: React.FC<{
+  messages: Message[];
+  summarizeUserMessage: (text: string, messageId?: string) => Promise<string>;
+  userMessageSummaries: Record<string, string>;
+}> = ({ messages, summarizeUserMessage, userMessageSummaries }) => {
+  const [displayedSummary, setDisplayedSummary] = useState<string>('');
+  const lastUserMessage = useMemo(() => {
+    const userMessages = messages.filter(msg => msg.role === 'user');
+    return userMessages[userMessages.length - 1];
+  }, [messages]);
+
+  useEffect(() => {
+    if (!lastUserMessage) return;
+
+    const messageId = lastUserMessage.timestamp?.toString() || lastUserMessage.content;
+    const cacheKey = messageId || lastUserMessage.content;
+    const questionText = lastUserMessage.content.trim();
+    
+    // 10자 이하 짧은 질문은 API 호출하지 않고 원본 표시
+    if (questionText.length <= 10) {
+      setDisplayedSummary(questionText);
+      return;
+    }
+    
+    // 캐시된 요약이 있으면 즉시 표시
+    if (userMessageSummaries[cacheKey]) {
+      setDisplayedSummary(userMessageSummaries[cacheKey]);
+      return;
+    }
+
+    // API 요약만 가져오기 (fallback 표시하지 않음)
+    summarizeUserMessage(questionText, messageId).then(summary => {
+      setDisplayedSummary(summary);
+    }).catch(() => {
+      // 에러 시에도 아무것도 표시하지 않음 (API 응답만 표시)
+      setDisplayedSummary('');
+    });
+  }, [lastUserMessage, summarizeUserMessage, userMessageSummaries]);
+
+  if (!lastUserMessage) return null;
+
+  return (
+    <div className="flex flex-col min-h-full">
+      <div className="flex-1 flex flex-col items-center justify-center" style={{ minHeight: '40vh' }}>
+        {displayedSummary && (
+          <div
+            key={displayedSummary}
+            style={{
+              color: '#666D6F',
+              textAlign: 'center',
+              fontFamily: 'Pretendard Variable',
+              fontSize: '22px',
+              fontStyle: 'normal',
+              fontWeight: 700,
+              lineHeight: '132%',
+              letterSpacing: '-0.88px',
+              marginBottom: '24px',
+              padding: '0 24px',
+            }}
+          >
+            <SplitWords
+              text={displayedSummary}
+              delay={0}
+              duration={1.2}
+              stagger={0.05}
+              animation="fadeIn"
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-3" style={{ color: '#000' }}>
+          <LoadingSpinner size="sm" />
+          <span className="text-base">이솔이 생각 중입니다...</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * 커스텀 훅: 채팅 상태 관리
  */
 const useChatState = () => {
@@ -178,10 +259,14 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     return shuffled.slice(0, 3);
   }, []);
 
-  // 사용자 메시지 요약 함수
-  const summarizeUserMessage = useCallback((text: string) => {
+  // 사용자 메시지 요약 상태
+  const [userMessageSummaries, setUserMessageSummaries] = useState<Record<string, string>>({});
+
+  // Fallback 요약 함수 (CLOVA API 실패 시 사용)
+  const getFallbackSummary = useCallback((text: string): string => {
     // 패턴 기반 요약
     const patterns = [
+      { pattern: /문화.*?경험.*?곳|문화.*?경험.*?장소/i, replacement: '문화적인 경험 장소 추천' },
       { pattern: /가족.*?놀/i, replacement: '가족과 놀거리 추천' },
       { pattern: /친구.*?먹/i, replacement: '친구와 먹거리 추천' },
       { pattern: /데이트.*?좋/i, replacement: '데이트하기 좋은 곳' },
@@ -191,26 +276,69 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       { pattern: /핫플레이스/i, replacement: '핫플레이스 추천' },
       { pattern: /문화.*?체험/i, replacement: '문화 체험 장소' },
       { pattern: /쇼핑.*?좋/i, replacement: '쇼핑하기 좋은 곳' },
+      { pattern: /추천.*?해|추천.*?해줘/i, replacement: '장소 추천' },
     ];
     
     // 패턴 매칭
     for (const { pattern, replacement } of patterns) {
       if (pattern.test(text)) {
-        return replacement;
+        return replacement.length > 20 ? replacement.substring(0, 20) : replacement;
       }
     }
     
     // 패턴에 매칭되지 않으면 키워드 기반 요약
-    const keywords = ['가족', '친구', '혼자', '데이트', '컨퍼런스', '식당', '카페', '쇼핑'];
-    const foundKeyword = keywords.find(kw => text.includes(kw));
+    const keywords = ['문화', '경험', '가족', '친구', '혼자', '데이트', '컨퍼런스', '식당', '카페', '쇼핑', '장소', '곳'];
+    const foundKeywords = keywords.filter(kw => text.includes(kw));
     
-    if (foundKeyword) {
-      return `${foundKeyword} 관련 추천`;
+    if (foundKeywords.length > 0) {
+      const summary = foundKeywords.slice(0, 3).join(' ') + ' 추천';
+      return summary.length > 20 ? summary.substring(0, 20) : summary;
     }
     
-    // 아무것도 매칭되지 않으면 원본 반환 (최대 20자)
-    return text.length > 20 ? text.substring(0, 20) + '...' : text;
+    // 아무것도 매칭되지 않으면 원본 반환 (최대 20자, 말줄임표 없이)
+    return text.length > 20 ? text.substring(0, 20) : text;
   }, []);
+
+  // 사용자 메시지 요약 함수 (CLOVA AI API 사용)
+  const summarizeUserMessage = useCallback(async (text: string, messageId?: string) => {
+    if (!text || !text.trim()) return text;
+
+    // 캐시된 요약이 있으면 반환
+    const cacheKey = messageId || text;
+    if (userMessageSummaries[cacheKey]) {
+      return userMessageSummaries[cacheKey];
+    }
+
+    try {
+      const response = await fetch('/api/summarize-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const summary = data.summary || text.substring(0, 20);
+        
+        // 캐시에 저장
+        if (cacheKey) {
+          setUserMessageSummaries(prev => ({
+            ...prev,
+            [cacheKey]: summary,
+          }));
+        }
+        
+        return summary;
+      } else {
+        // API 실패 시 fallback: 간단한 키워드 기반 요약
+        return getFallbackSummary(text);
+      }
+    } catch (error) {
+      console.error('Summarize question error:', error);
+      // 에러 시 fallback 사용
+      return getFallbackSummary(text);
+    }
+  }, [userMessageSummaries, getFallbackSummary]);
 
   const randomRecommendations = useMemo(() => getRandomRecommendations(), [getRandomRecommendations]);
 
@@ -907,79 +1035,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       {/* 로고 - 상단에 고정 (AnimatedLogo 자체가 fixed로 설정됨) */}
       <AnimatedLogo />
 
-      {/* Typewriter 버전 토글 - 테스트용 */}
-      <div
-        className="fixed top-4 right-4 z-40"
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            padding: '10px 12px',
-            borderRadius: '16px',
-            background: 'rgba(255, 255, 255, 0.85)',
-            boxShadow: '0 4px 20px rgba(31, 38, 135, 0.18)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            fontFamily: 'Pretendard Variable',
-            color: '#1f2937',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: '#6b7280',
-            }}
-          >
-            Typewriter
-          </span>
-          <div
-            style={{
-              display: 'flex',
-              gap: '6px',
-            }}
-          >
-            {typewriterOptions.map((option) => {
-              const isActive = option.value === typewriterVariant;
-              return (
-                <label
-                  key={option.value}
-                  style={{
-                    position: 'relative',
-                    cursor: 'pointer',
-                    borderRadius: '999px',
-                    padding: '4px 10px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: isActive ? '#0f172a' : '#4b5563',
-                    background: isActive ? 'rgba(135, 254, 200, 0.6)' : 'rgba(255, 255, 255, 0.55)',
-                    border: isActive ? '1px solid rgba(79, 209, 197, 0.8)' : '1px solid rgba(148, 163, 184, 0.15)',
-                    boxShadow: isActive ? '0 6px 16px rgba(13, 148, 136, 0.24)' : 'none',
-                    transition: 'all 0.2s ease-in-out',
-                    userSelect: 'none',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="typewriter-variant"
-                    value={option.value}
-                    checked={isActive}
-                    onChange={() => setTypewriterVariant(option.value)}
-                    style={{ display: 'none' }}
-                  />
-                  {option.label}
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
       {/* 5번째 답변 후 안내 메시지 */}
       {showFifthAnswerWarning && !showEndMessage && !showSummary && (
         <div className="fixed top-24 left-0 right-0 z-30 flex justify-center">
@@ -1005,7 +1060,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       {/* Main Content */}
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
-          <div ref={chatRef} className="h-full overflow-y-auto px-6 pt-6 pb-4 space-y-4 overscroll-contain">
+          <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-full text-center">
                 {/* AI 환영 메시지 */}
@@ -1438,37 +1493,11 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   </div>
                 ) : chatState.isLoading ? (
                   // 로딩 중: 요약된 사용자 메시지 표시
-                  <div className="flex flex-col min-h-full">
-                    {/* 중간에 요약된 사용자 메시지와 '이솔이 생각 중입니다...' 표시 */}
-                    <div className="flex-1 flex flex-col items-center justify-center" style={{ minHeight: '40vh' }}>
-                      {chatState.messages
-                        .filter(msg => msg.role === 'user')
-                        .slice(-1)
-                        .map((message) => (
-                          <div
-                            key={`summarized-${message.role}-${message.timestamp || Date.now()}`}
-                            style={{
-                              color: '#666D6F',
-                              textAlign: 'center',
-                              fontFamily: 'Pretendard Variable',
-                              fontSize: '22px',
-                              fontStyle: 'normal',
-                              fontWeight: 700,
-                              lineHeight: '132%',
-                              letterSpacing: '-0.88px',
-                              marginBottom: '24px',
-                              padding: '0 24px',
-                            }}
-                          >
-                            {summarizeUserMessage(message.content)}
-                          </div>
-                        ))}
-                      <div className="flex items-center gap-3" style={{ color: '#000' }}>
-                        <LoadingSpinner size="sm" />
-                        <span className="text-base">이솔이 생각 중입니다...</span>
-                      </div>
-                    </div>
-                  </div>
+                  <LoadingUserMessageSummary
+                    messages={chatState.messages}
+                    summarizeUserMessage={summarizeUserMessage}
+                    userMessageSummaries={userMessageSummaries}
+                  />
                 ) : (
                   // 로딩 완료: AI 답변만 표시 (사용자 메시지 숨김)
                   <div className="space-y-4">
@@ -1497,34 +1526,37 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
       {/* 하단 고정 입력창 또는 대화 요약 보러가기 버튼 */}
       {!showSummary && !showEndMessage && (
-      <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
+      <>
         {isConversationEnded ? (
           // 6번째 답변 후: 대화 요약 보러가기 버튼
-          <div className="px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
-            <button
-              onClick={handleShowSummary}
-              className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
-              style={{
-                height: '56px',
-                padding: '15px 85px',
-                borderRadius: '68px',
-                background: 'rgba(135, 254, 200, 0.75)',
-                boxShadow: '0 0 50px 0 #EEE inset',
-                color: '#000',
-                textAlign: 'center',
-                fontFamily: 'Pretendard Variable',
-                fontSize: '16px',
-                fontWeight: 700,
-                lineHeight: '110%',
-                letterSpacing: '-0.64px',
-              }}
-            >
-              대화 요약 보러가기
-            </button>
+          <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+            <div className="px-6 pb-8 pt-4">
+              <button
+                onClick={handleShowSummary}
+                className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
+                style={{
+                  height: '56px',
+                  padding: '15px 85px',
+                  borderRadius: '68px',
+                  background: 'rgba(135, 254, 200, 0.75)',
+                  boxShadow: '0 0 50px 0 #EEE inset',
+                  color: '#000',
+                  textAlign: 'center',
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  lineHeight: '110%',
+                  letterSpacing: '-0.64px',
+                }}
+              >
+                대화 요약 보러가기
+              </button>
+            </div>
           </div>
         ) : (
-          // 일반 입력창
-          <form onSubmit={handleSubmit} className="w-full">
+          <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
+            {/* 일반 입력창 */}
+            <form onSubmit={handleSubmit} className="w-full">
           {/* 추천 텍스트 chips - 입력창 바로 위 (환영 메시지 화면에서만 표시) */}
           {chatState.messages.length === 0 && (
             <div style={{ marginBottom: '16px' }}>
@@ -1606,9 +1638,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               </div>
             </div>
           )}
-        </form>
+            </form>
+          </div>
         )}
-      </div>
+      </>
       )}
     </div>
   );
