@@ -97,6 +97,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
     fetchConversationCount();
   }, []);
 
+  // v1: 두 번째 줄이 나타난 후 카운터 및 이동 처리
   useEffect(() => {
     if (!showSecondLine || isTitleV1 || hasCountingStarted) {
       return;
@@ -115,7 +116,30 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       window.clearTimeout(moveTimer);
       window.clearTimeout(counterTimer);
     };
-  }, [showSecondLine, isTitleV1, hasCountingStarted, setMoveToBottom, setShowCounter, setHasCountingStarted]);
+  }, [showSecondLine, isTitleV1, hasCountingStarted]);
+
+  // v2: 'Sori at COEX' 애니메이션 후 카운터 및 이동 처리
+  useEffect(() => {
+    if (isTitleV1 || !showSori || hasCountingStarted) {
+      return;
+    }
+
+    // 'Sori at COEX'는 12글자, stagger 180ms
+    // 텍스트가 충분히 표시된 후 (약 1.5초) 카운터 표시
+    const moveTimer = window.setTimeout(() => {
+      setMoveToBottom(true);
+    }, 50);
+
+    const counterTimer = window.setTimeout(() => {
+      setShowCounter(true);
+      setHasCountingStarted(true);
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(moveTimer);
+      window.clearTimeout(counterTimer);
+    };
+  }, [showSori, isTitleV1, hasCountingStarted]);
 
   const handleStartClick = useCallback(() => {
     // 페이드아웃 시작
@@ -161,32 +185,17 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             />
           </div>
           
-          {/* Sori Coex Guide 타이틀 - 2줄로 분리 */}
+          {/* Sori Coex Guide 타이틀 - v1: 2줄, v2: 1줄 */}
           <div>
-            {/* 첫 번째 줄: Sori */}
-            {showSori && (
-              <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}>
-                {isTitleV1 ? (
-                  <LetterColorAnimation
-                    text="Sori"
-                    duration={6}
-                    style={{ 
-                      fontFamily: 'Pretendard Variable', 
-                      fontWeight: 700, 
-                      lineHeight: '90%', 
-                      letterSpacing: '-1.8px', 
-                      fontSize: '45pt'
-                    }}
-                  />
-                ) : (
-                  <div style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em' }}>
-                    <VerticalCarouselText
+            {isTitleV1 ? (
+              <>
+                {/* Version 1: Sori Coex Guide (2줄) */}
+                {/* 첫 번째 줄: Sori */}
+                {showSori && (
+                  <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt' }}>
+                    <LetterColorAnimation
                       text="Sori"
-                      duration={4500}
-                      stagger={180}
-                      enableColorAnimation={true}
-                      characterClassName="vertical-carousel-first-line-char"
-                      className="vertical-carousel-first-line"
+                      duration={6}
                       style={{ 
                         fontFamily: 'Pretendard Variable', 
                         fontWeight: 700, 
@@ -195,79 +204,121 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                         fontSize: '45pt'
                       }}
                     />
+                    {/* 'Sori'의 'r'이 등장했을 때 두 번째 줄 시작 */}
+                    {showSori && !showSecondLine && (
+                      <SoriIndexTracker
+                        onReachR={() => {
+                          setShowSecondLine(true);
+                        }}
+                      />
+                    )}
                   </div>
                 )}
-                {/* 'Sori'의 'r'이 등장했을 때 두 번째 줄 시작 */}
-                {showSori && !showSecondLine && (
-                  <SoriIndexTracker
-                    onReachR={() => {
-                      setShowSecondLine(true);
-                    }}
-                  />
+                
+                {/* 두 번째 줄: Coex Guide */}
+                {showSecondLine && (
+                  <div style={{ minHeight: '1.2em', overflow: 'visible', lineHeight: '1em', marginBottom: '16px' }}>
+                    <TextPressure
+                      text={secondLineText}
+                      trigger="auto"
+                      duration={2.5}
+                      loop={false}
+                      style={{ 
+                        fontFamily: 'Pretendard Variable', 
+                        fontWeight: 700, 
+                        lineHeight: '90%', 
+                        letterSpacing: '-1.8px', 
+                        fontSize: '45pt',
+                        color: '#1f2937'
+                      }}
+                      onComplete={() => {
+                        // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
+                        setShowCounter(true);
+                        setHasCountingStarted(true);
+                      }}
+                    />
+                  </div>
                 )}
-              </div>
-            )}
-            
-            {/* 두 번째 줄: Coex Guide */}
-            {showSecondLine && (
-              <div style={{ minHeight: '1.2em', overflow: 'visible', lineHeight: '1em', marginBottom: '16px' }}>
-                {isTitleV1 ? (
-                  <TextPressure
-                    text={secondLineText}
-                    trigger="auto"
-                    duration={2.5}
-                    loop={false}
-                    style={{ 
-                      fontFamily: 'Pretendard Variable', 
-                      fontWeight: 700, 
-                      lineHeight: '90%', 
-                      letterSpacing: '-1.8px', 
-                      fontSize: '45pt',
-                      color: '#1f2937'
-                    }}
-                    onComplete={() => {
-                      // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
+                
+                {/* 'Guide'의 'G'가 등장했을 때 카운터 시작 */}
+                {showSecondLine && !showCounter && (
+                  <GuideIndexTracker
+                    onReachG={() => {
                       setShowCounter(true);
                       setHasCountingStarted(true);
                     }}
                   />
-                ) : (
-                  <VerticalCarouselText
-                    text={secondLineText}
-                    duration={4500}
-                    stagger={180}
-                    characterClassName="vertical-carousel-second-line-char"
-                    className="vertical-carousel-second-line"
-                    style={{ 
-                      fontFamily: 'Pretendard Variable', 
-                      fontWeight: 700, 
-                      lineHeight: '90%', 
-                      letterSpacing: '-1.8px', 
-                      fontSize: '45pt',
-                      color: '#1f2937'
+                )}
+                
+                {/* 'Coex'의 'C'가 나타났을 때 하단으로 이동 */}
+                {showSecondLine && !moveToBottom && (
+                  <CoexIndexTracker
+                    onReachC={() => {
+                      setMoveToBottom(true);
                     }}
                   />
                 )}
-              </div>
-            )}
-            
-            {/* 'Guide'의 'G'가 등장했을 때 카운터 시작 */}
-            {isTitleV1 && showSecondLine && !showCounter && (
-              <GuideIndexTracker
-                onReachG={() => {
-                  setShowCounter(true);
-                  setHasCountingStarted(true);
-                }}
-              />
-            )}
-            
-            {/* 'Coex'의 'C'가 나타났을 때 하단으로 이동 */}
-            {isTitleV1 && showSecondLine && !moveToBottom && (
-              <CoexIndexTracker
-                onReachC={() => {
-                  setMoveToBottom(true);
-                }}
-              />
+              </>
+            ) : (
+              <>
+                {/* Version 2: Sori at COEX (1줄) */}
+                {showSori && (
+                  <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 700, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '45pt', marginBottom: '16px' }}>
+                    <div className="v2-title-container" style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em', display: 'inline-flex', alignItems: 'flex-end' }}>
+                      {/* Sori - 색상 애니메이션 적용 */}
+                      <VerticalCarouselText
+                        text="Sori"
+                        duration={4500}
+                        stagger={180}
+                        enableColorAnimation={true}
+                        characterClassName="vertical-carousel-v2-char"
+                        className="vertical-carousel-v2"
+                        style={{ 
+                          fontFamily: 'Pretendard Variable', 
+                          fontWeight: 700, 
+                          lineHeight: '90%', 
+                          letterSpacing: '-1.8px', 
+                          fontSize: '45pt'
+                        }}
+                      />
+                      {/* at - 색상 애니메이션 없음, black 색상 */}
+                      <VerticalCarouselText
+                        text="at"
+                        duration={4500}
+                        stagger={180}
+                        enableColorAnimation={false}
+                        characterClassName="vertical-carousel-v2-char"
+                        className="vertical-carousel-v2"
+                        style={{ 
+                          fontFamily: 'Pretendard Variable', 
+                          fontWeight: 700, 
+                          lineHeight: '90%', 
+                          letterSpacing: '-1.8px', 
+                          fontSize: '45pt',
+                          color: '#000000'
+                        }}
+                      />
+                      {/* COEX - 색상 애니메이션 없음, black 색상 */}
+                      <VerticalCarouselText
+                        text="COEX"
+                        duration={4500}
+                        stagger={180}
+                        enableColorAnimation={false}
+                        characterClassName="vertical-carousel-v2-char"
+                        className="vertical-carousel-v2"
+                        style={{ 
+                          fontFamily: 'Pretendard Variable', 
+                          fontWeight: 700, 
+                          lineHeight: '90%', 
+                          letterSpacing: '-1.8px', 
+                          fontSize: '45pt',
+                          color: '#000000'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
           
@@ -373,6 +424,12 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         }
         .vertical-carousel-first-line :global(.vertical-carousel-first-line-char:not(:last-child)) {
           margin-right: -1.8px;
+        }
+        .vertical-carousel-v2 :global(.vertical-carousel-v2-char:not(:last-child)) {
+          margin-right: -1.8px;
+        }
+        .v2-title-container :global(.vertical-carousel-v2:not(:last-child)) {
+          margin-right: 0.2em;
         }
       `}</style>
     </div>
