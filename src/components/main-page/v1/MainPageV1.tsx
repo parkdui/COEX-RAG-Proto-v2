@@ -1058,7 +1058,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       )}
 
       {/* Main Content */}
-      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24" style={{ background: 'transparent' }}>
+      <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-20" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
