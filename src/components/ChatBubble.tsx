@@ -15,6 +15,89 @@ const typewriterComponents: Record<TypewriterVariant, React.ComponentType<any>> 
   v3: ChatTypewriterV3,
 };
 
+// Prism colors from p5.js sketch (HSB format: [H, S, B])
+const PRISM_COLORS = [
+  [0, 100, 100],   // Red
+  [45, 100, 100],  // Yellow
+  [120, 100, 100], // Green
+  [200, 100, 100], // Cyan
+  [260, 100, 100], // Purple
+];
+
+// Convert HSB to RGB (H: 0-360, S: 0-100, B: 0-100)
+// This matches p5.js colorMode(HSB, 360, 100, 100)
+const hsbToRgb = (h: number, s: number, b: number): { r: number; g: number; b: number } => {
+  // Normalize values: H is already 0-360, S and B are 0-100
+  const hNorm = h / 360;
+  const sNorm = s / 100;
+  const bNorm = b / 100;
+
+  let r = 0, g = 0, bl = 0;
+
+  if (sNorm === 0) {
+    // No saturation - grayscale
+    r = g = bl = bNorm;
+  } else {
+    const i = Math.floor(hNorm * 6);
+    const f = hNorm * 6 - i;
+    const p = bNorm * (1 - sNorm);
+    const q = bNorm * (1 - f * sNorm);
+    const t = bNorm * (1 - (1 - f) * sNorm);
+
+    switch (i % 6) {
+      case 0: r = bNorm; g = t; bl = p; break;
+      case 1: r = q; g = bNorm; bl = p; break;
+      case 2: r = p; g = bNorm; bl = t; break;
+      case 3: r = p; g = q; bl = bNorm; break;
+      case 4: r = t; g = p; bl = bNorm; break;
+      case 5: r = bNorm; g = p; bl = q; break;
+    }
+  }
+
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(bl * 255),
+  };
+};
+
+// Apply screen mode-like effect to make colors brighter and more prism-like
+// This simulates screen blend mode: brighter, more luminous colors (like Photoshop screen mode)
+const applyScreenEffect = (r: number, g: number, b: number, intensity: number = 0.4): { r: number; g: number; b: number } => {
+  // Screen blend mode simulation: blend with white to create brighter, more luminous colors
+  // intensity: 0 = original color, 1 = pure white (0.35-0.45 works well for prism effect)
+  // Uses linear interpolation toward white: result = color + (255 - color) * intensity
+  // This creates the bright, luminous effect similar to screen blend mode
+  const screenR = r + (255 - r) * intensity;
+  const screenG = g + (255 - g) * intensity;
+  const screenB = b + (255 - b) * intensity;
+  
+  return {
+    r: Math.round(Math.min(255, Math.max(0, screenR))),
+    g: Math.round(Math.min(255, Math.max(0, screenG))),
+    b: Math.round(Math.min(255, Math.max(0, screenB))),
+  };
+};
+
+// Get random color from prism colors with screen mode effect
+const getRandomPrismColor = (): { r: number; g: number; b: number } => {
+  const randomIndex = Math.floor(Math.random() * PRISM_COLORS.length);
+  const [h, s, b] = PRISM_COLORS[randomIndex];
+  const rgb = hsbToRgb(h, s, b);
+  // Apply screen effect to make colors brighter and more prism-like
+  return applyScreenEffect(rgb.r, rgb.g, rgb.b, 0.4);
+};
+
+// Get dynamic dot color based on typewriter variant
+const getDotColor = (typewriterVariant: TypewriterVariant): string => {
+  if (typewriterVariant === 'v1') {
+    // Use prism colors for v1 - generate random color on each call
+    const { r, g, b } = getRandomPrismColor();
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  return '#000'; // Default black for other variants
+};
+
 const assistantGlassWrapperStyle: React.CSSProperties = {
   width: 'min(360px, 92vw)',
   margin: '0 auto',
@@ -100,6 +183,7 @@ const quotedSpanBackdropStyle: React.CSSProperties = {
 const quotedSpanContentStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 0,
+  fontSize: 'calc(1em - 1px)', // 부모 크기에서 1px 줄임
 } as const;
 
 const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
@@ -158,6 +242,17 @@ const AssistantGlassStyles = () => (
       filter: blur(60px) saturate(1.4);
       pointer-events: none;
     }
+    .assistant-glass-bottom-gradient {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 100%;
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
+      pointer-events: none;
+      z-index: 3;
+      border-radius: inherit;
+    }
     .assistant-glass-highlight {
       position: absolute;
       inset: 0;
@@ -175,7 +270,7 @@ const AssistantGlassStyles = () => (
     }
     .assistant-glass-body {
       position: relative;
-      z-index: 2;
+      z-index: 4;
     }
     @keyframes gradient-rotate {
       0% {
@@ -448,7 +543,7 @@ const QuotedTextRendererComponent: React.FC<{ text: string; enableKeywordLineBre
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: keywordInfo.hasBeforeContent ? '0.35rem' : 0,
+          gap: keywordInfo.hasBeforeContent ? '0.1rem' : 0,
           width: '100%',
         }}
       >
@@ -656,7 +751,7 @@ const SegmentedMessageComponent: React.FC<{
   }, [displayText, typewriterVariant]);
 
   const renderTypewriter = useCallback(
-    (displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
+    (displayedText: string, isComplete: boolean, currentCursorChar?: string, dotColor?: { r: number; g: number; b: number }) => {
       const cursorChar = currentCursorChar ?? '●';
       const targetHighlightLength = Math.min(firstSegmentHighlight.length, displayText.length);
       const displayedHighlight = displayedText.substring(0, targetHighlightLength);
@@ -667,6 +762,11 @@ const SegmentedMessageComponent: React.FC<{
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
       const imageShouldRender =
         shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      // Get dot color - use provided dotColor for v1, otherwise default to black
+      const dotColorString = typewriterVariant === 'v1' && dotColor
+        ? `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`
+        : '#000';
 
       return (
         <div>
@@ -682,8 +782,8 @@ const SegmentedMessageComponent: React.FC<{
                       lineHeight: 1,
                       verticalAlign: 'middle',
                       marginLeft: '2px',
-                      color: '#000',
-                      transition: 'none',
+                      color: dotColorString,
+                      transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                     }}
                   >
                     {cursorChar}
@@ -732,8 +832,8 @@ const SegmentedMessageComponent: React.FC<{
                       lineHeight: 1,
                       verticalAlign: 'middle',
                       marginLeft: '2px',
-                      color: '#000',
-                      transition: 'none',
+                      color: dotColorString,
+                      transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                     }}
                   >
                     {cursorChar}
@@ -749,8 +849,8 @@ const SegmentedMessageComponent: React.FC<{
                   lineHeight: 1,
                   verticalAlign: 'middle',
                   marginLeft: '2px',
-                  color: '#000',
-                  transition: 'none',
+                  color: dotColorString,
+                  transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                 }}
               >
                 {cursorChar}
@@ -760,7 +860,7 @@ const SegmentedMessageComponent: React.FC<{
         </div>
       );
     },
-    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage]
+    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage, typewriterVariant]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
@@ -770,6 +870,7 @@ const SegmentedMessageComponent: React.FC<{
       <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
         <div className="assistant-glass-content" style={assistantGlassContentStyle}>
           {showHighlight && <div className="assistant-glass-highlight" />}
+          <div className="assistant-glass-bottom-gradient" />
           <div className="assistant-glass-body">
             <TypewriterComponent
               {...typewriterProps}
@@ -922,7 +1023,7 @@ const SingleMessageComponent: React.FC<{
   }, [assistantText, typewriterVariant]);
 
   const renderTypewriter = useCallback(
-    (displayedText: string, isComplete: boolean, currentCursorChar?: string) => {
+    (displayedText: string, isComplete: boolean, currentCursorChar?: string, dotColor?: { r: number; g: number; b: number }) => {
       const cursorChar = currentCursorChar ?? '●';
       const targetHighlightLength = Math.min(assistantHighlight.length, assistantText.length);
       const displayedHighlight = displayedText.substring(0, targetHighlightLength);
@@ -933,6 +1034,11 @@ const SingleMessageComponent: React.FC<{
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
       const imageShouldRender =
         shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      // Get dot color - use provided dotColor for v1, otherwise default to black
+      const dotColorString = typewriterVariant === 'v1' && dotColor
+        ? `rgb(${dotColor.r}, ${dotColor.g}, ${dotColor.b})`
+        : '#000';
 
       return (
         <div>
@@ -948,8 +1054,8 @@ const SingleMessageComponent: React.FC<{
                       lineHeight: 1,
                       verticalAlign: 'middle',
                       marginLeft: '2px',
-                      color: '#000',
-                      transition: 'none',
+                      color: dotColorString,
+                      transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                     }}
                   >
                     {cursorChar}
@@ -998,8 +1104,8 @@ const SingleMessageComponent: React.FC<{
                       lineHeight: 1,
                       verticalAlign: 'middle',
                       marginLeft: '2px',
-                      color: '#000',
-                      transition: 'none',
+                      color: dotColorString,
+                      transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                     }}
                   >
                     {cursorChar}
@@ -1015,8 +1121,8 @@ const SingleMessageComponent: React.FC<{
                   lineHeight: 1,
                   verticalAlign: 'middle',
                   marginLeft: '2px',
-                  color: '#000',
-                  transition: 'none',
+                  color: dotColorString,
+                  transition: typewriterVariant === 'v1' ? 'color 0.2s ease' : 'none',
                 }}
               >
                 {cursorChar}
@@ -1026,7 +1132,7 @@ const SingleMessageComponent: React.FC<{
         </div>
       );
     },
-    [assistantHighlight, assistantText, imageUrl, shouldShowImage]
+    [assistantHighlight, assistantText, imageUrl, shouldShowImage, typewriterVariant]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
@@ -1038,6 +1144,7 @@ const SingleMessageComponent: React.FC<{
           <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
             <div className="assistant-glass-content" style={assistantGlassContentStyle}>
               {showHighlight && <div className="assistant-glass-highlight" />}
+              <div className="assistant-glass-bottom-gradient" />
               <div className="assistant-glass-body">
                 <TypewriterComponent
                   {...typewriterProps}
@@ -1095,7 +1202,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   onPlayTTS, 
   isPlayingTTS = false,
   isGlobalLoading = false,
-  typewriterVariant = 'v2'
+  typewriterVariant = 'v1'
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {

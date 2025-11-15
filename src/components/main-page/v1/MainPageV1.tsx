@@ -147,7 +147,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const [showFinalMessage, setShowFinalMessage] = useState(false);
   const [isKeywordsAnimatingOut, setIsKeywordsAnimatingOut] = useState(false);
   const [showFifthAnswerWarning, setShowFifthAnswerWarning] = useState(false);
-  const [typewriterVariant, setTypewriterVariant] = useState<TypewriterVariant>('v2');
+  const [typewriterVariant, setTypewriterVariant] = useState<TypewriterVariant>('v1');
+  const [showRecommendationChips, setShowRecommendationChips] = useState(false);
 
   const GreetingTypewriter = typewriterComponentMap[typewriterVariant];
 
@@ -270,6 +271,18 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
     return () => clearInterval(intervalId);
   }, [chatState.isLoading, scrollToBottom]);
+
+  // AI 답변 완료 시 추천 chips 애니메이션 트리거
+  useEffect(() => {
+    if (!chatState.isLoading && assistantMessages.length > 0) {
+      // AI 답변이 완료되면 추천 chips fade-in 애니메이션 시작
+      setShowRecommendationChips(false);
+      const timer = setTimeout(() => {
+        setShowRecommendationChips(true);
+      }, 100); // 약간의 딜레이 후 애니메이션 시작
+      return () => clearTimeout(timer);
+    }
+  }, [chatState.isLoading, assistantMessages.length]);
 
   // AI 답변 카운트 추적 및 6번째 답변 감지
   useEffect(() => {
@@ -821,12 +834,73 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     }
   }, [chatState, isConversationEnded, pushAssistantMessage]);
 
+  // 추천 chips 렌더링 함수
+  const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
+    if (isConversationEnded) return null;
+    
+    return (
+      <div
+        className="recommendation-scroll"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: '8px',
+          marginTop: additionalMarginTop ? `${additionalMarginTop}px` : (compact ? '0' : '24px'),
+          paddingTop: compact ? '0' : '24px',
+          paddingBottom: compact ? '0' : '4px',
+          width: '100%',
+          opacity: shouldAnimate ? (showRecommendationChips ? 1 : 0) : 1,
+          transition: shouldAnimate ? 'opacity 0.5s ease-in' : 'none',
+        }}
+      >
+        {randomRecommendations.map((message, index) => {
+          return (
+            <button
+              key={index}
+              onClick={() => handleRecommendationClick(message)}
+              disabled={chatState.isLoading}
+              className="touch-manipulation active:scale-95 disabled:opacity-50"
+              style={{
+                display: 'inline-flex',
+                padding: '8px 16px',
+                justifyContent: 'center',
+                alignItems: 'center',
+                flex: '0 0 auto',
+                borderRadius: '40px',
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(244,244,244,0.2), rgba(255,255,255,0.4))',
+                border: '1px solid white',
+                cursor: 'pointer',
+              }}
+              type="button"
+            >
+              <span
+                style={{
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '14px',
+                  fontStyle: 'normal' as const,
+                  fontWeight: 600,
+                  lineHeight: '190%',
+                  letterSpacing: '-0.48px',
+                  color: '#757575',
+                  whiteSpace: 'nowrap' as const,
+                }}
+              >
+                {message}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, showRecommendationChips]);
+
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative" style={{ background: 'transparent' }}>
       {/* Blurry Blob 배경은 AppFlow에서 관리 (키워드 요약 화면에서는 숨김) */}
       {showBlob && !showSummary && (
         <div className="fixed inset-0 z-0 pointer-events-none">
-          {/* BlobBackground는 AppFlow에서 렌더링됨 */}
+          {/* BlobBackground는 AppFw에서 렌더링됨 */}
         </div>
       )}
       
@@ -931,9 +1005,9 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       {/* Main Content */}
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-24" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
-          <div ref={chatRef} className="h-full overflow-y-auto p-6 space-y-4 overscroll-contain">
+          <div ref={chatRef} className="h-full overflow-y-auto px-6 pt-6 pb-4 space-y-4 overscroll-contain">
             {chatState.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-col items-center justify-center min-h-full text-center">
                 {/* AI 환영 메시지 */}
                 <div 
                   style={{ 
@@ -1411,6 +1485,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           typewriterVariant={typewriterVariant}
                         />
                       ))}
+                    {/* 추천 텍스트 chips - AI 답변 하단에 위치 */}
+                    {renderRecommendationChips(undefined, false, true)}
                   </div>
                 )}
               </>
@@ -1449,56 +1525,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         ) : (
           // 일반 입력창
           <form onSubmit={handleSubmit} className="w-full">
-          <div
-            className="recommendation-scroll"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              gap: '8px',
-              paddingBottom: '4px',
-              marginBottom: '12px',
-              width: '100%',
-            }}
-          >
-            {randomRecommendations.map((message, index) => {
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleRecommendationClick(message)}
-                  disabled={chatState.isLoading}
-                  className="touch-manipulation active:scale-95 disabled:opacity-50"
-                  style={{
-                    display: 'inline-flex',
-                    padding: '8px 16px',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    flex: '0 0 auto',
-                    borderRadius: '40px',
-                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(244,244,244,0.2), rgba(255,255,255,0.4))',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                  type="button"
-                >
-                  <span
-                    style={{
-                      fontFamily: 'Pretendard Variable',
-                      fontSize: '14px',
-                      fontStyle: 'normal' as const,
-                      fontWeight: 600,
-                      lineHeight: '190%',
-                      letterSpacing: '-0.48px',
-                      color: '#757575',
-                      whiteSpace: 'nowrap' as const,
-                    }}
-                  >
-                    {message}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* 추천 텍스트 chips - 입력창 바로 위 (환영 메시지 화면에서만 표시) */}
+          {chatState.messages.length === 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              {renderRecommendationChips(0, true)}
+            </div>
+          )}
           <div 
             className="flex items-center"
             style={{
