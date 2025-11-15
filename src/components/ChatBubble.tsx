@@ -450,7 +450,11 @@ const getHighlightedTextParts = (text: string): { highlightedText: string; remai
   }
 
   const highlightedText = text.slice(0, highlightEndIndex).trim();
-  const remainderText = text.slice(highlightEndIndex).trimStart();
+  let remainderText = text.slice(highlightEndIndex).trimStart();
+
+  // remainderText에서 마침표만 있거나 공백+마침표만 있는 경우 제거
+  // 예: "." 또는 ". " 또는 " ." 같은 경우
+  remainderText = remainderText.replace(/^\s*[.!?]\s*$/, '').trim();
 
   if (!highlightedText) {
     return { highlightedText: text.trim(), remainderText: '' };
@@ -465,7 +469,161 @@ const removeLastSentence = (text: string) => {
   if (!matches || matches.length <= 1) {
     return '';
   }
-  return matches.slice(0, -1).join(' ').trim();
+  
+  // 마지막 문장을 제거
+  const result = matches.slice(0, -1).join(' ').trim();
+  
+  // 마지막 문장 제거 후 끝에 마침표만 남은 경우 제거
+  // 예: "텍스트입니다. ." -> "텍스트입니다" (빈 마침표 제거)
+  // 또는 "텍스트입니다. . " -> "텍스트입니다" (공백과 마침표만 남은 경우)
+  const cleanedResult = result.replace(/\s*[.!?]\s*$/, '').trim();
+  
+  return cleanedResult;
+};
+
+/**
+ * 헤드라인 텍스트에서 15글자 미만 줄을 방지하는 함수
+ * CSS 자동 줄바꿈을 시뮬레이션하고, 너무 짧은 줄이 생기면 앞 줄에서 단어를 이동
+ * 키워드가 있는 경우 키워드는 반드시 한 줄에 유지
+ */
+const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): string => {
+  if (!text || text.length <= minLineLength) {
+    return text;
+  }
+
+  // 키워드 위치 찾기 (''(.*?)''|'(.*?)'|""(.*?)""|\*\*(.*?)\*\*)
+  const keywordMatches: Array<{ start: number; end: number; keyword: string }> = [];
+  let match;
+  const keywordRegex = new RegExp(KEYWORD_MATCH_REGEX.source, 'g');
+  
+  while ((match = keywordRegex.exec(text)) !== null) {
+    const keywordText = match[1] ?? match[2] ?? match[3] ?? match[4] ?? '';
+    if (keywordText && match.index !== undefined) {
+      keywordMatches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        keyword: match[0],
+      });
+    }
+  }
+
+  // 텍스트를 단어 단위로 분할하되, 키워드 위치 정보도 함께 관리
+  const words: Array<{ word: string; isKeyword: boolean; keywordIndex?: number }> = [];
+  let lastIndex = 0;
+  
+  keywordMatches.forEach((keywordMatch, idx) => {
+    // 키워드 이전 텍스트를 단어로 분할
+    const beforeText = text.substring(lastIndex, keywordMatch.start).trim();
+    if (beforeText) {
+      beforeText.split(/\s+/).forEach(word => {
+        if (word) words.push({ word, isKeyword: false });
+      });
+    }
+    
+    // 키워드 추가
+    words.push({ word: keywordMatch.keyword, isKeyword: true, keywordIndex: idx });
+    lastIndex = keywordMatch.end;
+  });
+  
+  // 키워드 이후 텍스트를 단어로 분할
+  const afterText = text.substring(lastIndex).trim();
+  if (afterText) {
+    afterText.split(/\s+/).forEach(word => {
+      if (word) words.push({ word, isKeyword: false });
+    });
+  }
+
+  if (words.length <= 1) {
+    return text;
+  }
+
+  // 줄바꿈을 계산하기 위한 기준
+  // assistantHeadlineTextStyle의 fontSize는 18px, width는 86% (대략 280px)
+  // 한글 기준으로 대략 18px 폰트에서 컨테이너 너비 약 280px = 약 15-16글자 정도
+  const estimatedCharsPerLine = 20;
+  
+  const lines: string[] = [];
+  let currentLine = '';
+  let currentLineContainsKeyword = false;
+  
+  // 초기 줄바꿈 계산 (키워드는 반드시 한 줄에 유지)
+  for (let i = 0; i < words.length; i++) {
+    const wordInfo = words[i];
+    const word = wordInfo.word;
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    
+    // 키워드인 경우: 현재 줄이 비어있거나, 키워드가 한 줄에 들어갈 수 있으면 추가
+    if (wordInfo.isKeyword) {
+      // 키워드는 반드시 한 줄에 있어야 함
+      // 현재 줄에 다른 내용이 있고 키워드를 추가하면 줄이 너무 길어지면 새 줄 시작
+      if (currentLine && testLine.length > estimatedCharsPerLine) {
+        lines.push(currentLine);
+        currentLine = word;
+        currentLineContainsKeyword = true;
+      } else {
+        currentLine = testLine;
+        currentLineContainsKeyword = true;
+      }
+    } else {
+      // 일반 단어인 경우
+      // 현재 줄에 키워드가 있으면, 키워드 이후에도 한 줄에 넣을 수 있는지 확인
+      if (currentLineContainsKeyword) {
+        // 키워드가 포함된 줄은 더 신중하게 처리
+        // 키워드가 포함된 줄이 너무 길어지면 새 줄로 이동
+        if (testLine.length > estimatedCharsPerLine && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+          currentLineContainsKeyword = false;
+        } else {
+          currentLine = testLine;
+        }
+      } else {
+        // 일반 줄바꿈 로직
+        if (testLine.length > estimatedCharsPerLine && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+          currentLineContainsKeyword = false;
+        } else {
+          currentLine = testLine;
+        }
+      }
+    }
+  }
+  
+  // 마지막 줄 추가
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  // 모든 줄이 15글자 이상이 되도록 조정 (마지막 줄 포함)
+  // 키워드가 포함된 줄도 조정 가능 (단, 키워드 자체는 분할하지 않음)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const lineLength = lines[i].replace(/\s/g, '').length; // 공백 제외한 실제 글자 수
+    
+    if (lineLength < minLineLength && i > 0) {
+      // 앞 줄에서 단어를 가져와서 현재 줄을 채움
+      const prevLineWords = lines[i - 1].split(/\s+/).filter(w => w.length > 0);
+      const currentLineWords = lines[i].split(/\s+/).filter(w => w.length > 0);
+      
+      // 앞 줄의 마지막 단어가 키워드가 아닌지 확인
+      const lastPrevWord = prevLineWords[prevLineWords.length - 1];
+      const isLastPrevWordKeyword = keywordMatches.some(km => lastPrevWord === km.keyword);
+      
+      // 앞 줄의 마지막 단어를 현재 줄 앞에 추가 (키워드가 아닌 경우만)
+      // 키워드가 포함된 줄도 조정 가능하지만, 키워드 자체는 분할하지 않음
+      if (prevLineWords.length > 1 && !isLastPrevWordKeyword) {
+        const lastWord = prevLineWords.pop();
+        if (lastWord) {
+          lines[i - 1] = prevLineWords.join(' ');
+          lines[i] = `${lastWord} ${currentLineWords.join(' ')}`.trim();
+        }
+      }
+    }
+  }
+
+  // 줄바꿈 문자로 조인하여 반환
+  // white-space: pre-wrap이 이를 유지하여 렌더링
+  return lines.join('\n');
 };
 
 /**
@@ -705,7 +863,17 @@ const SegmentedMessageComponent: React.FC<{
       highlightedText +
       (remainderText ? `\n\n${remainderText}` : '') +
       (remainingText ? `\n\n${remainingText}` : '');
-    const textWithoutLastSentence = removeLastSentence(fullText);
+    let textWithoutLastSentence = removeLastSentence(fullText);
+
+    // 마지막 정리: 마침표만 있거나 공백+마침표만 있는 줄 제거
+    // 예: "\n\n." 또는 "\n\n . " 같은 경우
+    const lines = textWithoutLastSentence.split('\n\n');
+    const cleanedLines = lines.filter(line => {
+      const trimmed = line.trim();
+      // 마침표만 있거나 공백+마침표만 있는 줄 제거
+      return trimmed.length > 0 && !/^\s*[.!?]\s*$/.test(trimmed);
+    });
+    textWithoutLastSentence = cleanedLines.join('\n\n');
 
     return {
       firstSegmentHighlight: highlightedText,
@@ -754,7 +922,7 @@ const SegmentedMessageComponent: React.FC<{
     (displayedText: string, isComplete: boolean, currentCursorChar?: string, dotColor?: { r: number; g: number; b: number }) => {
       const cursorChar = currentCursorChar ?? '●';
       const targetHighlightLength = Math.min(firstSegmentHighlight.length, displayText.length);
-      const displayedHighlight = displayedText.substring(0, targetHighlightLength);
+      let displayedHighlight = displayedText.substring(0, targetHighlightLength);
       const displayedRest = displayedText.substring(targetHighlightLength);
       const cleanedRest = trimLeadingWhitespace(displayedRest);
       const showCursor = !isComplete;
@@ -762,6 +930,11 @@ const SegmentedMessageComponent: React.FC<{
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
       const imageShouldRender =
         shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      // 헤드라인 텍스트에 15글자 미만 줄 방지 로직 적용 (키워드는 한 줄에 유지)
+      if (displayedHighlight) {
+        displayedHighlight = adjustHeadlineLineBreaks(displayedHighlight, 15);
+      }
 
       // Get dot color - use provided dotColor for v1, otherwise default to black
       const dotColorString = typewriterVariant === 'v1' && dotColor
@@ -975,7 +1148,18 @@ const SingleMessageComponent: React.FC<{
       };
     }
 
-    const textWithoutLastSentence = removeLastSentence(message.content || '');
+    let textWithoutLastSentence = removeLastSentence(message.content || '');
+
+    // 마지막 정리: 마침표만 있거나 공백+마침표만 있는 줄 제거
+    // 예: "\n\n." 또는 "\n\n . " 같은 경우
+    const lines = textWithoutLastSentence.split('\n\n');
+    const cleanedLines = lines.filter(line => {
+      const trimmed = line.trim();
+      // 마침표만 있거나 공백+마침표만 있는 줄 제거
+      return trimmed.length > 0 && !/^\s*[.!?]\s*$/.test(trimmed);
+    });
+    textWithoutLastSentence = cleanedLines.join('\n\n');
+
     const highlight = getHighlightedTextParts(textWithoutLastSentence).highlightedText;
     return {
       assistantText: textWithoutLastSentence,
@@ -1026,7 +1210,7 @@ const SingleMessageComponent: React.FC<{
     (displayedText: string, isComplete: boolean, currentCursorChar?: string, dotColor?: { r: number; g: number; b: number }) => {
       const cursorChar = currentCursorChar ?? '●';
       const targetHighlightLength = Math.min(assistantHighlight.length, assistantText.length);
-      const displayedHighlight = displayedText.substring(0, targetHighlightLength);
+      let displayedHighlight = displayedText.substring(0, targetHighlightLength);
       const displayedRest = displayedText.substring(targetHighlightLength);
       const cleanedRest = trimLeadingWhitespace(displayedRest);
       const showCursor = !isComplete;
@@ -1034,6 +1218,11 @@ const SingleMessageComponent: React.FC<{
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
       const imageShouldRender =
         shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+
+      // 헤드라인 텍스트에 15글자 미만 줄 방지 로직 적용 (키워드는 한 줄에 유지)
+      if (displayedHighlight) {
+        displayedHighlight = adjustHeadlineLineBreaks(displayedHighlight, 15);
+      }
 
       // Get dot color - use provided dotColor for v1, otherwise default to black
       const dotColorString = typewriterVariant === 'v1' && dotColor
