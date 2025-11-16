@@ -8,6 +8,7 @@ import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText, Typewriter, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
+type GlassStyleVariant = 'v1' | 'v2';
 
 const typewriterComponents: Record<TypewriterVariant, React.ComponentType<any>> = {
   v1: ChatTypewriterV1,
@@ -106,7 +107,8 @@ const assistantGlassWrapperStyle: React.CSSProperties = {
   zIndex: 10,
 };
 
-const assistantGlassContentStyle: React.CSSProperties = {
+// Version 1: Original glass style
+const assistantGlassContentStyleV1: React.CSSProperties = {
   display: 'grid',
   gap: 'clamp(18px, 3.6vw, 26px)',
   padding: 'clamp(22px, 5.2vw, 30px)',
@@ -122,6 +124,31 @@ const assistantGlassContentStyle: React.CSSProperties = {
   position: 'relative',
   overflow: 'hidden',
   pointerEvents: 'auto',
+};
+
+// Version 2: Glass modal style (from ver8/1.js glass-content)
+const assistantGlassContentStyleV2: React.CSSProperties = {
+  display: 'grid',
+  gap: 'clamp(18px, 3.8vw, 26px)',
+  padding: 'clamp(24px, 5.6vw, 34px) clamp(20px, 5vw, 28px) clamp(24px, 5.6vw, 34px)',
+  borderRadius: 'clamp(32px, 10vw, 48px)',
+  background: 'linear-gradient(180deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.00) 16.666%, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.38) 66%, rgba(255,255,255,0.70) 100%)',
+  border: '0.5px solid rgba(255,255,255,0.20)',
+  boxShadow:
+    '0 28px 48px rgba(22, 42, 58, 0.10), inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -12px 36px rgba(255,255,255,0.05)',
+  backdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
+  WebkitBackdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
+  filter: 'saturate(0.92)',
+  textAlign: 'center',
+  color: '#1f2640',
+  position: 'relative',
+  overflow: 'hidden',
+  pointerEvents: 'auto',
+};
+
+// Helper function to get glass style based on variant
+const getAssistantGlassContentStyle = (variant: GlassStyleVariant = 'v2'): React.CSSProperties => {
+  return variant === 'v1' ? assistantGlassContentStyleV1 : assistantGlassContentStyleV2;
 };
 
 const assistantPrimaryTextStyle: React.CSSProperties = {
@@ -230,33 +257,22 @@ const AssistantGlassStyles = () => (
       position: absolute;
       inset: 0;
       border-radius: inherit;
-      background: linear-gradient(145deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.08) 55%, rgba(255,255,255,0) 100%);
+      background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 55%, rgba(255,255,255,0.0) 100%);
       mix-blend-mode: screen;
-      opacity: 0.48;
+      opacity: 0.06;
       pointer-events: none;
     }
     .assistant-glass-content::after {
       content: '';
       position: absolute;
-      inset: -30%;
+      inset: -28%;
       background:
-        radial-gradient(circle at 18% 14%, rgba(255,255,255,0.24), transparent 60%),
-        radial-gradient(circle at 86% 78%, rgba(118,212,255,0.18), transparent 70%),
-        rgba(255,255,255,0.018);
-      opacity: 0.16;
-      filter: blur(60px) saturate(1.4);
+        radial-gradient(circle at 18% 14%, rgba(255,255,255,0.08), transparent 60%),
+        radial-gradient(circle at 86% 78%, rgba(118,212,255,0.035), transparent 70%),
+        rgba(255,255,255,0.010);
+      opacity: 0.07;
+      filter: blur(50px) saturate(1.0);
       pointer-events: none;
-    }
-    .assistant-glass-bottom-gradient {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 100%;
-      background: linear-gradient(to top, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
-      pointer-events: none;
-      z-index: 3;
-      border-radius: inherit;
     }
     .assistant-glass-highlight {
       position: absolute;
@@ -626,6 +642,45 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     }
   }
 
+  // 최대 2줄로 제한 (첫 번째 문장은 중간에 잘리지 않도록)
+  if (lines.length > 2) {
+    // 원본 텍스트에서 첫 번째 문장 찾기 (마침표, 느낌표, 물음표까지)
+    const sentenceEndRegex = /[.!?。！？]/;
+    const firstSentenceEndIndex = text.search(sentenceEndRegex);
+    
+    if (firstSentenceEndIndex !== -1) {
+      // 첫 번째 문장 완전히 추출
+      const firstSentence = text.substring(0, firstSentenceEndIndex + 1).trim();
+      
+      // 첫 번째 문장은 무슨 일이 있어도 중간에 잘리지 않도록 전체 표시 (몇 줄이든 상관없이)
+      // 첫 번째 문장을 다시 줄바꿈 계산하여 전체 표시
+      const firstSentenceWords = firstSentence.split(/(\s+)/).filter(w => w.length > 0);
+      const firstSentenceLines: string[] = [];
+      let currentLine = '';
+      
+      for (const word of firstSentenceWords) {
+        const testLine = currentLine ? `${currentLine}${word}` : word;
+        
+        if (testLine.length > estimatedCharsPerLine && currentLine) {
+          firstSentenceLines.push(currentLine.trim());
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      if (currentLine) {
+        firstSentenceLines.push(currentLine.trim());
+      }
+      
+      // 첫 번째 문장 전체를 표시 (몇 줄이든 상관없이)
+      lines.splice(0, lines.length, ...firstSentenceLines);
+    } else {
+      // 문장 끝을 찾지 못한 경우, 첫 2줄만 표시하되 문장을 강제로 자르지 않음
+      lines.splice(2);
+    }
+  }
+
   // 줄바꿈 문자로 조인하여 반환
   // white-space: pre-wrap이 이를 유지하여 렌더링
   return lines.join('\n');
@@ -854,7 +909,8 @@ const SegmentedMessageComponent: React.FC<{
   onPlayTTS?: (text: string) => void;
   isPlayingTTS: boolean;
   typewriterVariant: TypewriterVariant;
-}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant }) => {
+  glassStyleVariant?: GlassStyleVariant;
+}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2' }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
 
@@ -1046,9 +1102,9 @@ const SegmentedMessageComponent: React.FC<{
   return (
     <div className="flex justify-center mb-4">
       <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
-        <div className="assistant-glass-content" style={assistantGlassContentStyle}>
+          <div className="assistant-glass-content" style={getAssistantGlassContentStyle(glassStyleVariant)}>
           {showHighlight && <div className="assistant-glass-highlight" />}
-          <div className="assistant-glass-bottom-gradient" />
+          {glassStyleVariant === 'v1' && <div className="assistant-glass-bottom-gradient" />}
           <div className="assistant-glass-body">
             <TypewriterComponent
               {...typewriterProps}
@@ -1134,6 +1190,7 @@ const SingleMessageComponent: React.FC<{
   isPlayingTTS: boolean;
   isGlobalLoading?: boolean;
   typewriterVariant: TypewriterVariant;
+  glassStyleVariant?: GlassStyleVariant;
 }> = ({
   message,
   isThinking,
@@ -1141,6 +1198,7 @@ const SingleMessageComponent: React.FC<{
   isPlayingTTS: _isPlayingTTS,
   isGlobalLoading: _isGlobalLoading = false,
   typewriterVariant,
+  glassStyleVariant = 'v2',
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
@@ -1336,10 +1394,10 @@ const SingleMessageComponent: React.FC<{
       {message.role === 'assistant' ? (
         <>
           <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
-            <div className="assistant-glass-content" style={assistantGlassContentStyle}>
-              {showHighlight && <div className="assistant-glass-highlight" />}
-              <div className="assistant-glass-bottom-gradient" />
-              <div className="assistant-glass-body">
+          <div className="assistant-glass-content" style={getAssistantGlassContentStyle(glassStyleVariant)}>
+          {showHighlight && <div className="assistant-glass-highlight" />}
+          {glassStyleVariant === 'v1' && <div className="assistant-glass-bottom-gradient" />}
+          <div className="assistant-glass-body">
                 <TypewriterComponent
                   {...typewriterProps}
                   onComplete={() => {
@@ -1396,7 +1454,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   onPlayTTS, 
   isPlayingTTS = false,
   isGlobalLoading = false,
-  typewriterVariant = 'v1'
+  typewriterVariant = 'v1',
+  glassStyleVariant = 'v2'
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -1406,6 +1465,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
         onPlayTTS={onPlayTTS}
         isPlayingTTS={isPlayingTTS}
         typewriterVariant={typewriterVariant}
+        glassStyleVariant={glassStyleVariant}
       />
     );
   }
@@ -1419,6 +1479,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       isPlayingTTS={isPlayingTTS}
       isGlobalLoading={isGlobalLoading}
       typewriterVariant={typewriterVariant}
+      glassStyleVariant={glassStyleVariant}
     />
   );
 };

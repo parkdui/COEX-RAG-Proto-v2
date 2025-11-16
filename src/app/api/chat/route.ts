@@ -397,8 +397,10 @@ export async function POST(request: NextRequest) {
     const weekday = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()];
     const currentDateInfo = `\n\n[현재 날짜 정보]\n현재 날짜는 ${year}년 ${month}월 ${day}일(${weekday}요일)이다. 지나간 날짜의 이벤트는 추천하지 않아야 한다.\n`;
 
+    const headlineConstraint = "\n\n[응답 형식 규칙]\n응답의 첫 번째 문장(또는 첫 번째 문단)은 모바일 화면에서 최대 2줄로 표시될 수 있도록 작성해야 합니다. 한 줄은 약 12자 정도로 계산하여, 첫 번째 문장은 약 24자 이내로 작성하되, 문장이 자연스럽게 끝맺음되도록 해주세요.";
+    
     const activeSystemPrompt =
-      ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo;
+      ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo + headlineConstraint;
 
     const vectors = JSON.parse(fs.readFileSync(VECTORS_JSON, "utf8"));
     if (!Array.isArray(vectors) || vectors.length === 0) {

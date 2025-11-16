@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import LandingPage from './LandingPage';
 import MainPage from './MainPage';
-import BlobBackgroundV2 from './ui/BlobBackgroundV2';
+import BlobBackground from './ui/BlobBackground';
 
 type PageType = 'landing' | 'main';
 
@@ -66,7 +66,7 @@ export default function AppFlow() {
     <div className="min-h-screen relative" style={{ background: 'transparent' }}>
       {/* AppFlow 레벨에서 BlobBackground를 관리하여 상태 유지 */}
       {showBlobBackground && (
-        <BlobBackgroundV2
+        <BlobBackground
           isAnimating={blobAnimating}
           onAnimationComplete={handleBlobAnimationComplete}
         />

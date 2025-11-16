@@ -39,11 +39,11 @@ export function CanvasBackground({ boosted, phase, popActive, className }: Canva
           pointer-events: none;
           overflow: hidden;
           z-index: 3;
-          opacity: 0.7;
+          opacity: 1;
           transition: opacity 900ms ease, filter 1200ms ease;
         }
         .coex-v2-canvas-wrapper--active {
-          opacity: 0.95;
+          opacity: 1;
         }
         .coex-v2-canvas-wrapper--pop {
           filter: saturate(1.08) brightness(1.04);
@@ -145,11 +145,11 @@ function AgenticBubble({
   paletteLerp = 0.12,
   breathe = false
 }: AgenticBubbleProps) {
-  const material = useMemo<THREE.ShaderMaterial>(() => {
+  const material = useMemo<any>(() => {
     return variant === 'water' ? createWaterShaderMaterial() : createDefaultShaderMaterial();
   }, [variant]);
 
-  const meshRef = useRef<THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>>(null);
+  const meshRef = useRef<any>(null);
   const boostValueRef = useRef(0);
   const opacityRef = useRef(opacityTarget);
   const scaleRef = useRef(scaleTarget);
@@ -215,7 +215,7 @@ function AgenticBubble({
   );
 }
 
-function createDefaultShaderMaterial(): THREE.ShaderMaterial {
+function createDefaultShaderMaterial(): any {
   return new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },
@@ -352,7 +352,7 @@ function createDefaultShaderMaterial(): THREE.ShaderMaterial {
   });
 }
 
-function createWaterShaderMaterial(): THREE.ShaderMaterial {
+function createWaterShaderMaterial(): any {
   return new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },

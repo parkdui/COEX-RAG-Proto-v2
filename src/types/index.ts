@@ -39,6 +39,7 @@ export interface ChatBubbleProps {
   isPlayingTTS?: boolean;
   isGlobalLoading?: boolean;
   typewriterVariant?: 'v1' | 'v2' | 'v3';
+  glassStyleVariant?: 'v1' | 'v2';
 }
 
 export interface AudioConstraints {
