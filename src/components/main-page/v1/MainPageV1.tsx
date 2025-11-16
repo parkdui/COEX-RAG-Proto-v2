@@ -723,170 +723,106 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     return infoRequestPatterns.some(pattern => pattern.test(question));
   }, []);
 
-  // 정보성 키워드 추출 함수 (각 turn별로 추출)
-  const extractInfoKeywords = useCallback(() => {
+  // 정보성 키워드 추출 함수 (각 turn별로 추출) - CLOVA AI API 사용
+  const extractInfoKeywords = useCallback(async () => {
     const keywords: Array<{ keyword: string; turnIndex: number }> = [];
     const keywordMap = new Map<string, number>();
+    const allTurns: Array<{ userMessage: Message; assistantMessage: Message; turnIndex: number; isInfoRequest: boolean }> = [];
     
-    // 대화를 turn별로 그룹화 (사용자 질문 + AI 답변)
-    const turns: Array<{ userMessage: Message; assistantMessage: Message; turnIndex: number }> = [];
-    
+    // 모든 대화를 turn별로 그룹화 (사용자 질문 + AI 답변)
+    let turnIndex = 1;
     for (let i = 0; i < chatState.messages.length; i++) {
       if (chatState.messages[i].role === 'user') {
         const userMessage = chatState.messages[i];
         const assistantMessage = chatState.messages[i + 1];
         
         if (assistantMessage && assistantMessage.role === 'assistant') {
-          // 정보 요구 질문인지 확인
-          if (isInfoRequestQuestion(userMessage.content)) {
-            turns.push({
-              userMessage,
-              assistantMessage,
-              turnIndex: Math.floor(turns.length) + 1 // 1-based turn index
-            });
-          }
+          const isInfoRequest = isInfoRequestQuestion(userMessage.content);
+          allTurns.push({
+            userMessage,
+            assistantMessage,
+            turnIndex: turnIndex++,
+            isInfoRequest
+          });
         }
       }
     }
     
-    // 알려진 장소 및 추천 키워드 패턴
-    const knownKeywords = [
-      '카페 추천',
-      '레스토랑 추천',
-      '식당 추천',
-      '컨퍼런스 위치',
-      '별마당 도서관',
-      '별마당 도서관 정보',
-      'SM 타운',
-      'SM 타운 정보',
-      '코엑스 아쿠아리움',
-      '아쿠아리움',
-      'VR 게임존',
-      'VR 체험',
-      '디지털 체험 공간',
-      '필립 콜버트',
-      '필립 콜버트 아트',
-      '아트 프로젝트',
-      '서울 일러스트페어',
-      '일러스트페어',
-      'ALAND',
-      '알랜드',
-      '사이드쇼',
-      'kpop 구경거리',
-      'kpop 관련',
-      'k스타일 쇼핑',
-      '미디어 월',
-      '메가박스',
-      '문화 체험',
-      '액티비티',
-      '감각적 체험',
-      '실내 체험',
-      '가족과의 놀거리',
-      '가족 놀거리 추천',
-      '데이트하기 좋은',
-      '홀로 방문하기 좋은',
-      '친구와 함께',
-      '쇼핑하기 좋은',
-      '조용한 카페',
-      '작업하기 좋은',
-      '핫플레이스',
-      '트렌디한 음식점',
-    ];
+    // 각 turn에 대해 CLOVA AI API를 호출하여 키워드 추출
+    // 정보 요구 질문을 우선적으로 처리
+    const infoRequestTurns = allTurns.filter(t => t.isInfoRequest);
+    const otherTurns = allTurns.filter(t => !t.isInfoRequest);
+    const processedTurns = [...infoRequestTurns, ...otherTurns];
     
-    // 각 turn에서 키워드 추출
-    turns.forEach(({ assistantMessage, turnIndex }) => {
-      const messageContent = assistantMessage.content;
-      const foundKeywords: Set<string> = new Set();
-      
-      // 알려진 키워드 찾기
-      knownKeywords.forEach(keyword => {
-        if (messageContent.includes(keyword) || 
-            messageContent.includes(keyword.replace(/\s/g, '')) ||
-            keyword.split(' ').every(word => messageContent.includes(word))) {
-          foundKeywords.add(keyword);
-        }
-      });
-      
-      // 추천 문구 패턴 찾기
-      const recommendationPatterns = [
-        /([가-힣\s]+(?:추천|정보|위치|어때요|어때|어떠실까요|있어요))/g,
-        /([가-힣\s]+(?:카페|식당|레스토랑|공간|장소|아트|전시|이벤트))/g,
-      ];
-      
-      recommendationPatterns.forEach(pattern => {
-        const matches = messageContent.matchAll(pattern);
-        for (const match of matches) {
-          const keyword = match[1]?.trim();
-          // 불완전한 키워드 필터링
-          if (keyword && 
-              keyword.length >= 3 && 
-              keyword.length <= 20 && 
-              !keyword.includes('제가') && 
-              !keyword.includes('이솔') &&
-              !keyword.startsWith('를') &&
-              !keyword.startsWith('은') &&
-              !keyword.startsWith('는') &&
-              !keyword.startsWith('이') &&
-              !keyword.startsWith('가') &&
-              !keyword.startsWith('의') &&
-              !keyword.startsWith('와') &&
-              !keyword.startsWith('과') &&
-              !keyword.endsWith('라는') &&
-              !keyword.endsWith('라는 카페') &&
-              !keyword.endsWith('를 추천')) {
-            foundKeywords.add(keyword);
+    for (const { userMessage, assistantMessage, turnIndex } of processedTurns) {
+      try {
+        const response = await fetch('/api/extract-keywords', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: userMessage.content,
+            answer: assistantMessage.content,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const keyword = data.keyword?.trim();
+          
+          if (keyword && keyword.length > 0) {
+            // 같은 키워드가 여러 turn에 있으면 첫 번째만 저장
+            if (!keywordMap.has(keyword)) {
+              keywordMap.set(keyword, turnIndex);
+              keywords.push({ keyword, turnIndex });
+            }
           }
+        } else {
+          console.error('키워드 추출 API 실패:', await response.text());
         }
-      });
-      
-      // 각 키워드를 turn에 매핑 (같은 키워드가 여러 turn에 있으면 첫 번째만 저장)
-      foundKeywords.forEach(keyword => {
-        if (!keywordMap.has(keyword)) {
-          keywordMap.set(keyword, turnIndex);
-          keywords.push({ keyword, turnIndex });
-        }
-      });
-    });
-    
-    // 불완전한 키워드 제거
-    const filteredKeywords = keywords.filter(({ keyword }) => {
-      const trimmed = keyword.trim();
-      
-      if (!trimmed || trimmed.length < 2) return false;
-      
-      const startsWithParticle = /^(를|은|는|이|가|의|와|과|로|으로|에게|에게서|에서|까지|부터|보다|처럼|같이|만|도|조차|마저|까지|까지도|뿐|따라|통해|위해|대해|관해|대한|위한|관한)\s/.test(trimmed);
-      if (startsWithParticle) return false;
-      
-      const endsWithParticle = /\s?(라는|라는\s+카페|를\s+추천|는|은|이|가|를|을|의|와|과|로|으로|에서|까지|부터|보다)$/.test(trimmed);
-      if (endsWithParticle) return false;
-      
-      const invalidPatterns = [
-        '를 추천',
-        '라는 카페',
-        '라는',
-        '를',
-        '을',
-        '은',
-        '는',
-        '이',
-        '가'
-      ];
-      
-      if (invalidPatterns.includes(trimmed) || invalidPatterns.some(pattern => trimmed.includes(pattern + ' '))) {
-        return false;
+      } catch (error) {
+        console.error('키워드 추출 오류:', error);
       }
-      
-      const startsWithNoun = /^[가-힣]+/.test(trimmed);
-      if (!startsWithNoun) return false;
-      
-      return true;
-    });
+    }
+    
+    // 모든 키워드가 비어있으면, 첫 번째 turn의 키워드를 강제로 생성
+    if (keywords.length === 0 && allTurns.length > 0) {
+      const firstTurn = allTurns[0];
+      try {
+        const response = await fetch('/api/extract-keywords', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: firstTurn.userMessage.content,
+            answer: firstTurn.assistantMessage.content,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          let keyword = data.keyword?.trim();
+          
+          // 키워드가 여전히 비어있으면 기본 키워드 생성
+          if (!keyword || keyword.length === 0) {
+            keyword = '대화 요약';
+          }
+          
+          keywordMap.set(keyword, firstTurn.turnIndex);
+          keywords.push({ keyword, turnIndex: firstTurn.turnIndex });
+        }
+      } catch (error) {
+        console.error('키워드 추출 오류:', error);
+        // API 실패 시에도 기본 키워드 생성
+        const defaultKeyword = '대화 요약';
+        keywordMap.set(defaultKeyword, firstTurn.turnIndex);
+        keywords.push({ keyword: defaultKeyword, turnIndex: firstTurn.turnIndex });
+      }
+    }
     
     // 키워드를 길이 순으로 정렬 (짧은 것부터)
-    filteredKeywords.sort((a, b) => a.keyword.length - b.keyword.length);
+    keywords.sort((a, b) => a.keyword.length - b.keyword.length);
     
     // 최대 6개까지만 반환
-    const limitedKeywords = filteredKeywords.slice(0, 6);
+    const limitedKeywords = keywords.slice(0, 6);
     
     // 키워드 배열과 맵을 반환
     return {
@@ -901,8 +837,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   }, []);
 
   // 종료 메시지 화면에서 Next 버튼 클릭 핸들러 (키워드 요약 화면으로 이동)
-  const handleNextToSummary = useCallback(() => {
-    const { keywords, keywordMap } = extractInfoKeywords();
+  const handleNextToSummary = useCallback(async () => {
+    const { keywords, keywordMap } = await extractInfoKeywords();
     setExtractedKeywords(keywords);
     setKeywordToTurnMap(keywordMap);
     setShowSummary(true);
@@ -1320,8 +1256,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                               const existingSizePercent = (existing.size / 800) * 100;
                               // 두 ellipse의 반지름 합 (ellipse가 전혀 겹치지 않도록)
                               // 텍스트가 ellipse 내부에 있으므로, ellipse가 겹치면 텍스트도 겹칠 수 있음
-                              // 따라서 반지름 합보다 충분히 큰 거리 확보 (10% 여유 추가)
-                              const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.1;
+                              // 따라서 반지름 합보다 충분히 큰 거리 확보 (20% 여유 추가로 더 확실하게)
+                              const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.2;
                               
                               if (distance < minDistance) {
                                 hasOverlap = true;
@@ -1342,6 +1278,24 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             if (attempts > 20) {
                               topPercent = minTop + Math.random() * (maxTop - minTop);
                               leftPercent = minLeft + Math.random() * (maxLeft - minLeft);
+                            }
+                          }
+                          
+                          // 최종 검증: 모든 기존 ellipse와의 거리를 다시 확인하고, 겹치면 강제로 이동
+                          for (const existing of existingPositions) {
+                            const topDiff = Math.abs(topPercent - existing.top);
+                            const leftDiff = Math.abs(leftPercent - existing.left);
+                            const distance = Math.sqrt(topDiff * topDiff + leftDiff * leftDiff);
+                            const ellipseSizePercent = (ellipseSize / 800) * 100;
+                            const existingSizePercent = (existing.size / 800) * 100;
+                            const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.2;
+                            
+                            if (distance < minDistance) {
+                              // 겹치면 강제로 충분한 거리만큼 이동
+                              const angle = Math.atan2(topPercent - existing.top, leftPercent - existing.left);
+                              const moveDistance = minDistance - distance + 3; // 3% 여유
+                              topPercent += Math.sin(angle) * moveDistance;
+                              leftPercent += Math.cos(angle) * moveDistance;
                             }
                           }
                           

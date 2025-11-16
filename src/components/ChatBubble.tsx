@@ -176,8 +176,10 @@ const assistantHeadlineTextStyle: React.CSSProperties = {
   fontWeight: 600,
   lineHeight: '130%',
   letterSpacing: '-0.72px',
-  wordBreak: 'normal',
+  wordBreak: 'break-word',
   overflowWrap: 'break-word',
+  whiteSpace: 'pre-wrap',
+  maxWidth: '100%',
 } as const;
 
 const quotedSpanStyle: React.CSSProperties = {
@@ -334,6 +336,21 @@ const computeDotSize = (fontSize?: string | number) => {
 };
 
 const trimLeadingWhitespace = (value: string) => value.replace(/^\s+/, '');
+
+/**
+ * 마침표만 있는 줄을 제거하는 함수
+ */
+const removeDotOnlyLines = (text: string): string => {
+  if (!text) return text;
+  return text
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      // 마침표만 있는 줄 제거 (공백과 마침표만 있는 경우)
+      return trimmed !== '.' && trimmed !== '。';
+    })
+    .join('\n');
+};
 
 /**
  * 작은따옴표(''), 큰따옴표(""), '**'로 감싸진 텍스트를 파싱하는 함수
@@ -642,44 +659,8 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     }
   }
 
-  // 최대 2줄로 제한 (첫 번째 문장은 중간에 잘리지 않도록)
-  if (lines.length > 2) {
-    // 원본 텍스트에서 첫 번째 문장 찾기 (마침표, 느낌표, 물음표까지)
-    const sentenceEndRegex = /[.!?。！？]/;
-    const firstSentenceEndIndex = text.search(sentenceEndRegex);
-    
-    if (firstSentenceEndIndex !== -1) {
-      // 첫 번째 문장 완전히 추출
-      const firstSentence = text.substring(0, firstSentenceEndIndex + 1).trim();
-      
-      // 첫 번째 문장은 무슨 일이 있어도 중간에 잘리지 않도록 전체 표시 (몇 줄이든 상관없이)
-      // 첫 번째 문장을 다시 줄바꿈 계산하여 전체 표시
-      const firstSentenceWords = firstSentence.split(/(\s+)/).filter(w => w.length > 0);
-      const firstSentenceLines: string[] = [];
-      let currentLine = '';
-      
-      for (const word of firstSentenceWords) {
-        const testLine = currentLine ? `${currentLine}${word}` : word;
-        
-        if (testLine.length > estimatedCharsPerLine && currentLine) {
-          firstSentenceLines.push(currentLine.trim());
-          currentLine = word;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      
-      if (currentLine) {
-        firstSentenceLines.push(currentLine.trim());
-      }
-      
-      // 첫 번째 문장 전체를 표시 (몇 줄이든 상관없이)
-      lines.splice(0, lines.length, ...firstSentenceLines);
-    } else {
-      // 문장 끝을 찾지 못한 경우, 첫 2줄만 표시하되 문장을 강제로 자르지 않음
-      lines.splice(2);
-    }
-  }
+  // 텍스트가 잘리지 않도록 모든 줄을 표시 (2줄 이상도 허용)
+  // 문장이 중간에 잘리지 않도록 모든 줄을 유지
 
   // 줄바꿈 문자로 조인하여 반환
   // white-space: pre-wrap이 이를 유지하여 렌더링
@@ -834,8 +815,11 @@ const MessageSegment: React.FC<{
     fontWeight: 600,
     lineHeight: '130%',
     letterSpacing: '-0.72px',
-    wordBreak: 'normal' as const,
+    wordBreak: 'break-word' as const,
     overflowWrap: 'break-word' as const,
+    whiteSpace: 'pre-wrap' as const,
+    maxWidth: '100%',
+    width: '100%',
   };
 
   const isFirst = segmentIndex === 0;
@@ -985,7 +969,7 @@ const SegmentedMessageComponent: React.FC<{
       const targetHighlightLength = Math.min(firstSegmentHighlight.length, displayText.length);
       let displayedHighlight = displayedText.substring(0, targetHighlightLength);
       const displayedRest = displayedText.substring(targetHighlightLength);
-      const cleanedRest = trimLeadingWhitespace(displayedRest);
+      const cleanedRest = removeDotOnlyLines(trimLeadingWhitespace(displayedRest));
       const showCursor = !isComplete;
       const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
@@ -1005,8 +989,8 @@ const SegmentedMessageComponent: React.FC<{
       return (
         <div>
           {displayedHighlight && (
-            <div className="flex justify-center mb-3">
-              <div className="whitespace-pre-wrap flex justify-center" style={assistantHeadlineTextStyle}>
+            <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
                   <span
@@ -1275,7 +1259,7 @@ const SingleMessageComponent: React.FC<{
       const targetHighlightLength = Math.min(assistantHighlight.length, assistantText.length);
       let displayedHighlight = displayedText.substring(0, targetHighlightLength);
       const displayedRest = displayedText.substring(targetHighlightLength);
-      const cleanedRest = trimLeadingWhitespace(displayedRest);
+      const cleanedRest = removeDotOnlyLines(trimLeadingWhitespace(displayedRest));
       const showCursor = !isComplete;
       const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
@@ -1295,8 +1279,8 @@ const SingleMessageComponent: React.FC<{
       return (
         <div>
           {displayedHighlight && (
-            <div className="flex justify-center mb-3">
-              <div className="whitespace-pre-wrap flex justify-center" style={assistantHeadlineTextStyle}>
+            <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
                   <span

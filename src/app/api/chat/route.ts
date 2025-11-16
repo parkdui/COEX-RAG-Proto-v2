@@ -247,6 +247,394 @@ interface SessionChatLog extends ChatLog {
 }
 
 
+// Google Sheets 인증 및 클라이언트 생성 헬퍼 함수
+async function getGoogleSheetsClient() {
+  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
+  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
+  const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
+    process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let LOG_GOOGLE_PRIVATE_KEY =
+    process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
+  
+  if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets API credentials are not set");
+  }
+
+  // 개인 키 형식 처리
+  if (LOG_GOOGLE_PRIVATE_KEY) {
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
+    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
+  }
+
+  // Google Auth 설정
+  const auth = new google.auth.JWT({
+    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: LOG_GOOGLE_PRIVATE_KEY,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+
+  const sheets = google.sheets({ version: "v4", auth });
+  
+  return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
+}
+
+// 헤더 확인 및 추가 함수
+async function ensureHeaders() {
+  try {
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    
+    const headerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
+    });
+
+    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
+      // 헤더 추가 (세션 ID, 일시, 시스템 프롬프트, 대화 메시지들, Token 합계)
+      const headers = ["세션 ID", "일시", "시스템 프롬프트"];
+      for (let i = 0; i < 10; i++) {
+        headers.push(`사용자 메시지 ${i + 1}`);
+        headers.push(`AI 메시지 ${i + 1}`);
+      }
+      headers.push("Token 합계"); // P column
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [headers]
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Error ensuring headers:", error);
+  }
+}
+
+// 세션의 row index 찾기 또는 생성
+async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number): Promise<number> {
+  const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+  
+  // 헤더 확인
+  await ensureHeaders();
+  
+  // 첫 번째 질문일 때는 기존 row가 이미 사용 중인지 확인
+  if (messageNumber === 1) {
+    // 기존 세션 로그가 있는지 확인
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column까지 가져와서 D column 확인
+    });
+
+    if (existingData.data.values) {
+      // 헤더 행(1행) 제외하고 가장 최근 row부터 검색 (뒤에서부터)
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+        const row = existingData.data.values[i];
+        if (row && row[0] === sessionId) {
+          // D column (index 3)에 값이 있는지 확인
+          // 값이 있으면 이미 사용 중인 row이므로 새로운 row 생성
+          if (row[3] && row[3].trim() !== "") {
+            // 기존 row가 사용 중이므로 새로운 row 생성
+            break;
+          } else {
+            // D column이 비어있으면 기존 row 사용
+            return i + 1; // 1-based index
+          }
+        }
+      }
+    }
+    
+    // 기존 row가 없거나 모두 사용 중이면 새 row 생성
+    const newRow = [
+      sessionId,
+      timestamp,
+      systemPrompt.substring(0, 1000),
+    ];
+    // 나머지 컬럼은 빈 값으로 채움 (D부터 P까지)
+    for (let i = 0; i < 13; i++) { // D~P까지 13개 컬럼 (사용자 메시지 6개 + AI 메시지 6개 + Token 합계 1개)
+      newRow.push("");
+    }
+    
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [newRow]
+      },
+    });
+    
+    // 새로 추가된 row의 index 반환
+    const updatedData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+    });
+    
+    return (updatedData.data.values?.length || 1); // 1-based index
+  } else {
+    // 두 번째 질문 이후는 기존 세션 row 찾기
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+    });
+
+    let existingRowIndex = -1;
+    if (existingData.data.values) {
+      // 헤더 행(1행) 제외하고 검색
+      // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+        if (existingData.data.values[i][0] === sessionId) {
+          existingRowIndex = i + 1; // 1-based index
+          break;
+        }
+      }
+    }
+
+    if (existingRowIndex > 0) {
+      return existingRowIndex;
+    } else {
+      // 기존 row가 없으면 새로 생성 (이론적으로는 발생하지 않아야 함)
+      const newRow = [
+        sessionId,
+        timestamp,
+        systemPrompt.substring(0, 1000),
+      ];
+      for (let i = 0; i < 13; i++) {
+        newRow.push("");
+      }
+      
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [newRow]
+        },
+      });
+      
+      const updatedData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+      });
+      
+      return (updatedData.data.values?.length || 1);
+    }
+  }
+}
+
+// 실시간으로 사용자 메시지 저장 (D column부터 시작)
+async function saveUserMessageRealtime(sessionId: string, messageNumber: number, userMessage: string, timestamp: string, systemPrompt: string) {
+  try {
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    
+    // 세션 row 찾기 또는 생성 (messageNumber 전달)
+    const rowIndex = await findOrCreateSessionRow(sessionId, timestamp, systemPrompt, messageNumber);
+    
+    // D column부터 시작 (A=0, B=1, C=2, D=3)
+    // 첫 번째 질문: D column (index 3), 두 번째 질문: F column (index 5), ...
+    // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7)...
+    const columnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, ...
+    const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
+    
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[userMessage.substring(0, 1000)]]
+      },
+    });
+    
+    console.log(`[Chat Log] Saved user message ${messageNumber} to column ${columnLetter}${rowIndex}`);
+  } catch (error) {
+    console.error("Error saving user message in realtime:", error);
+  }
+}
+
+// 실시간으로 AI 메시지 저장 (E column부터 시작)
+async function saveAIMessageRealtime(sessionId: string, messageNumber: number, aiMessage: string) {
+  try {
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    
+    // 사용자 메시지가 저장된 row를 찾기 위해 재시도 로직 추가
+    let rowIndex = -1;
+    const maxRetries = 5;
+    const retryDelay = 200; // 200ms
+    
+    for (let retry = 0; retry < maxRetries; retry++) {
+      // 해당 messageNumber에 맞는 사용자 메시지 column 계산
+      // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7)...
+      const userMessageColumnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, ...
+      const columnLetter = String.fromCharCode(65 + userMessageColumnIndex); // D=68, F=70, H=72...
+      
+      // A~해당 사용자 메시지 column까지 가져오기
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:${columnLetter}`,
+      });
+
+      if (existingData.data.values) {
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
+          if (row && row[0] === sessionId) {
+            // 해당 messageNumber에 맞는 사용자 메시지 column에 값이 있는지 확인
+            if (row[userMessageColumnIndex] && row[userMessageColumnIndex].trim() !== "") {
+              rowIndex = i + 1; // 1-based index
+              break;
+            }
+          }
+        }
+      }
+      
+      if (rowIndex > 0) {
+        break; // row를 찾았으면 재시도 중단
+      }
+      
+      // row를 찾지 못했으면 잠시 대기 후 재시도
+      if (retry < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+    
+    if (rowIndex === -1) {
+      console.error(`[Chat Log] Session ${sessionId} not found for AI message ${messageNumber} after ${maxRetries} retries`);
+      return;
+    }
+    
+    // E column부터 시작 (A=0, B=1, C=2, D=3, E=4)
+    // 첫 번째 답변: E column (index 4), 두 번째 답변: G column (index 6), ...
+    // AI 메시지1 = E (4), AI 메시지2 = G (6), AI 메시지3 = I (8)...
+    const columnIndex = 4 + (messageNumber - 1) * 2; // E=4, G=6, I=8, ...
+    const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
+    
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[aiMessage.substring(0, 1000)]]
+      },
+    });
+    
+    console.log(`[Chat Log] Saved AI message ${messageNumber} to column ${columnLetter}${rowIndex}`);
+  } catch (error) {
+    console.error("Error saving AI message in realtime:", error);
+  }
+}
+
+// 기존 Token 합계 가져오기 (P column)
+async function getTokenTotal(sessionId: string): Promise<number> {
+  try {
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    
+    // 세션 row 찾기 - 가장 최근 row부터 검색 (뒤에서부터)
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+    });
+
+    let rowIndex = -1;
+    if (existingData.data.values) {
+      // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+        const row = existingData.data.values[i];
+        if (row && row[0] === sessionId) {
+          // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
+          // 값이 있으면 현재 진행 중인 대화 row
+          if (row[3] && row[3].toString().trim() !== "") {
+            rowIndex = i + 1; // 1-based index
+            break;
+          }
+        }
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return 0; // 세션이 없으면 0 반환
+    }
+    
+    // P column = index 15 (0-based)
+    const tokenData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`,
+    });
+    
+    if (tokenData.data.values && tokenData.data.values[0] && tokenData.data.values[0][0]) {
+      return Number(tokenData.data.values[0][0]) || 0;
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error("Error getting token total:", error);
+    return 0;
+  }
+}
+
+// Token 합계 업데이트 (P column)
+async function updateTokenTotal(sessionId: string, tokenTotal: number) {
+  try {
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    
+    // 세션 row 찾기 - 가장 최근 row부터 검색하고, D column에 사용자 메시지가 있는지 확인
+    // 재시도 로직 추가 (사용자 메시지가 저장될 때까지 대기)
+    let rowIndex = -1;
+    const maxRetries = 5;
+    const retryDelay = 200; // 200ms
+    
+    for (let retry = 0; retry < maxRetries; retry++) {
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+      });
+
+      if (existingData.data.values) {
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
+          if (row && row[0] === sessionId) {
+            // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
+            // 값이 있으면 현재 진행 중인 대화 row
+            if (row[3] && row[3].toString().trim() !== "") {
+              rowIndex = i + 1; // 1-based index
+              break;
+            }
+          }
+        }
+      }
+      
+      if (rowIndex > 0) {
+        break; // row를 찾았으면 재시도 중단
+      }
+      
+      // row를 찾지 못했으면 잠시 대기 후 재시도
+      if (retry < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+    
+    if (rowIndex === -1) {
+      console.error(`[Chat Log] Session ${sessionId} not found for token update after ${maxRetries} retries`);
+      return;
+    }
+    
+    // P column = index 15 (0-based)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[tokenTotal]]
+      },
+    });
+    
+    console.log(`[Chat Log] Updated token total to ${tokenTotal} for session ${sessionId} at row ${rowIndex}`);
+  } catch (error) {
+    console.error("Error updating token total:", error);
+  }
+}
+
 async function saveSessionBasedChatLog(logData: SessionChatLog) {
   // 환경 변수 로드
   const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
@@ -280,7 +668,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
   try {
     const headerResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
     });
 
     if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
@@ -290,10 +678,11 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
         headers.push(`사용자 메시지 ${i + 1}`);
         headers.push(`AI 메시지 ${i + 1}`);
       }
+      headers.push("Token 합계"); // P column
       
       await sheets.spreadsheets.values.update({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A1:Z1`,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
         valueInputOption: "RAW",
         requestBody: {
           values: [headers]
@@ -301,7 +690,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
       });
     }
   } catch {
-      // 헤더 추가
+    // 헤더 추가
   }
 
   // 기존 세션 로그가 있는지 확인
@@ -335,7 +724,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
     };
 
     if (existingRowIndex > 0) {
-      const targetRow = `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:Z${existingRowIndex}`;
+      const targetRow = `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:P${existingRowIndex}`;
       await sheets.spreadsheets.values.update({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: targetRow,
@@ -350,7 +739,7 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:Z`,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
         valueInputOption: "RAW",
         requestBody: {
           values: [buildRowFromLog(logData.conversation)],
@@ -369,6 +758,14 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
 }
 
 export async function POST(request: NextRequest) {
+  // 각 요청마다 TOKENS 초기화
+  TOKENS.embed_input = 0;
+  TOKENS.embed_calls = 0;
+  TOKENS.chat_input = 0;
+  TOKENS.chat_output = 0;
+  TOKENS.chat_total = 0;
+  TOKENS.chat_calls = 0;
+  
   try {
     const body = await request.json();
     const question = (body?.question || "").trim();
@@ -409,6 +806,36 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
+    const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const sessionString = `${clientIP}-${userAgent}`;
+    const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
+    
+    // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
+    const now = new Date();
+    const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
+    
+    // 이전 대화 히스토리에서 질문 번호 계산
+    const history = body?.history || [];
+    let previousConversationCount = 0;
+    for (let i = 0; i < history.length; i++) {
+      const msg = history[i];
+      if (msg && msg.role === 'user') {
+        const aiMsg = history[i + 1];
+        if (aiMsg && aiMsg.role === 'assistant') {
+          previousConversationCount++;
+        }
+      }
+    }
+    const messageNumber = previousConversationCount + 1; // 현재 질문 번호
+    
+    // 실시간 로깅: 질문 입력 시 즉시 저장 (비동기, 에러 무시)
+    saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, activeSystemPrompt).catch((error) => {
+      console.error('[Chat Log] Failed to save user message in realtime:', error);
+    });
+
     const qEmb = await embedText(question);
 
     const scored = vectors
@@ -440,7 +867,7 @@ export async function POST(request: NextRequest) {
         role: "system",
         content: activeSystemPrompt,
       },
-      ...(body?.history || []), // 이전 대화 맥락
+      ...history, // 이전 대화 맥락
       {
         role: "user",
         content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 200자 이내로만 답하세요.`,
@@ -456,69 +883,22 @@ export async function POST(request: NextRequest) {
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
 
-    // 구글 스프레드시트에 세션 기반 로그 저장 (비동기, 에러 무시)
-    try {
-      // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
-      const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-      const userAgent = request.headers.get('user-agent') || 'unknown';
-      const sessionString = `${clientIP}-${userAgent}`;
-      // 타임스탬프를 제거하고 IP+UserAgent 기반으로만 세션 ID 생성
-      const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
-      
-      // 전체 대화 히스토리를 올바른 형식으로 변환
-      const conversation = [];
-      
-      // 이전 대화 히스토리 추가 (사용자 메시지와 AI 응답 쌍)
-      const history = body?.history || [];
-      for (let i = 0; i < history.length; i++) {
-        const msg = history[i];
-        
-        if (msg && msg.role === 'user') {
-          // 사용자 메시지 찾기
-          const userMsg = msg;
-          const aiMsg = history[i + 1]; // 다음 메시지가 assistant인지 확인
-          
-          if (aiMsg && aiMsg.role === 'assistant') {
-            conversation.push({
-              userMessage: userMsg.content,
-              aiMessage: aiMsg.content
-            });
-          }
-        }
-      }
-      
-      // 현재 대화 추가
-      conversation.push({
-        userMessage: question,
-        aiMessage: cleanedAnswer
-      });
+    // 실시간 로깅: AI 답변 수신 시 즉시 저장 (비동기, 에러 무시)
+    saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer).catch((error) => {
+      console.error('[Chat Log] Failed to save AI message in realtime:', error);
+    });
 
-      // 대화 히스토리 준비 완료
-
-      // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
-      const now = new Date();
-      const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-      const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
-      
-      const logData = {
-        sessionId: sessionId,
-        timestamp: timestamp,
-        systemPrompt: activeSystemPrompt,
-        conversation: conversation
-      };
-      
-      // 로그 데이터 준비 완료
-
-      // Google Sheets에 세션 기반 로그 저장
+    // Token 합계 업데이트 (비동기, 에러 무시)
+    (async () => {
       try {
-        await saveSessionBasedChatLog(logData);
-        console.log('[Chat Log] Saved conversation to Google Sheets.');
+        const existingTokenTotal = await getTokenTotal(sessionId);
+        const currentTokenTotal = TOKENS.chat_total + TOKENS.embed_input; // 현재 요청에서 사용된 token
+        const newTokenTotal = existingTokenTotal + currentTokenTotal;
+        await updateTokenTotal(sessionId, newTokenTotal);
       } catch (error) {
-        console.error('[Chat Log] Failed to save conversation:', error);
+        console.error('[Chat Log] Failed to update token total:', error);
       }
-    } catch (error) {
-      console.error('Error preparing session-based chat log:', error);
-    }
+    })();
 
     logTokenSummary("after query");
 

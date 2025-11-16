@@ -81,6 +81,10 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
   // 오늘의 대화 횟수 가져오기
   useEffect(() => {
+    // 테스트용 코드 (주석 처리)
+    // setConversationCount(2);
+    // setIsLoadingCount(false);
+    
     const fetchConversationCount = async () => {
       try {
         const response = await fetch('/api/daily-conversation-count');
@@ -328,7 +332,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
               <span>오늘 </span>
               <CountingNumber
-                target={conversationCount + 1}
+                target={conversationCount}
                 duration={1500}
                 startDelay={200}
                 style={{ display: 'inline-block' }}
@@ -353,7 +357,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
         <button
           onClick={handleStartClick}
-          disabled={isTransitioning}
+          disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 100)}
           className="landing-start-btn touch-manipulation active:scale-95 disabled:opacity-50"
           style={{
             color: '#000',
