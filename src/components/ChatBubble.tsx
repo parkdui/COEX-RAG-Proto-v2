@@ -1254,19 +1254,20 @@ const SingleMessageComponent: React.FC<{
   }, [message, isThinking]);
 
   // 로딩 div width 확장 애니메이션
+  // '생각 중이에요' 상태에서는 텍스트를 감쌀 수 있도록 auto width, AI 답변의 첫 글자가 보여질 때 확장
   useEffect(() => {
     if (isThinking) {
-      // 초기 작은 크기
-      setLoadingWidth('120px');
-      // 약간의 delay 후 최종 크기로 확장
-      const timer = setTimeout(() => {
-        setLoadingWidth('min(360px, 92vw)');
-      }, 50);
-      return () => clearTimeout(timer);
+      // '생각 중이에요' 상태에서는 텍스트를 감쌀 수 있도록 auto width
+      setLoadingWidth('auto');
+    } else if (message.content && message.content.length > 0) {
+      // isThinking이 false가 되고 content가 있는 순간 = AI 답변의 첫 글자가 보여지는 순간
+      // 이때 width 확장 애니메이션 실행
+      setLoadingWidth('min(360px, 92vw)');
     } else {
+      // content가 없는 경우 기본 크기
       setLoadingWidth('min(360px, 92vw)');
     }
-  }, [isThinking]);
+  }, [isThinking, message.content]);
 
   const typewriterProps = useMemo(() => {
     const baseProps: Record<string, any> = {
@@ -1414,9 +1415,13 @@ const SingleMessageComponent: React.FC<{
             style={{
               ...assistantGlassWrapperStyle,
               ...(isThinking ? {
+                width: 'auto',
+                minWidth: '120px',
+                // auto width에서는 transition 제거 (텍스트를 감쌀 수 있도록)
+              } : (!isThinking && message.content && message.content.length > 0 ? {
                 width: loadingWidth,
                 transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-              } : {}),
+              } : {})),
             }}
           >
           <div 
@@ -1441,9 +1446,12 @@ const SingleMessageComponent: React.FC<{
           <div className="assistant-glass-body">
                 {isThinking ? (
                   <span
-                    className="text-center text-cyan-800 text-xl font-semibold font-['Pretendard_Variable'] leading-6"
+                    className="text-center text-cyan-800 font-semibold font-['Pretendard_Variable']"
                     style={{
                       fontFamily: 'Pretendard Variable',
+                      fontSize: '18px',
+                      fontWeight: 600,
+                      lineHeight: '130%',
                       whiteSpace: 'nowrap',
                     }}
                   >

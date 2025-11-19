@@ -1461,23 +1461,23 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                 ) : (
                   <div className="relative">
                     {/* 로딩 중 또는 AI 답변이 있을 때 ChatBubble 렌더링 */}
-                    {(chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                    {(chatState.isLoading || voiceState.isProcessingVoice || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
                       <div 
                         className="space-y-4"
                         style={{
                           opacity: 1,
                           transition: 'opacity 0.5s ease-in-out',
-                          animation: !chatState.isLoading && chatState.messages.filter(msg => msg.role === 'assistant').length > 0 ? 'fadeIn 0.5s ease-in-out' : 'none',
+                          animation: !chatState.isLoading && !voiceState.isProcessingVoice && chatState.messages.filter(msg => msg.role === 'assistant').length > 0 ? 'fadeIn 0.5s ease-in-out' : 'none',
                         }}
                       >
-                        {chatState.isLoading ? (
+                        {(chatState.isLoading || voiceState.isProcessingVoice) ? (
                           <ChatBubble 
                             key="thinking-bubble"
                             message={{ role: 'assistant', content: '' }} 
                             isThinking={true}
                             onPlayTTS={playFull}
                             isPlayingTTS={isPlayingTTS}
-                            isGlobalLoading={chatState.isLoading}
+                            isGlobalLoading={chatState.isLoading || voiceState.isProcessingVoice}
                             typewriterVariant={typewriterVariant}
                           />
                         ) : (
@@ -1604,9 +1604,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               {voiceState.isRecording ? (
-                <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V7z" clipRule="evenodd" />
-                </svg>
+                <img src="/pause.svg" alt="녹음 중지" className="w-5 h-5" />
               ) : (
                 <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
@@ -1614,27 +1612,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               )}
             </button>
           </div>
-          {voiceState.isRequestingPermission && (
-            <div className="mt-3 text-center">
-              <div className="inline-block bg-white/30 backdrop-blur-md rounded-lg px-3 py-1 text-sm text-gray-700">
-                🔐 마이크 권한 요청 중...
-              </div>
-            </div>
-          )}
-          {voiceState.isRecording && (
-            <div className="mt-3 text-center">
-              <div className="inline-block bg-white/30 backdrop-blur-md rounded-lg px-3 py-1 text-sm text-gray-700">
-                🎤 녹음 중... 1초 이상 말씀해주세요
-              </div>
-            </div>
-          )}
-          {voiceState.isProcessingVoice && (
-            <div className="mt-3 text-center">
-              <div className="inline-block bg-white/30 backdrop-blur-md rounded-lg px-3 py-1 text-sm text-gray-700">
-                🔄 음성을 텍스트로 변환 중...
-              </div>
-            </div>
-          )}
             </form>
           </div>
         )}
