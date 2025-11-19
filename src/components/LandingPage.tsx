@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
 import BlobBackgroundV2 from './ui/BlobBackgroundV2';
@@ -78,6 +78,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [hasCountingStarted, setHasCountingStarted] = useState(false);
   const [showVideo, setShowVideo] = useState(true);
   const [showBlobBackground, setShowBlobBackground] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const isTitleV1 = TITLE_VARIANT === 'v1';
   const secondLineText = 'Coex Guide';
 
@@ -147,6 +148,15 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
     };
   }, [showSori, isTitleV1, hasCountingStarted]);
 
+  // 비디오 메타데이터 로드 핸들러 - 비디오 크기 정보가 로드되면 즉시 올바른 위치에 표시
+  const handleVideoLoadedMetadata = useCallback(() => {
+    if (videoRef.current) {
+      // 비디오가 올바른 크기로 설정되도록 강제
+      videoRef.current.style.width = '100%';
+      videoRef.current.style.height = '100%';
+    }
+  }, []);
+
   // 비디오 재생 완료 핸들러
   const handleVideoEnded = useCallback(() => {
     setShowVideo(false);
@@ -170,6 +180,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       {/* 초기 비디오 재생 */}
       {showVideo && (
         <video
+          ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover z-50"
           style={{
             position: 'absolute',
@@ -181,15 +192,21 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             height: '100%',
             minWidth: '100%',
             minHeight: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
             objectFit: 'cover',
             objectPosition: 'center',
             willChange: 'transform',
             transform: 'translateZ(0)',
             backfaceVisibility: 'hidden',
+            WebkitTransform: 'translateZ(0)',
+            WebkitBackfaceVisibility: 'hidden',
           }}
+          preload="auto"
           autoPlay
           muted
           playsInline
+          onLoadedMetadata={handleVideoLoadedMetadata}
           onEnded={handleVideoEnded}
         >
           <source src="/251120_opening_v1.mp4" type="video/mp4" />
