@@ -76,6 +76,8 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [conversationCount, setConversationCount] = useState<number | null>(null);
   const [isLoadingCount, setIsLoadingCount] = useState(true);
   const [hasCountingStarted, setHasCountingStarted] = useState(false);
+  const [showVideo, setShowVideo] = useState(true);
+  const [showBlobBackground, setShowBlobBackground] = useState(false);
   const isTitleV1 = TITLE_VARIANT === 'v1';
   const secondLineText = 'Coex Guide';
 
@@ -145,6 +147,12 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
     };
   }, [showSori, isTitleV1, hasCountingStarted]);
 
+  // 비디오 재생 완료 핸들러
+  const handleVideoEnded = useCallback(() => {
+    setShowVideo(false);
+    setShowBlobBackground(true);
+  }, []);
+
   const handleStartClick = useCallback(() => {
     // 페이드아웃 시작
     setIsTransitioning(true);
@@ -157,13 +165,43 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       className={`h-screen flex flex-col safe-area-inset overscroll-none relative transition-opacity duration-500 overflow-hidden bg-transparent ${
         isTransitioning ? 'opacity-0' : 'opacity-100'
       }`}
+      style={{ position: 'relative' }}
     >
+      {/* 초기 비디오 재생 */}
+      {showVideo && (
+        <video
+          className="absolute inset-0 w-full h-full object-cover z-50"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100%',
+            height: '100%',
+            minWidth: '100%',
+            minHeight: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            willChange: 'transform',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+          }}
+          autoPlay
+          muted
+          playsInline
+          onEnded={handleVideoEnded}
+        >
+          <source src="/251120_opening_v1.mp4" type="video/mp4" />
+        </video>
+      )}
+      
       {/* Blurry Blob 배경 - 2개의 gradient blob (V4/IN1 스타일) */}
-      {showBlob && <BlobBackgroundV2 />}
+      {showBlob && showBlobBackground && <BlobBackgroundV2 />}
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div 
-        className="relative z-10 flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
+        className="relative z-[60] flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
           paddingTop: moveToBottom ? '20px' : '80px',
           paddingBottom: '120px', // 버튼 공간 확보
@@ -354,7 +392,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       </div>
 
       {/* 시작하기 버튼 - 화면 하단 고정 */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-[60] px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
         <button
           onClick={handleStartClick}
           disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 100)}
