@@ -374,17 +374,6 @@ body {
     filter: none; /* 텍스트는 blur 제거 */
   }
   
-  /* Width expansion animation for loading div */
-  @keyframes expandWidth {
-    0% {
-      width: 120px; /* 작은 크기에서 시작 */
-    }
-    100% {
-      width: 92vw; /* AI 답변 컨테이너의 최종 크기 (모바일 우선) */
-      max-width: 360px; /* 최대 크기 제한 */
-    }
-  }
-  
   /* Fade In Animation for AI Answer */
   @keyframes fadeIn {
     from {

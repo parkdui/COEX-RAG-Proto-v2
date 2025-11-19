@@ -308,6 +308,16 @@ const AssistantGlassStyles = () => (
     .site-link-button:focus {
       outline: none;
     }
+    /* Width expansion animation for loading div */
+    @keyframes expandWidth {
+      0% {
+        width: 120px;
+      }
+      100% {
+        width: 92vw;
+        max-width: 360px;
+      }
+    }
   `}</style>
 );
 
@@ -768,14 +778,14 @@ const QuotedTextRenderer = React.memo(QuotedTextRendererComponent);
 QuotedTextRenderer.displayName = 'QuotedTextRenderer';
 
 /**
- * 토큰 정보 컴포넌트 (사용하지 않음)
+ * 토큰 정보 컴포넌트 (현재는 렌더링하지 않지만 타입 호환성을 위해 유지)
  */
-const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => null;
+const TokenInfo: React.FC<{ tokens: any }> = () => null;
 
 /**
- * 히트 정보 컴포넌트 (사용하지 않음)
+ * 히트 정보 컴포넌트 (현재는 렌더링하지 않지만 타입 호환성을 위해 유지)
  */
-const HitInfo: React.FC<{ hits: any[] }> = ({ hits }) => null;
+const HitInfo: React.FC<{ hits: any[] }> = () => null;
 
 const SiteLinkComponent: React.FC<{ url: string }> = ({ url }) => (
   <a href={url} target="_blank" rel="noopener noreferrer" className="site-link-button" style={siteLinkWrapperStyle}>

@@ -42,3 +42,7 @@ next-env.d.ts
 
 # vector data
 data/vectors.json.tmp
+
+# temporary files
+tmp/
+/tmp/
