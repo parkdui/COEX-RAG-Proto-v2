@@ -259,7 +259,7 @@ function ChatTypewriterV1({
           style={{
             color: dotColorString,
             fontSize: dotSize,
-            transition: 'color 0.2s ease',
+            transition: 'color 0.01s ease',
             lineHeight: 1,
             verticalAlign: 'middle',
             marginLeft: '2px',

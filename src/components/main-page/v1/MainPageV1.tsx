@@ -5,91 +5,11 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { Message } from '@/types';
 import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
-import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, LoadingSpinner, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
+import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
+import LetterColorAnimation from '@/components/ui/LetterColorAnimation';
 import useCoexTTS from '@/hooks/useCoexTTS';
-
-/**
- * 로딩 중 사용자 메시지 요약 표시 컴포넌트
- */
-const LoadingUserMessageSummary: React.FC<{
-  messages: Message[];
-  summarizeUserMessage: (text: string, messageId?: string) => Promise<string>;
-  userMessageSummaries: Record<string, string>;
-}> = ({ messages, summarizeUserMessage, userMessageSummaries }) => {
-  const [displayedSummary, setDisplayedSummary] = useState<string>('');
-  const lastUserMessage = useMemo(() => {
-    const userMessages = messages.filter(msg => msg.role === 'user');
-    return userMessages[userMessages.length - 1];
-  }, [messages]);
-
-  useEffect(() => {
-    if (!lastUserMessage) return;
-
-    const messageId = lastUserMessage.timestamp?.toString() || lastUserMessage.content;
-    const cacheKey = messageId || lastUserMessage.content;
-    const questionText = lastUserMessage.content.trim();
-    
-    // 10자 이하 짧은 질문은 API 호출하지 않고 원본 표시
-    if (questionText.length <= 10) {
-      setDisplayedSummary(questionText);
-      return;
-    }
-    
-    // 캐시된 요약이 있으면 즉시 표시
-    if (userMessageSummaries[cacheKey]) {
-      setDisplayedSummary(userMessageSummaries[cacheKey]);
-      return;
-    }
-
-    // API 요약만 가져오기 (fallback 표시하지 않음)
-    summarizeUserMessage(questionText, messageId).then(summary => {
-      setDisplayedSummary(summary);
-    }).catch(() => {
-      // 에러 시에도 아무것도 표시하지 않음 (API 응답만 표시)
-      setDisplayedSummary('');
-    });
-  }, [lastUserMessage, summarizeUserMessage, userMessageSummaries]);
-
-  if (!lastUserMessage) return null;
-
-  return (
-    <div className="flex flex-col min-h-full">
-      <div className="flex-1 flex flex-col items-center justify-center" style={{ minHeight: '40vh' }}>
-        {displayedSummary && (
-          <div
-            key={displayedSummary}
-            style={{
-              color: '#666D6F',
-              textAlign: 'center',
-              fontFamily: 'Pretendard Variable',
-              fontSize: '22px',
-              fontStyle: 'normal',
-              fontWeight: 700,
-              lineHeight: '132%',
-              letterSpacing: '-0.88px',
-              marginBottom: '24px',
-              padding: '0 24px',
-            }}
-          >
-            <SplitWords
-              text={displayedSummary}
-              delay={0}
-              duration={1.2}
-              stagger={0.05}
-              animation="fadeIn"
-            />
-          </div>
-        )}
-        <div className="flex items-center gap-3" style={{ color: '#000' }}>
-          <LoadingSpinner size="sm" />
-          <span className="text-base">이솔이 생각 중입니다...</span>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 /**
  * 커스텀 훅: 채팅 상태 관리
@@ -898,6 +818,101 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     }
   }, [chatState, isConversationEnded, pushAssistantMessage]);
 
+  // 중요한 단어 목록
+  const importantKeywords = [
+    '핫플레이스',
+    '쉬기 좋은 곳',
+    '카페',
+    '식당',
+    '데이트',
+    '문화적인 경험',
+    '경험',
+    '장소',
+    '행사',
+    '이벤트',
+    '쇼핑',
+    '음식점',
+    '구경거리',
+    '레스토랑',
+    '맛집',
+    '전시',
+    '체험',
+    '활동',
+    '프로그램',
+  ];
+
+  // 텍스트에서 중요한 단어에 LetterColorAnimation 적용하는 함수
+  const renderTextWithAnimation = useCallback((text: string) => {
+    const parts: Array<{ text: string; isImportant: boolean }> = [];
+    let lastIndex = 0;
+
+    // 모든 중요한 단어의 위치 찾기
+    const matches: Array<{ start: number; end: number; keyword: string }> = [];
+    
+    for (const keyword of importantKeywords) {
+      let searchIndex = 0;
+      while (true) {
+        const index = text.indexOf(keyword, searchIndex);
+        if (index === -1) break;
+        matches.push({ start: index, end: index + keyword.length, keyword });
+        searchIndex = index + 1;
+      }
+    }
+
+    // 겹치는 부분 처리 (긴 키워드 우선)
+    matches.sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      return b.end - a.end; // 같은 시작 위치면 긴 것 우선
+    });
+
+    const nonOverlappingMatches: Array<{ start: number; end: number; keyword: string }> = [];
+    for (const match of matches) {
+      const overlaps = nonOverlappingMatches.some(
+        existing => !(match.end <= existing.start || match.start >= existing.end)
+      );
+      if (!overlaps) {
+        nonOverlappingMatches.push(match);
+      }
+    }
+
+    // 정렬
+    nonOverlappingMatches.sort((a, b) => a.start - b.start);
+
+    // 텍스트 분할
+    for (const match of nonOverlappingMatches) {
+      if (match.start > lastIndex) {
+        parts.push({ text: text.substring(lastIndex, match.start), isImportant: false });
+      }
+      parts.push({ text: text.substring(match.start, match.end), isImportant: true });
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ text: text.substring(lastIndex), isImportant: false });
+    }
+
+    // parts가 비어있으면 원본 텍스트 반환
+    if (parts.length === 0) {
+      parts.push({ text, isImportant: false });
+    }
+
+    return parts.map((part, index) => {
+      if (part.isImportant) {
+        return (
+          <LetterColorAnimation
+            key={index}
+            text={part.text}
+            duration={6}
+            style={{
+              display: 'inline-block',
+            }}
+          />
+        );
+      }
+      return <span key={index}>{part.text}</span>;
+    });
+  }, [importantKeywords]);
+
   // 추천 chips 렌더링 함수
   const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
     if (isConversationEnded) return null;
@@ -924,17 +939,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               key={index}
               onClick={() => handleRecommendationClick(message)}
               disabled={chatState.isLoading}
-              className="touch-manipulation active:scale-95 disabled:opacity-50"
+              className="touch-manipulation active:scale-95 disabled:opacity-50 rounded-3xl outline outline-1 outline-offset-[-1px] outline-white"
               style={{
                 display: 'inline-flex',
                 padding: '8px 16px',
                 justifyContent: 'center',
                 alignItems: 'center',
                 flex: '0 0 auto',
-                borderRadius: '40px',
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(244,244,244,0.2), rgba(255,255,255,0.4))',
-                border: '1px solid white',
                 cursor: 'pointer',
+                background: 'linear-gradient(180deg,rgb(251, 255, 254) 0%, #F4E9F0 63.94%, #FFF 100%)',
               }}
               type="button"
             >
@@ -950,14 +963,14 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   whiteSpace: 'nowrap' as const,
                 }}
               >
-                {message}
+                {renderTextWithAnimation(message)}
               </span>
             </button>
           );
         })}
       </div>
     );
-  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, showRecommendationChips]);
+  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, showRecommendationChips, renderTextWithAnimation]);
 
   return (
     <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative" style={{ background: 'transparent' }}>
@@ -1445,31 +1458,48 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                       </button>
                     </div>
                   </div>
-                ) : chatState.isLoading ? (
-                  // 로딩 중: 요약된 사용자 메시지 표시
-                  <LoadingUserMessageSummary
-                    messages={chatState.messages}
-                    summarizeUserMessage={summarizeUserMessage}
-                    userMessageSummaries={userMessageSummaries}
-                  />
                 ) : (
-                  // 로딩 완료: AI 답변만 표시 (사용자 메시지 숨김)
-                  <div className="space-y-4">
-                    {chatState.messages
-                      .filter(msg => msg.role === 'assistant')
-                      .slice(-1)
-                      .map((message, index) => (
-                        <ChatBubble 
-                          key={`${message.role}-${index}`}
-                          message={message} 
-                          onPlayTTS={playFull}
-                          isPlayingTTS={isPlayingTTS}
-                          isGlobalLoading={chatState.isLoading}
-                          typewriterVariant={typewriterVariant}
-                        />
-                      ))}
-                    {/* 추천 텍스트 chips - AI 답변 하단에 위치 */}
-                    {renderRecommendationChips(undefined, false, true)}
+                  <div className="relative">
+                    {/* 로딩 중 또는 AI 답변이 있을 때 ChatBubble 렌더링 */}
+                    {(chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                      <div 
+                        className="space-y-4"
+                        style={{
+                          opacity: 1,
+                          transition: 'opacity 0.5s ease-in-out',
+                          animation: !chatState.isLoading && chatState.messages.filter(msg => msg.role === 'assistant').length > 0 ? 'fadeIn 0.5s ease-in-out' : 'none',
+                        }}
+                      >
+                        {chatState.isLoading ? (
+                          <ChatBubble 
+                            key="thinking-bubble"
+                            message={{ role: 'assistant', content: '' }} 
+                            isThinking={true}
+                            onPlayTTS={playFull}
+                            isPlayingTTS={isPlayingTTS}
+                            isGlobalLoading={chatState.isLoading}
+                            typewriterVariant={typewriterVariant}
+                          />
+                        ) : (
+                          <>
+                            {chatState.messages
+                              .filter(msg => msg.role === 'assistant')
+                              .slice(-1)
+                              .map((message, index) => (
+                                <ChatBubble 
+                                  key={`${message.role}-${index}`}
+                                  message={message} 
+                                  isThinking={false}
+                                  onPlayTTS={playFull}
+                                  isPlayingTTS={isPlayingTTS}
+                                  isGlobalLoading={chatState.isLoading}
+                                  typewriterVariant={typewriterVariant}
+                                />
+                              ))}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -1481,6 +1511,19 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       {/* 하단 고정 입력창 또는 대화 요약 보러가기 버튼 */}
       {!showSummary && !showEndMessage && (
       <>
+        {/* AI 답변 컨테이너와 추천 chips 사이의 gradient 구분선 */}
+        {!isConversationEnded && (chatState.messages.length === 0 || assistantMessages.length > 0) && (
+          <div 
+            className="fixed left-0 right-0 z-20"
+            style={{
+              width: '100%',
+              bottom: '0', // 입력창 높이(56px) + padding bottom(16px) + chips marginBottom(16px) + 18px (추천 chips 상단에서 18px 위)
+              height: '288px', // h-72 (18rem = 288px)
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
         {isConversationEnded ? (
           // 6번째 답변 후: 대화 요약 보러가기 버튼
           <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
@@ -1511,10 +1554,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
           <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
             {/* 일반 입력창 */}
             <form onSubmit={handleSubmit} className="w-full">
-          {/* 추천 텍스트 chips - 입력창 바로 위 (환영 메시지 화면에서만 표시) */}
-          {chatState.messages.length === 0 && (
+          {/* 추천 텍스트 chips - 입력창 바로 위에 고정 (환영 메시지 또는 AI 답변 후) */}
+          {(chatState.messages.length === 0 || assistantMessages.length > 0) && (
             <div style={{ marginBottom: '16px' }}>
-              {renderRecommendationChips(0, true)}
+              {renderRecommendationChips(0, true, assistantMessages.length > 0)}
             </div>
           )}
           <div 

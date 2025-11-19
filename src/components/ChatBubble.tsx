@@ -105,6 +105,7 @@ const assistantGlassWrapperStyle: React.CSSProperties = {
   pointerEvents: 'none',
   position: 'relative',
   zIndex: 10,
+  paddingBottom: '24px', // Shadow가 잘리지 않도록 하단 padding 추가
 };
 
 // Version 1: Original glass style
@@ -116,7 +117,7 @@ const assistantGlassContentStyleV1: React.CSSProperties = {
   background: 'rgba(255, 255, 255, 0.025)',
   border: '1px solid rgba(255, 255, 255, 0.4)',
   boxShadow:
-    '0 14px 24px rgba(22, 42, 58, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -5px 14px rgba(255, 255, 255, 0.12)',
+    '0 12px 20px rgba(22, 42, 58, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -5px 14px rgba(255, 255, 255, 0.12)',
   backdropFilter: 'blur(42px) saturate(2.35) contrast(1.08)',
   WebkitBackdropFilter: 'blur(42px) saturate(2.35) contrast(1.08)',
   textAlign: 'center',
@@ -168,7 +169,7 @@ const assistantPrimaryTextStyle: React.CSSProperties = {
 } as const;
 
 const assistantHeadlineTextStyle: React.CSSProperties = {
-  color: '#215F74',
+  color: '#004861',
   textAlign: 'center',
   fontFamily: 'Pretendard Variable',
   fontSize: '18px',
@@ -215,7 +216,7 @@ const quotedSpanContentStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 2,
   fontSize: 'calc(1em - 1px)', // 부모 크기에서 1px 줄임
-  color: '#215F74',
+  color: '#004861',
   fontWeight: 600,
   letterSpacing: '-0.36px',
 } as const;
@@ -228,12 +229,13 @@ const siteLinkWrapperStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '10px',
   borderRadius: '99px',
-  background: 'linear-gradient(135deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.18) 100%)',
-  border: '1px solid rgba(255,255,255,0.65)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.78), 0 16px 34px rgba(60,34,88,0.16)',
+  background: 'rgba(255,255,255,0.14)',
+  border: '1px solid rgba(255,255,255,0.42)',
+  boxShadow: '0 4px 8px rgba(22, 42, 58, 0.05), inset 0 1px 0 rgba(255,255,255,0.1)',
   backdropFilter: 'blur(28px) saturate(1.6)',
   WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
   textDecoration: 'none',
+  cursor: 'pointer',
 } as const;
 
 const siteLinkTextStyle: React.CSSProperties = {
@@ -303,6 +305,9 @@ const AssistantGlassStyles = () => (
         background-position: 200% 50%;
       }
     }
+    .site-link-button:focus {
+      outline: none;
+    }
   `}</style>
 );
 
@@ -368,7 +373,8 @@ const parseQuotedText = (text: string): Array<{ text: string; isQuoted: boolean 
     { regex: /''(.*?)''/g, name: 'double-single' }, // 작은따옴표 쌍 먼저 체크
     { regex: /'(.*?)'/g, name: 'single' }, // 단일 작은따옴표
     { regex: /""(.*?)""/g, name: 'double' },
-    { regex: /\*\*(.*?)\*\*/g, name: 'bold' }
+    { regex: /\*\*(.*?)\*\*/g, name: 'bold' },
+    { regex: /\*(.*?)\*/g, name: 'bold' }
   ];
   
   const allMatches: Array<{ start: number; end: number; text: string; type: string }> = [];
@@ -772,7 +778,7 @@ const TokenInfo: React.FC<{ tokens: any }> = ({ tokens }) => null;
 const HitInfo: React.FC<{ hits: any[] }> = ({ hits }) => null;
 
 const SiteLinkComponent: React.FC<{ url: string }> = ({ url }) => (
-  <a href={url} target="_blank" rel="noopener noreferrer" style={siteLinkWrapperStyle}>
+  <a href={url} target="_blank" rel="noopener noreferrer" className="site-link-button" style={siteLinkWrapperStyle}>
     <span style={siteLinkTextStyle}>행사 홈페이지 바로가기</span>
     <img src="/link-external-01.svg" alt="" style={siteLinkIconStyle} />
   </a>
@@ -807,7 +813,7 @@ const MessageSegment: React.FC<{
 
   // 첫 번째 말풍선 스타일
   const firstBubbleStyle = {
-    color: '#215F74',
+    color: '#000',
     textAlign: 'center' as const,
     fontFamily: 'Pretendard Variable',
     fontSize: '18px',
@@ -1186,6 +1192,7 @@ const SingleMessageComponent: React.FC<{
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
+  const [loadingWidth, setLoadingWidth] = useState<string>('120px');
 
   const { assistantText, assistantHighlight } = useMemo(() => {
     if (message.role !== 'assistant') {
@@ -1235,6 +1242,21 @@ const SingleMessageComponent: React.FC<{
   useEffect(() => {
     setIsSiteVisible(false);
   }, [message, isThinking]);
+
+  // 로딩 div width 확장 애니메이션
+  useEffect(() => {
+    if (isThinking) {
+      // 초기 작은 크기
+      setLoadingWidth('120px');
+      // 약간의 delay 후 최종 크기로 확장
+      const timer = setTimeout(() => {
+        setLoadingWidth('min(360px, 92vw)');
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setLoadingWidth('min(360px, 92vw)');
+    }
+  }, [isThinking]);
 
   const typewriterProps = useMemo(() => {
     const baseProps: Record<string, any> = {
@@ -1377,35 +1399,74 @@ const SingleMessageComponent: React.FC<{
     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
       {message.role === 'assistant' ? (
         <>
-          <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
-          <div className="assistant-glass-content" style={getAssistantGlassContentStyle(glassStyleVariant)}>
-          {showHighlight && <div className="assistant-glass-highlight" />}
-          {glassStyleVariant === 'v1' && <div className="assistant-glass-bottom-gradient" />}
+          <div 
+            className="assistant-glass-wrapper" 
+            style={{
+              ...assistantGlassWrapperStyle,
+              ...(isThinking ? {
+                width: loadingWidth,
+                transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+              } : {}),
+            }}
+          >
+          <div 
+            className={`assistant-glass-content ${isThinking ? 'animate-radial-gradient' : ''}`}
+            style={{
+              ...getAssistantGlassContentStyle(glassStyleVariant),
+              ...(isThinking ? {
+                padding: '7px 16px',
+                transition: 'padding 0.5s ease-in-out, background 0.5s ease-in-out',
+              } : {}),
+            }}
+          >
+          {isThinking && (
+            <>
+              <span className="blob blob-1"></span>
+              <span className="blob blob-2"></span>
+              <span className="blob blob-3"></span>
+            </>
+          )}
+          {showHighlight && !isThinking && <div className="assistant-glass-highlight" />}
+          {glassStyleVariant === 'v1' && !isThinking && <div className="assistant-glass-bottom-gradient" />}
           <div className="assistant-glass-body">
-                <TypewriterComponent
-                  {...typewriterProps}
-                  onComplete={() => {
-                    if (shouldShowSite) {
-                      setIsSiteVisible(true);
-                    }
-                  }}
-                  render={renderTypewriter}
-                />
+                {isThinking ? (
+                  <span
+                    className="text-center text-cyan-800 text-xl font-semibold font-['Pretendard_Variable'] leading-6"
+                    style={{
+                      fontFamily: 'Pretendard Variable',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    생각 중이에요
+                  </span>
+                ) : (
+                  <>
+                    <TypewriterComponent
+                      {...typewriterProps}
+                      onComplete={() => {
+                        if (shouldShowSite) {
+                          setIsSiteVisible(true);
+                        }
+                      }}
+                      render={renderTypewriter}
+                    />
 
-                <div
-                  className="mt-4 flex justify-center"
-                  style={{
-                    opacity: shouldShowSite && isSiteVisible ? 1 : 0,
-                    transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
-                    transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
-                  }}
-                >
-                  {shouldShowSite && <SiteLink url={siteUrl} />}
-                </div>
+                    <div
+                      className="mt-4 flex justify-center"
+                      style={{
+                        opacity: shouldShowSite && isSiteVisible ? 1 : 0,
+                        transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
+                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                        pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
+                      }}
+                    >
+                      {shouldShowSite && <SiteLink url={siteUrl} />}
+                    </div>
 
-                {message.tokens && <TokenInfo tokens={message.tokens} />}
-                {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+                    {message.tokens && <TokenInfo tokens={message.tokens} />}
+                    {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+                  </>
+                )}
               </div>
             </div>
           </div>

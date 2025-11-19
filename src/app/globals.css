@@ -270,6 +270,137 @@ body {
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  
+  /* Blurry Spinning Gradient Animation - 참고 CSS 기반 */
+  @keyframes spinGradient {
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg) scale(2);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(360deg) scale(2);
+    }
+  }
+  
+  .assistant-glass-content.animate-radial-gradient {
+    position: relative;
+    overflow: hidden;
+    background: transparent !important; /* Gradient가 보이도록 투명하게 변경 */
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  }
+  
+  /* Individual blobs */
+  .assistant-glass-content.animate-radial-gradient .blob {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: block;
+    position: absolute;
+    filter: blur(30px);
+    z-index: 0;
+    pointer-events: none;
+  }
+  
+  .assistant-glass-content.animate-radial-gradient .blob-1 {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(0deg, rgba(255, 255, 255, 1) 0%, rgba(235, 201, 255, 1) 100%);
+    top: 20%;
+    left: 10%;
+    animation: floatBlob1 8s ease-in-out infinite;
+  }
+  
+  .assistant-glass-content.animate-radial-gradient .blob-2 {
+    width: 180px;
+    height: 180px;
+    background: linear-gradient(0deg, rgba(255, 255, 255, 1) 0%, rgba(165, 238, 255, 1) 100%);
+    top: 50%;
+    right: 15%;
+    animation: floatBlob2 10s ease-in-out infinite;
+  }
+  
+  .assistant-glass-content.animate-radial-gradient .blob-3 {
+    width: 140px;
+    height: 140px;
+    background: linear-gradient(0deg, rgba(235, 201, 255, 1) 0%, rgba(165, 238, 255, 1) 100%);
+    bottom: 20%;
+    left: 50%;
+    animation: floatBlob3 12s ease-in-out infinite;
+  }
+  
+  @keyframes floatBlob1 {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg);
+    }
+    25% {
+      transform: translate(30px, -20px) rotate(90deg);
+    }
+    50% {
+      transform: translate(-20px, 30px) rotate(180deg);
+    }
+    75% {
+      transform: translate(20px, 20px) rotate(270deg);
+    }
+  }
+  
+  @keyframes floatBlob2 {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg);
+    }
+    33% {
+      transform: translate(-40px, 30px) rotate(120deg);
+    }
+    66% {
+      transform: translate(30px, -40px) rotate(240deg);
+    }
+  }
+  
+  @keyframes floatBlob3 {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg);
+    }
+    25% {
+      transform: translate(-30px, -30px) rotate(90deg);
+    }
+    50% {
+      transform: translate(40px, 20px) rotate(180deg);
+    }
+    75% {
+      transform: translate(-20px, 40px) rotate(270deg);
+    }
+  }
+  
+  .assistant-glass-content.animate-radial-gradient .assistant-glass-body {
+    position: relative;
+    z-index: 1; /* 텍스트가 gradient 위에 표시되도록 */
+    filter: none; /* 텍스트는 blur 제거 */
+  }
+  
+  /* Width expansion animation for loading div */
+  @keyframes expandWidth {
+    0% {
+      width: 120px; /* 작은 크기에서 시작 */
+    }
+    100% {
+      width: 92vw; /* AI 답변 컨테이너의 최종 크기 (모바일 우선) */
+      max-width: 360px; /* 최대 크기 제한 */
+    }
+  }
+  
+  /* Fade In Animation for AI Answer */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Loading to Answer Transition */
+  .loading-to-answer-transition {
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+  }
 }
 
 /* 모바일에서 스크롤 개선 */

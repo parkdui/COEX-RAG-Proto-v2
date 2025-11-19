@@ -172,7 +172,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       >
         <div className="text-left">
           {/* Welcome To */}
-          <div className="text-gray-800 mb-[12px]" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.44px', fontSize: '22px' }}>
+          <div className="text-gray-800 mb-[12px]" style={{ fontFamily: 'Pretendard Variable', fontWeight: 600, lineHeight: '90%', letterSpacing: '-0.44px', fontSize: '22px' }}>
             <Typewriter
               text="Welcome To"
               speed={80}
