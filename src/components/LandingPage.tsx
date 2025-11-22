@@ -5,7 +5,6 @@ import TextPressure from './ui/TextPressure';
 import Typewriter from './ui/Typewriter';
 import BlobBackgroundV2 from './ui/BlobBackgroundV2';
 import LetterColorAnimation from './ui/LetterColorAnimation';
-import CountingNumber from './ui/CountingNumber';
 import VerticalCarouselText from './ui/VerticalCarouselText';
 
 interface LandingPageProps {
@@ -68,7 +67,6 @@ function GuideIndexTracker({ onReachG }: { onReachG: () => void }) {
 }
 
 export default function LandingPage({ onStart, showBlob = true }: LandingPageProps) {
-  const [showCounter, setShowCounter] = useState(false);
   const [showSori, setShowSori] = useState(false);
   const [showSecondLine, setShowSecondLine] = useState(false);
   const [moveToBottom, setMoveToBottom] = useState(false);
@@ -104,49 +102,39 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
     fetchConversationCount();
   }, []);
 
-  // v1: 두 번째 줄이 나타난 후 카운터 및 이동 처리
+  // v1: 두 번째 줄이 나타난 후 이동 처리
   useEffect(() => {
-    if (!showSecondLine || isTitleV1 || hasCountingStarted) {
+    if (!showSecondLine || isTitleV1) {
       return;
     }
 
     const moveTimer = window.setTimeout(() => {
       setMoveToBottom(true);
-    }, 50);
-
-    const counterTimer = window.setTimeout(() => {
-      setShowCounter(true);
       setHasCountingStarted(true);
-    }, 450);
+    }, 50);
 
     return () => {
       window.clearTimeout(moveTimer);
-      window.clearTimeout(counterTimer);
     };
-  }, [showSecondLine, isTitleV1, hasCountingStarted]);
+  }, [showSecondLine, isTitleV1]);
 
-  // v2: 'Sori at COEX' 애니메이션 후 카운터 및 이동 처리
+  // v2: 'Sori at COEX' 애니메이션 후 이동 처리
   useEffect(() => {
-    if (isTitleV1 || !showSori || hasCountingStarted) {
+    if (isTitleV1 || !showSori) {
       return;
     }
 
     // 'Sori at COEX'는 12글자, stagger 180ms
-    // 텍스트가 충분히 표시된 후 (약 1.5초) 카운터 표시
+    // 텍스트가 충분히 표시된 후 (약 1.5초) 하단으로 이동
     const moveTimer = window.setTimeout(() => {
       setMoveToBottom(true);
-    }, 50);
-
-    const counterTimer = window.setTimeout(() => {
-      setShowCounter(true);
       setHasCountingStarted(true);
     }, 1500);
 
     return () => {
       window.clearTimeout(moveTimer);
-      window.clearTimeout(counterTimer);
     };
-  }, [showSori, isTitleV1, hasCountingStarted]);
+  }, [showSori, isTitleV1]);
 
   // 비디오 메타데이터 로드 핸들러 - 비디오 크기 정보가 로드되면 즉시 올바른 위치에 표시
   const handleVideoLoadedMetadata = useCallback(() => {
@@ -220,9 +208,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       <div 
         className="relative z-[60] flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
-          paddingTop: moveToBottom ? '20px' : '80px',
+          paddingTop: moveToBottom ? '20px' : '120px',
           paddingBottom: '120px', // 버튼 공간 확보
-          transform: moveToBottom ? 'translateY(calc(100vh - 320px))' : 'translateY(0)',
+          transform: moveToBottom ? 'translateY(calc(100vh - 240px))' : 'translateY(0)',
         }}
       >
         <div className="text-left">
@@ -291,22 +279,11 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
                         color: '#1f2937'
                       }}
                       onComplete={() => {
-                        // 두 번째 줄의 초기 애니메이션이 끝나면 카운터를 보이도록 설정
-                        setShowCounter(true);
+                        // 두 번째 줄의 초기 애니메이션이 끝나면 하단으로 이동
                         setHasCountingStarted(true);
                       }}
                     />
                   </div>
-                )}
-                
-                {/* 'Guide'의 'G'가 등장했을 때 카운터 시작 */}
-                {showSecondLine && !showCounter && (
-                  <GuideIndexTracker
-                    onReachG={() => {
-                      setShowCounter(true);
-                      setHasCountingStarted(true);
-                    }}
-                  />
                 )}
                 
                 {/* 'Coex'의 'C'가 나타났을 때 하단으로 이동 */}
@@ -380,31 +357,6 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
               </>
             )}
           </div>
-          
-          {/* 대화 카운터 - 별도 블록으로 분리 */}
-          {showCounter && conversationCount !== null ? (
-            <div style={{ marginTop: '16px' }}>
-            <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
-              <span>오늘 </span>
-              <CountingNumber
-                target={conversationCount}
-                duration={1500}
-                startDelay={200}
-                style={{ display: 'inline-block' }}
-                shouldStart={hasCountingStarted}
-              />
-              <span>번째로 대화하는 중이에요</span>
-            </div>
-            </div>
-          ) : hasCountingStarted && isLoadingCount ? (
-            <div style={{ marginTop: '16px' }}>
-            <div className="text-gray-800" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-0.72px', fontSize: '18px' }}>
-              <span>오늘 </span>
-              <span>...</span>
-              <span>번째로 대화하는 중이에요</span>
-            </div>
-            </div>
-          ) : null}
         </div>
       </div>
 

@@ -97,7 +97,6 @@ export async function checkMicrophonePermission(): Promise<boolean> {
     // 권한 상태 확인
     if (navigator.permissions) {
       const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      console.log('마이크 권한 상태:', permission.state);
       
       if (permission.state === 'denied') {
         alert('마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');

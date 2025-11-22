@@ -148,16 +148,11 @@ async function segmentText(text: string) {
 }
 
 async function buildVectors() {
-  console.log("Loading data from Google Sheets...");
-  
   // Google Sheets API 직접 호출
   const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
   const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Coex!A1:U";
   const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-  console.log("Pre-processing environment variables:");
-  console.log("GOOGLE_SHEET_RANGE:", GOOGLE_SHEET_RANGE);
 
   if (!GOOGLE_SHEET_ID || !GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
@@ -190,18 +185,14 @@ async function buildVectors() {
     return rowData;
   });
 
-  console.log(`Loaded ${data.length} rows from Google Sheets`);
   const out: Array<{
     id: string;
     meta: Record<string, unknown>;
     text: string;
     embedding: number[];
   }> = [];
-  
-  console.log(`Starting to build vectors for ${data.length} rows...`);
 
   // 전체 데이터 처리
-  console.log(`Processing all ${data.length} rows`);
 
   for (let i = 0; i < data.length; i++) {
     try {
@@ -228,15 +219,16 @@ async function buildVectors() {
   fs.writeFileSync(tmp, JSON.stringify(out, null, 2), "utf8");
   fs.renameSync(tmp, VECTORS_JSON);
 
-  console.log(`Successfully built ${out.length} vectors.`);
   return out.length;
 }
 
 function logTokenSummary(tag = "") {
-  console.log(
-    `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
-      `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls})`
-  );
+  if (process.env.LOG_TOKENS === "1") {
+    console.log(
+      `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
+        `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls})`
+    );
+  }
 }
 
 export async function POST() {

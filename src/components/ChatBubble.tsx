@@ -101,11 +101,11 @@ const getDotColor = (typewriterVariant: TypewriterVariant): string => {
 
 const assistantGlassWrapperStyle: React.CSSProperties = {
   width: 'min(360px, 92vw)',
-  margin: '0 auto',
+  margin: '0 auto 32px auto', // 하단 margin 추가로 shadow 공간 확보
   pointerEvents: 'none',
   position: 'relative',
   zIndex: 10,
-  paddingBottom: '24px', // Shadow가 잘리지 않도록 하단 padding 추가
+  paddingBottom: '32px', // Shadow가 잘리지 않도록 하단 padding 확장
 };
 
 // Version 1: Original glass style
@@ -231,7 +231,7 @@ const siteLinkWrapperStyle: React.CSSProperties = {
   borderRadius: '99px',
   background: 'rgba(255,255,255,0.14)',
   border: '1px solid rgba(255,255,255,0.42)',
-  boxShadow: '0 4px 8px rgba(22, 42, 58, 0.05), inset 0 1px 0 rgba(255,255,255,0.1)',
+  boxShadow: '0 2px 2px rgba(22, 42, 58, 0.05), inset 0 1px 0 rgba(255,255,255,0.1)',
   backdropFilter: 'blur(28px) saturate(1.6)',
   WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
   textDecoration: 'none',
@@ -1106,30 +1106,106 @@ const SegmentedMessageComponent: React.FC<{
           {showHighlight && <div className="assistant-glass-highlight" />}
           {glassStyleVariant === 'v1' && <div className="assistant-glass-bottom-gradient" />}
           <div className="assistant-glass-body">
-            <TypewriterComponent
-              {...typewriterProps}
-              onComplete={() => {
-                if (shouldShowSite) {
-                  setIsSiteVisible(true);
-                }
-              }}
-              render={renderTypewriter}
-            />
+            {typewriterVariant === 'v1' ? (
+              <>
+                <div>
+                  {(() => {
+                    const restText = removeDotOnlyLines(trimLeadingWhitespace(displayText.substring(firstSegmentHighlight.length)));
+                    
+                    // 헤드라인 텍스트의 단어 수 계산 (delay 계산용)
+                    const headlineWords = firstSegmentHighlight ? firstSegmentHighlight.trim().split(/\s+/).filter(w => w.length > 0) : [];
+                    const headlineDelay = 0.5; // 초
+                    const headlineDuration = 1.2; // 초
+                    const staggerTime = 0.05; // 초
+                    // 헤드라인 애니메이션이 완료되는 시간 = delay + (단어 수 * stagger) + duration
+                    const headlineCompleteTime = headlineDelay + (headlineWords.length * staggerTime) + headlineDuration;
+                    
+                    return (
+                      <>
+                        {firstSegmentHighlight && (
+                          <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+                            <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+                              <SplitText text={firstSegmentHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
+                            </div>
+                          </div>
+                        )}
+                        {restText && (
+                          <div className="whitespace-pre-wrap" style={assistantPrimaryTextStyle}>
+                            <SplitText text={restText} delay={firstSegmentHighlight ? headlineCompleteTime : 0.5} duration={1.2} stagger={0.05} animation="fadeIn" />
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <div className="flex flex-col gap-2">
+                    {shouldShowImage && (
+                      <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+                        <div
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1 / 1',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            background: '#f3f4f6',
+                          }}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt="이벤트 썸네일"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div
+                  className="mt-4 flex justify-center"
+                  style={{
+                    opacity: shouldShowSite ? 1 : 0,
+                    transform: shouldShowSite ? 'translateY(0)' : 'translateY(12px)',
+                    transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                    pointerEvents: shouldShowSite ? 'auto' : 'none',
+                  }}
+                >
+                  {shouldShowSite && <SiteLink url={siteUrl} />}
+                </div>
+                {message.tokens && <TokenInfo tokens={message.tokens} />}
+                {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+              </>
+            ) : (
+              <>
+                <TypewriterComponent
+                  {...typewriterProps}
+                  onComplete={() => {
+                    if (shouldShowSite) {
+                      setIsSiteVisible(true);
+                    }
+                  }}
+                  render={renderTypewriter}
+                />
 
-            <div
-              className="mt-4 flex justify-center"
-              style={{
-                opacity: shouldShowSite && isSiteVisible ? 1 : 0,
-                transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
-                transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
-              }}
-            >
-              {shouldShowSite && <SiteLink url={siteUrl} />}
-            </div>
+                <div
+                  className="mt-4 flex justify-center"
+                  style={{
+                    opacity: shouldShowSite && isSiteVisible ? 1 : 0,
+                    transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
+                    transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
+                  }}
+                >
+                  {shouldShowSite && <SiteLink url={siteUrl} />}
+                </div>
 
-            {message.tokens && <TokenInfo tokens={message.tokens} />}
-            {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+                {message.tokens && <TokenInfo tokens={message.tokens} />}
+                {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1191,6 +1267,7 @@ const SingleMessageComponent: React.FC<{
   isGlobalLoading?: boolean;
   typewriterVariant: TypewriterVariant;
   glassStyleVariant?: GlassStyleVariant;
+  isRecording?: boolean;
 }> = ({
   message,
   isThinking,
@@ -1199,6 +1276,7 @@ const SingleMessageComponent: React.FC<{
   isGlobalLoading: _isGlobalLoading = false,
   typewriterVariant,
   glassStyleVariant = 'v2',
+  isRecording = false,
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
@@ -1417,6 +1495,7 @@ const SingleMessageComponent: React.FC<{
               ...(isThinking ? {
                 width: 'auto',
                 minWidth: '120px',
+                marginTop: '20vh', // y position 조정
                 // auto width에서는 transition 제거 (텍스트를 감쌀 수 있도록)
               } : (!isThinking && message.content && message.content.length > 0 ? {
                 width: loadingWidth,
@@ -1424,6 +1503,24 @@ const SingleMessageComponent: React.FC<{
               } : {})),
             }}
           >
+          {isThinking ? (
+            <span
+              className="text-center text-cyan-800 font-semibold font-['Pretendard_Variable']"
+              style={{
+                fontFamily: 'Pretendard Variable',
+                fontSize: '18px',
+                fontWeight: 600,
+                lineHeight: '130%',
+                whiteSpace: 'nowrap',
+                textAlign: 'center',
+                display: 'block',
+                width: '100%',
+              }}
+            >
+              {isRecording ? '듣고 있어요' : '생각 중이에요'}
+            </span>
+          ) : (
+            <>
           <div 
             className={`assistant-glass-content ${isThinking ? 'animate-radial-gradient' : ''}`}
             style={{
@@ -1434,29 +1531,82 @@ const SingleMessageComponent: React.FC<{
               } : {}),
             }}
           >
-          {isThinking && (
-            <>
-              <span className="blob blob-1"></span>
-              <span className="blob blob-2"></span>
-              <span className="blob blob-3"></span>
-            </>
-          )}
           {showHighlight && !isThinking && <div className="assistant-glass-highlight" />}
           {glassStyleVariant === 'v1' && !isThinking && <div className="assistant-glass-bottom-gradient" />}
           <div className="assistant-glass-body">
-                {isThinking ? (
-                  <span
-                    className="text-center text-cyan-800 font-semibold font-['Pretendard_Variable']"
-                    style={{
-                      fontFamily: 'Pretendard Variable',
-                      fontSize: '18px',
-                      fontWeight: 600,
-                      lineHeight: '130%',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    생각 중이에요
-                  </span>
+                {typewriterVariant === 'v1' ? (
+                  <>
+                    <div>
+                      {(() => {
+                        const restText = removeDotOnlyLines(trimLeadingWhitespace(assistantText.substring(assistantHighlight.length)));
+                        
+                        // 헤드라인 텍스트의 단어 수 계산 (delay 계산용)
+                        const headlineWords = assistantHighlight ? assistantHighlight.trim().split(/\s+/).filter(w => w.length > 0) : [];
+                        const headlineDelay = 0.5; // 초
+                        const headlineDuration = 1.2; // 초
+                        const staggerTime = 0.05; // 초
+                        // 헤드라인 애니메이션이 완료되는 시간 = delay + (단어 수 * stagger) + duration
+                        const headlineCompleteTime = headlineDelay + (headlineWords.length * staggerTime) + headlineDuration;
+                        
+                        return (
+                          <>
+                            {assistantHighlight && (
+                              <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+                                <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+                                  <SplitText text={assistantHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
+                                </div>
+                              </div>
+                            )}
+                            {restText && (
+                              <div className="whitespace-pre-wrap" style={assistantPrimaryTextStyle}>
+                                <SplitText text={restText} delay={assistantHighlight ? headlineCompleteTime : 0.5} duration={1.2} stagger={0.05} animation="fadeIn" />
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                      <div className="flex flex-col gap-2">
+                        {shouldShowImage && (
+                          <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+                            <div
+                              style={{
+                                width: '100%',
+                                aspectRatio: '1 / 1',
+                                borderRadius: '16px',
+                                overflow: 'hidden',
+                                position: 'relative',
+                                background: '#f3f4f6',
+                              }}
+                            >
+                              <img
+                                src={imageUrl}
+                                alt="이벤트 썸네일"
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      className="mt-4 flex justify-center"
+                      style={{
+                        opacity: shouldShowSite ? 1 : 0,
+                        transform: shouldShowSite ? 'translateY(0)' : 'translateY(12px)',
+                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                        pointerEvents: shouldShowSite ? 'auto' : 'none',
+                      }}
+                    >
+                      {shouldShowSite && <SiteLink url={siteUrl} />}
+                    </div>
+
+                    {message.tokens && <TokenInfo tokens={message.tokens} />}
+                    {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
+                  </>
                 ) : (
                   <>
                     <TypewriterComponent
@@ -1487,6 +1637,8 @@ const SingleMessageComponent: React.FC<{
                 )}
               </div>
             </div>
+          </>
+          )}
           </div>
           <AssistantGlassStyles />
         </>
@@ -1518,7 +1670,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   isPlayingTTS = false,
   isGlobalLoading = false,
   typewriterVariant = 'v1',
-  glassStyleVariant = 'v2'
+  glassStyleVariant = 'v2',
+  isRecording = false
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -1543,6 +1696,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       isGlobalLoading={isGlobalLoading}
       typewriterVariant={typewriterVariant}
       glassStyleVariant={glassStyleVariant}
+      isRecording={isRecording}
     />
   );
 };

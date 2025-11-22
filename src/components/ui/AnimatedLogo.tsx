@@ -99,11 +99,13 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
         flexShrink: 0,
         overflow: 'hidden', // 마스크 역할
         position: 'fixed', // 모바일 키보드가 올라와도 상단에 고정
-        top: '24px', // 상단 여백 추가
+        top: '32px', // 상단 여백 추가
         left: '50%', // 중앙 정렬을 위한 left
         transform: 'translateX(-50%)', // 중앙 정렬
         zIndex: 30, // 다른 요소 위에 표시
-        boxSizing: 'border-box' // 패딩 포함 크기 계산
+        boxSizing: 'border-box', // 패딩 포함 크기 계산
+        clipPath: 'inset(0)', // 추가 마스킹으로 보이는 부분 완전히 차단
+        WebkitClipPath: 'inset(0)' // Safari 지원
       }}
     >
       {/* 가상의 캔버스: 무한 반복을 위한 로고 배치 */}
@@ -144,11 +146,15 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             lineHeight: '0', // 텍스트 간격 제거
             border: 'none',
             outline: 'none',
-            alignContent: 'flex-start' // 추가 정렬
+            alignContent: 'flex-start', // 추가 정렬
+            isolation: 'isolate', // 격리 레이어로 다른 로고와 분리
+            position: 'relative', // isolation을 위한 position
+            clipPath: 'inset(0)', // 추가 마스킹
+            WebkitClipPath: 'inset(0)' // Safari 지원
           }}
         >
           <img 
-            src="/SORI.svg" 
+            src="/sori_logo_v2.svg" 
             alt="SORI Logo"
             style={{
               width: '100%',
@@ -186,7 +192,11 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             lineHeight: '0', // 텍스트 간격 제거
             border: 'none',
             outline: 'none',
-            alignContent: 'flex-start' // 추가 정렬
+            alignContent: 'flex-start', // 추가 정렬
+            isolation: 'isolate', // 격리 레이어로 다른 로고와 분리
+            position: 'relative', // isolation을 위한 position
+            clipPath: 'inset(0)', // 추가 마스킹
+            WebkitClipPath: 'inset(0)' // Safari 지원
           }}
         >
           <img 
@@ -228,11 +238,15 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             lineHeight: '0', // 텍스트 간격 제거
             border: 'none',
             outline: 'none',
-            alignContent: 'flex-start' // 추가 정렬
+            alignContent: 'flex-start', // 추가 정렬
+            isolation: 'isolate', // 격리 레이어로 다른 로고와 분리
+            position: 'relative', // isolation을 위한 position
+            clipPath: 'inset(0)', // 추가 마스킹
+            WebkitClipPath: 'inset(0)' // Safari 지원
           }}
         >
           <img 
-            src="/SORI.svg" 
+            src="/sori_logo_v2.svg" 
             alt="SORI Logo"
             style={{
               width: '100%',
@@ -270,7 +284,11 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             lineHeight: '0', // 텍스트 간격 제거
             border: 'none',
             outline: 'none',
-            alignContent: 'flex-start' // 추가 정렬
+            alignContent: 'flex-start', // 추가 정렬
+            isolation: 'isolate', // 격리 레이어로 다른 로고와 분리
+            position: 'relative', // isolation을 위한 position
+            clipPath: 'inset(0)', // 추가 마스킹
+            WebkitClipPath: 'inset(0)' // Safari 지원
           }}
         >
           <img 
@@ -312,11 +330,15 @@ export default function AnimatedLogo({ className = '' }: AnimatedLogoProps) {
             lineHeight: '0', // 텍스트 간격 제거
             border: 'none',
             outline: 'none',
-            alignContent: 'flex-start' // 추가 정렬
+            alignContent: 'flex-start', // 추가 정렬
+            isolation: 'isolate', // 격리 레이어로 다른 로고와 분리
+            position: 'relative', // isolation을 위한 position
+            clipPath: 'inset(0)', // 추가 마스킹
+            WebkitClipPath: 'inset(0)' // Safari 지원
           }}
         >
           <img 
-            src="/SORI.svg" 
+            src="/sori_logo_v2.svg" 
             alt="SORI Logo"
             style={{
               width: '100%',

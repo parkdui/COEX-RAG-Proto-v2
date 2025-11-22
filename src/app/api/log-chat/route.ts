@@ -10,26 +10,13 @@ const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
 let LOG_GOOGLE_PRIVATE_KEY =
   process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
 if (LOG_GOOGLE_PRIVATE_KEY) {
-  console.log('Original private key (first 100 chars):', LOG_GOOGLE_PRIVATE_KEY.substring(0, 100));
-  
   // 환경 변수에서 개행 문자 처리
   LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
   // 따옴표 제거 (환경 변수에서 자동으로 추가된 경우)
   LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
   // 끝의 불필요한 \n 제거
   LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
-  
-  console.log('Processed private key (first 100 chars):', LOG_GOOGLE_PRIVATE_KEY.substring(0, 100));
-  console.log('Private key ends with:', LOG_GOOGLE_PRIVATE_KEY.substring(LOG_GOOGLE_PRIVATE_KEY.length - 50));
 }
-
-// 디버깅용 로그
-console.log("Log-chat Environment variables check:");
-console.log("LOG_GOOGLE_SHEET_ID:", LOG_GOOGLE_SHEET_ID ? "SET" : "NOT SET");
-console.log("LOG_GOOGLE_SHEET_NAME:", LOG_GOOGLE_SHEET_NAME);
-console.log("LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL:", LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
-console.log("LOG_GOOGLE_PRIVATE_KEY:", LOG_GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
-console.log("LOG_GOOGLE_PRIVATE_KEY starts with:", LOG_GOOGLE_PRIVATE_KEY?.substring(0, 50) || "N/A");
 
 // 로그 시트 범위 (로그 전용 시트 사용)
 const LOG_SHEET_RANGE = `${LOG_GOOGLE_SHEET_NAME}!A:Z`;
@@ -44,13 +31,6 @@ interface ChatLog {
 }
 
 async function logToGoogleSheet(logData: ChatLog) {
-  console.log('=== logToGoogleSheet called ===');
-  console.log('LOG_GOOGLE_SHEET_ID:', LOG_GOOGLE_SHEET_ID ? 'SET' : 'NOT SET');
-  console.log('LOG_GOOGLE_SHEET_NAME:', LOG_GOOGLE_SHEET_NAME);
-  console.log('LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL:', LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'SET' : 'NOT SET');
-  console.log('LOG_GOOGLE_PRIVATE_KEY:', LOG_GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET');
-  console.log('LOG_GOOGLE_PRIVATE_KEY length:', LOG_GOOGLE_PRIVATE_KEY?.length || 0);
-  
   if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets API credentials are not set");
   }
@@ -65,7 +45,6 @@ async function logToGoogleSheet(logData: ChatLog) {
   // 인증 테스트
   try {
     await auth.authorize();
-    console.log('Google Auth client created successfully');
   } catch (authError) {
     console.error('Google Auth client creation failed:', authError);
     const errorMessage = authError instanceof Error ? authError.message : String(authError);
@@ -100,7 +79,7 @@ async function logToGoogleSheet(logData: ChatLog) {
       });
     }
   } catch {
-    console.log("Header check failed, will try to add headers");
+    // Header check failed, will try to add headers
   }
 
   // 데이터 추가 - 올바른 형식으로 변환
@@ -123,18 +102,11 @@ async function logToGoogleSheet(logData: ChatLog) {
       values: [rowData]
     }
   });
-
-  console.log("Chat log saved to Google Sheets");
 }
 
 export async function POST(request: Request) {
   try {
-    console.log('=== LOG-CHAT API CALLED ===');
-    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
-    
     const body = await request.json();
-    console.log('Request body received:', JSON.stringify(body, null, 2));
-    
     const { timestamp, systemPrompt, conversation } = body;
 
     if (!timestamp || !systemPrompt || !conversation || !Array.isArray(conversation)) {

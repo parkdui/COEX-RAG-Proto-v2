@@ -164,8 +164,6 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     stop: [],
   };
 
-  console.log("📝 [CLOVA Chat Request Body]:", JSON.stringify(body, null, 2));
-
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -219,12 +217,14 @@ async function callClovaChat(messages: any[], opts: any = {}) {
 }
 
 function logTokenSummary(tag = "") {
-  console.log(
-    `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
-      `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
-      `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
-      `(calls=${TOKENS.chat_calls})`
-  );
+  if (process.env.LOG_TOKENS === "1") {
+    console.log(
+      `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
+        `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
+        `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
+        `(calls=${TOKENS.chat_calls})`
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {

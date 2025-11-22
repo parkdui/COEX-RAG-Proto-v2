@@ -224,12 +224,14 @@ async function callClovaChat(messages: any[], opts: any = {}) {
 }
 
 function logTokenSummary(tag = "") {
-  console.log(
-    `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
-      `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
-      `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
-      `(calls=${TOKENS.chat_calls})`
-  );
+  if (process.env.LOG_TOKENS === "1") {
+    console.log(
+      `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
+        `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
+        `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
+        `(calls=${TOKENS.chat_calls})`
+    );
+  }
 }
 
 // Google Sheets 로그 저장 함수
@@ -445,8 +447,6 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
         values: [[userMessage.substring(0, 1000)]]
       },
     });
-    
-    console.log(`[Chat Log] Saved user message ${messageNumber} to column ${columnLetter}${rowIndex}`);
   } catch (error) {
     console.error("Error saving user message in realtime:", error);
   }
@@ -517,8 +517,6 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
         values: [[aiMessage.substring(0, 1000)]]
       },
     });
-    
-    console.log(`[Chat Log] Saved AI message ${messageNumber} to column ${columnLetter}${rowIndex}`);
   } catch (error) {
     console.error("Error saving AI message in realtime:", error);
   }
@@ -628,8 +626,6 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
         values: [[tokenTotal]]
       },
     });
-    
-    console.log(`[Chat Log] Updated token total to ${tokenTotal} for session ${sessionId} at row ${rowIndex}`);
   } catch (error) {
     console.error("Error updating token total:", error);
   }
@@ -733,9 +729,6 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
           values: [buildRowFromLog(logData.conversation)],
         },
       });
-      console.log(
-        `[Chat Log] Updated existing session ${logData.sessionId} with ${logData.conversation.length} entries at row ${existingRowIndex}.`
-      );
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -745,9 +738,6 @@ async function saveSessionBasedChatLog(logData: SessionChatLog) {
           values: [buildRowFromLog(logData.conversation)],
         },
       });
-      console.log(
-        `[Chat Log] Appended new session ${logData.sessionId} with ${logData.conversation.length} entries.`
-      );
     }
 
     // 세션 기반 채팅 로그 저장 완료

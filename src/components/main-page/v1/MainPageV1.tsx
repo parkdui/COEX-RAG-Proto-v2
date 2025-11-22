@@ -5,7 +5,7 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { Message } from '@/types';
 import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
-import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
+import { Button, Input, Textarea, Card, CardHeader, CardContent, CardFooter, Badge, SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3, SplitText } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
 import LetterColorAnimation from '@/components/ui/LetterColorAnimation';
@@ -1027,10 +1027,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   className="p-6 w-full"
                 >
                   <div className="flex justify-center">
-                    <GreetingTypewriter {...createTypewriterProps("안녕하세요! 이솔이에요", 0)} />
+                    <SplitText text="안녕하세요! 이솔이에요" delay={0} duration={1.2} stagger={0.05} animation="fadeIn" />
                   </div>
                   <div className="flex justify-center mt-2">
-                    <GreetingTypewriter {...createTypewriterProps("코엑스 안내를 도와드릴게요", 800)} />
+                    <SplitText text="코엑스 안내를 도와드릴게요" delay={1.2} duration={1.2} stagger={0.05} animation="fadeIn" />
                   </div>
                 </div>
               </div>
@@ -1479,6 +1479,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             isPlayingTTS={isPlayingTTS}
                             isGlobalLoading={chatState.isLoading || voiceState.isProcessingVoice}
                             typewriterVariant={typewriterVariant}
+                            isRecording={voiceState.isRecording}
                           />
                         ) : (
                           <>
@@ -1519,7 +1520,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               width: '100%',
               bottom: '0', // 입력창 높이(56px) + padding bottom(16px) + chips marginBottom(16px) + 18px (추천 chips 상단에서 18px 위)
               height: '288px', // h-72 (18rem = 288px)
-              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)',
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 30%, rgb(255,255,255) 100%)',
               pointerEvents: 'none',
             }}
           />

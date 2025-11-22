@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 
 interface SplitTextProps {
   text: string;
@@ -9,6 +9,10 @@ interface SplitTextProps {
   animation?: 'fadeIn' | 'slideUp' | 'slideDown' | 'slideLeft' | 'slideRight' | 'scale' | 'typing';
 }
 
+// 색상 정의
+const LIGHT_BLUE = '#7dd3fc'; // 라이트 블루
+const DARK_NAVY = '#1e3a8a'; // 다크 네이비
+
 export const SplitText: React.FC<SplitTextProps> = ({
   text,
   className = '',
@@ -17,54 +21,138 @@ export const SplitText: React.FC<SplitTextProps> = ({
   stagger = 0.05,
   animation = 'fadeIn'
 }) => {
-  const [isVisible, setIsVisible] = useState(false);
+  const [wordStates, setWordStates] = useState<Array<{ visible: boolean; color: typeof LIGHT_BLUE | typeof DARK_NAVY }>>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 텍스트를 단어와 줄바꿈으로 분할 (줄바꿈 유지)
+  const words = useMemo(() => {
+    // 줄바꿈을 기준으로 먼저 분리
+    const parts: Array<{ text: string; isLineBreak: boolean }> = [];
+    const lines = text.split('\n');
+    
+    lines.forEach((line, lineIndex) => {
+      // 각 줄의 단어 분리
+      const lineWords = line.trim().split(/\s+/).filter((word: string) => word.length > 0);
+      lineWords.forEach(word => {
+        parts.push({ text: word, isLineBreak: false });
+      });
+      
+      // 줄바꿈 추가 (마지막 줄이 아닌 경우)
+      if (lineIndex < lines.length - 1) {
+        parts.push({ text: '\n', isLineBreak: true });
+      }
+    });
+    
+    return parts;
+  }, [text]);
+  
+  // 애니메이션할 단어만 필터링 (줄바꿈 제외)
+  const animatableWords = useMemo(() => {
+    return words.filter(w => !w.isLineBreak);
+  }, [words]);
+
+  // 단어별 상태 초기화 및 애니메이션 시작
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(true);
-    }, delay);
+    // 단어가 없으면 종료
+    if (animatableWords.length === 0) {
+      setWordStates([]);
+      return;
+    }
+    
+    // wordStates 초기화 (애니메이션할 단어만)
+    const initialStates: Array<{ visible: boolean; color: typeof LIGHT_BLUE | typeof DARK_NAVY }> = 
+      animatableWords.map(() => ({ visible: false, color: LIGHT_BLUE }));
+    setWordStates(initialStates);
 
-    return () => clearTimeout(timer);
-  }, [delay]);
+    // delay 후 시작 (delay는 초 단위, 밀리초로 변환)
+    const baseDelay = delay * 1000;
+    const timers: NodeJS.Timeout[] = [];
 
-  const getAnimationClass = () => {
-    const baseClasses = 'inline-block';
-    const animationClasses = {
-      fadeIn: isVisible ? 'opacity-100' : 'opacity-0',
-      slideUp: isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0',
-      slideDown: isVisible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0',
-      slideLeft: isVisible ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0',
-      slideRight: isVisible ? 'translate-x-0 opacity-100' : '-translate-x-4 opacity-0',
-      scale: isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
-      typing: isVisible ? 'opacity-100' : 'opacity-0'
+    // 애니메이션할 단어만 순회 (animatableWords 사용)
+    animatableWords.forEach((wordInfo, animatableIndex) => {
+      const wordDelay = baseDelay + (animatableIndex * stagger * 1000);
+      // 단어 나타남 (라이트 블루)
+      const showTimer = setTimeout(() => {
+        setWordStates(prev => {
+          if (prev.length !== animatableWords.length) {
+            return prev;
+          }
+          const newStates = [...prev];
+          if (newStates[animatableIndex]) {
+            newStates[animatableIndex] = { visible: true, color: LIGHT_BLUE };
+          }
+          return newStates;
+        });
+        
+        // 라이트 블루에서 다크 네이비로 전환 (300ms 후)
+        const colorChangeTimer = setTimeout(() => {
+          setWordStates(prev => {
+            if (prev.length !== animatableWords.length) return prev;
+            const newStates = [...prev];
+            if (newStates[animatableIndex]) {
+              newStates[animatableIndex] = { visible: true, color: DARK_NAVY };
+            }
+            return newStates;
+          });
+        }, 300);
+
+        timers.push(colorChangeTimer);
+      }, wordDelay);
+
+      timers.push(showTimer);
+    });
+
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
     };
-
-    return `${baseClasses} transition-all duration-${Math.round(duration * 1000)} ease-out ${animationClasses[animation]}`;
-  };
-
-  const getAnimationStyle = (index: number) => {
-    const transitionDelay = isVisible ? `${index * stagger}s` : '0s';
-    return {
-      transitionDelay,
-      transitionDuration: `${duration}s`
-    };
-  };
-
-  // 텍스트를 문자 단위로 분할
-  const characters = text.split('');
+  }, [text, words, animatableWords, delay, duration, stagger]);
 
   return (
     <div ref={containerRef} className={className}>
-      {characters.map((char, index) => (
-        <span
-          key={index}
-          className={getAnimationClass()}
-          style={getAnimationStyle(index)}
-        >
-          {char === ' ' ? '\u00A0' : char}
-        </span>
-      ))}
+      {/* 단어별로 나타남 (라이트 블루 → 다크 네이비) */}
+      {/* 디버깅: words가 비어있어도 원본 텍스트 표시 */}
+      {words.length === 0 ? (
+        <span style={{ color: DARK_NAVY }}>{text}</span>
+      ) : (
+        <div>
+          {(() => {
+            let animatableIndex = 0;
+            return words.map((wordInfo, index) => {
+              // 줄바꿈인 경우
+              if (wordInfo.isLineBreak) {
+                return <br key={`br-${index}`} />;
+              }
+              
+              const currentIndex = animatableIndex;
+              
+              // animatableIndex 증가 (단어인 경우만)
+              animatableIndex++;
+              
+              const wordState = wordStates[currentIndex];
+              
+              // wordStates가 초기화되지 않았으면 일단 보이게
+              // 초기화되었으면 wordState.visible에 따라 제어
+              const isVisible = wordStates.length === 0 ? true : (wordState?.visible ?? false);
+              const color = wordStates.length === 0 ? DARK_NAVY : (wordState?.color ?? DARK_NAVY);
+              
+              return (
+                <span
+                  key={`word-${index}`}
+                  style={{
+                    display: 'inline-block',
+                    marginRight: '0.25em',
+                    opacity: isVisible ? 1 : 0,
+                    color: color,
+                    transition: 'opacity 0.3s ease-out, color 0.3s ease-in-out',
+                  }}
+                >
+                  {wordInfo.text}
+                </span>
+              );
+            });
+          })()}
+        </div>
+      )}
     </div>
   );
 };

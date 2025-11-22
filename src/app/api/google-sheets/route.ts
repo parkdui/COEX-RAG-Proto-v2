@@ -7,13 +7,6 @@ const GOOGLE_SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || "Coex!A1:U";
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-// 디버깅용 로그
-console.log("Environment variables check:");
-console.log("GOOGLE_SHEET_ID:", GOOGLE_SHEET_ID ? "SET" : "NOT SET");
-console.log("GOOGLE_SHEET_RANGE:", GOOGLE_SHEET_RANGE);
-console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", GOOGLE_SERVICE_ACCOUNT_EMAIL ? "SET" : "NOT SET");
-console.log("GOOGLE_PRIVATE_KEY:", GOOGLE_PRIVATE_KEY ? "SET" : "NOT SET");
-
 // Google Sheets 데이터 로더 함수
 async function loadDataFromGoogleSheet() {
   if (
@@ -39,7 +32,6 @@ async function loadDataFromGoogleSheet() {
 
   const rows = response.data.values;
   if (!rows || rows.length === 0) {
-    console.log("No data found in Google Sheet.");
     return [];
   }
 
@@ -54,7 +46,6 @@ async function loadDataFromGoogleSheet() {
     return rowData;
   });
 
-  console.log(`[Google Sheets] Loaded ${data.length} rows.`);
   return data;
 }
 
