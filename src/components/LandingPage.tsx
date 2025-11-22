@@ -76,6 +76,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
   const [hasCountingStarted, setHasCountingStarted] = useState(false);
   const [showVideo, setShowVideo] = useState(true);
   const [showBlobBackground, setShowBlobBackground] = useState(false);
+  const [videoOpacity, setVideoOpacity] = useState(1);
   const videoRef = useRef<HTMLVideoElement>(null);
   const isTitleV1 = TITLE_VARIANT === 'v1';
   const secondLineText = 'Coex Guide';
@@ -142,13 +143,40 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       // 비디오가 올바른 크기로 설정되도록 강제
       videoRef.current.style.width = '100%';
       videoRef.current.style.height = '100%';
+      // blobBackground를 비디오 시작과 함께 표시 (비디오가 위에 있어서 보이지 않다가 페이드아웃되면서 드러남)
+      setShowBlobBackground(true);
+    }
+  }, []);
+
+  // 비디오 시간 업데이트 핸들러 - 3.5초부터 마지막까지 opacity 페이드아웃
+  const handleVideoTimeUpdate = useCallback(() => {
+    if (videoRef.current) {
+      const currentTime = videoRef.current.currentTime;
+      const duration = videoRef.current.duration;
+      
+      // duration이 유효한 경우에만 처리
+      if (duration && !isNaN(duration)) {
+        const fadeStartTime = 3.5;
+        const fadeEndTime = duration;
+        
+        if (currentTime >= fadeStartTime) {
+          // 3.5초부터 duration까지 선형적으로 페이드아웃
+          const fadeDuration = fadeEndTime - fadeStartTime;
+          const progress = Math.min((currentTime - fadeStartTime) / fadeDuration, 1);
+          const opacity = 1 - progress;
+          setVideoOpacity(opacity);
+        } else {
+          // 3.5초 이전에는 opacity 1 유지
+          setVideoOpacity(1);
+        }
+      }
     }
   }, []);
 
   // 비디오 재생 완료 핸들러
   const handleVideoEnded = useCallback(() => {
     setShowVideo(false);
-    setShowBlobBackground(true);
+    setVideoOpacity(0);
   }, []);
 
   const handleStartClick = useCallback(() => {
@@ -184,20 +212,23 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             maxHeight: '100%',
             objectFit: 'cover',
             objectPosition: 'center',
-            willChange: 'transform',
+            willChange: 'transform, opacity',
             transform: 'translateZ(0)',
             backfaceVisibility: 'hidden',
             WebkitTransform: 'translateZ(0)',
             WebkitBackfaceVisibility: 'hidden',
+            opacity: videoOpacity,
+            transition: 'opacity 0.1s linear',
           }}
           preload="auto"
           autoPlay
           muted
           playsInline
           onLoadedMetadata={handleVideoLoadedMetadata}
+          onTimeUpdate={handleVideoTimeUpdate}
           onEnded={handleVideoEnded}
         >
-          <source src="/251120_opening_v1.mp4" type="video/mp4" />
+          <source src="/251123_opening_v2.mp4" type="video/mp4" />
         </video>
       )}
       
