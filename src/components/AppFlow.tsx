@@ -49,6 +49,11 @@ export default function AppFlow() {
       try {
         setIsCheckingAccess(true);
         const response = await fetch('/api/enter');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data: EnterResponse = await response.json();
         setAccessStatus(data);
         
@@ -61,13 +66,15 @@ export default function AppFlow() {
         setIsCheckingAccess(false);
       } catch (error) {
         console.error('Failed to check access:', error);
+        // KV 연결 실패 시에도 기본적으로 LandingPage를 보여줌
+        // (접속 제어 기능이 작동하지 않아도 서비스는 이용 가능)
         setAccessStatus({
-          allowed: false,
-          reason: 'SERVER_ERROR',
-          message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+          allowed: true, // 기본적으로 허용
+          reason: undefined,
+          message: undefined
         });
-        setCurrentPage('blocked');
         setIsCheckingAccess(false);
+        // currentPage는 이미 'landing'으로 초기화되어 있음
       }
     };
 

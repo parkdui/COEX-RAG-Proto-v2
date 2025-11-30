@@ -108,14 +108,30 @@ export async function GET() {
     
   } catch (error) {
     console.error('Error in /api/enter:', error);
-    return NextResponse.json(
-      { 
-        allowed: false, 
-        reason: 'SERVER_ERROR',
-        message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
-      },
-      { status: 500 }
-    );
+    
+    // KV 연결 실패 시에도 기본적으로 접속 허용
+    // (접속 제어 기능이 작동하지 않아도 서비스는 이용 가능)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // KV 환경 변수가 없는 경우 기본적으로 허용
+    if (errorMessage.includes('Missing required environment variables') || 
+        errorMessage.includes('KV_REST_API')) {
+      console.warn('KV not configured, allowing access by default');
+      return NextResponse.json({
+        allowed: true,
+        total: 0,
+        concurrentUsers: 0,
+        warning: 'Access control is disabled (KV not configured)'
+      });
+    }
+    
+    // 기타 에러는 기본적으로 허용 (서비스 중단 방지)
+    return NextResponse.json({
+      allowed: true,
+      total: 0,
+      concurrentUsers: 0,
+      warning: 'Access control check failed, allowing access'
+    });
   }
 }
 
