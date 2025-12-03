@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
-      maxTokens: 700,
+      maxTokens: 200,
     });
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);

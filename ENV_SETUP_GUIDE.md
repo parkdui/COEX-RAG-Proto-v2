@@ -93,3 +93,4 @@ UPSTASH_REDIS_REST_TOKEN=복사한_TOKEN
 1. Vercel 대시보드 → Storage → coex-redis → API 탭 확인
 2. 또는 Vercel 지원팀에 문의
 
+

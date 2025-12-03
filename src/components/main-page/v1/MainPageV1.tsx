@@ -1411,7 +1411,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   )
                 ) : showEndMessage ? (
                   // 종료 메시지 화면
-                  <div className="flex flex-col items-center justify-center min-h-full py-12">
+                  <div className="fixed inset-0 flex flex-col items-center justify-center">
                     <div
                       style={{
                         fontFamily: 'Pretendard Variable',
@@ -1520,7 +1520,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               width: '100%',
               bottom: '0', // 입력창 높이(56px) + padding bottom(16px) + chips marginBottom(16px) + 18px (추천 chips 상단에서 18px 위)
               height: '288px', // h-72 (18rem = 288px)
-              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 30%, rgb(255,255,255) 100%)',
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 30%, rgba(255,255,255,0.95) 60%, rgb(255,255,255) 100%)',
               pointerEvents: 'none',
             }}
           />

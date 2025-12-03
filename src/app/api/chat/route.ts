@@ -55,6 +55,10 @@ const TOKENS = {
   chat_output: 0,
   chat_total: 0,
   chat_calls: 0,
+  classification_input: 0,
+  classification_output: 0,
+  classification_total: 0,
+  classification_calls: 0,
 };
 
 // ====== HyperCLOVAX Embedding API ======
@@ -147,6 +151,58 @@ function extractEmbedding(json: any) {
   return null;
 }
 
+// ====== 정보 요구 질문 판별 함수 ======
+async function isInfoRequestQuestion(question: string): Promise<boolean> {
+  const classificationPrompt = `다음 사용자 질문이 코엑스의 이벤트, 장소, 행사, 식당, 카페 등에 대한 정보를 요구하는 질문인지 판별해주세요.
+
+정보 요구 질문의 예시:
+- "추천해줘", "알려줘", "어디에 있어?", "어떤 곳이야?", "정보를 주세요"
+- "식당 추천", "카페 위치", "이벤트 일정", "전시 정보"
+- "데이트하기 좋은 곳", "쇼핑하기 좋은 곳", "조용한 카페"
+
+정보 요구 질문이 아닌 예시:
+- "안녕하세요", "고마워", "좋아", "알겠어", "네", "아니요"
+- "그렇구나", "재밌겠다", "좋은 생각이야"
+- 단순한 감탄사나 응답
+
+질문: "${question}"
+
+위 질문이 정보를 요구하는 질문이면 "YES", 그렇지 않으면 "NO"로만 답변하세요.`;
+
+  const messages = [
+    {
+      role: "system",
+      content: "당신은 사용자 질문을 정보 요구 질문인지 판별하는 전문가입니다. YES 또는 NO로만 답변하세요.",
+    },
+    {
+      role: "user",
+      content: classificationPrompt,
+    },
+  ];
+
+  try {
+    const result = await callClovaChat(messages, {
+      temperature: 0.1,
+      maxTokens: 10,
+    });
+
+    const answer = result.content.trim().toUpperCase();
+    const isInfoRequest = answer.includes("YES") || answer === "Y";
+
+    if (process.env.LOG_TOKENS === "1") {
+      console.log(
+        `🔍 [CLASSIFY] question="${question.substring(0, 30)}..." isInfoRequest=${isInfoRequest}`
+      );
+    }
+
+    return isInfoRequest;
+  } catch (error) {
+    console.error("Classification error:", error);
+    // 에러 발생 시 기본적으로 정보 요구 질문으로 간주 (안전한 선택)
+    return true;
+  }
+}
+
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
@@ -197,16 +253,37 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   const chatOut = Number(chatUsage.completionTokens ?? 0);
   const chatTotal = Number(chatUsage.totalTokens ?? chatIn + chatOut);
 
-  TOKENS.chat_input += chatIn;
-  TOKENS.chat_output += chatOut;
-  TOKENS.chat_total += chatTotal;
-  TOKENS.chat_calls += 1;
+  // classification 호출인지 확인 (메시지가 2개이고 system + user 구조이며, 짧은 프롬프트인 경우)
+  const isClassificationCall = 
+    messages.length === 2 &&
+    messages[0]?.role === "system" &&
+    messages[1]?.role === "user" &&
+    messages[1]?.content?.includes("정보를 요구하는 질문인지 판별");
 
-  if (process.env.LOG_TOKENS === "1") {
-    console.log(
-      `💬 [CHAT] in=${chatIn} out=${chatOut} total=${chatTotal} ` +
-        `(acc_total=${TOKENS.chat_total}, calls=${TOKENS.chat_calls})`
-    );
+  if (isClassificationCall) {
+    TOKENS.classification_input += chatIn;
+    TOKENS.classification_output += chatOut;
+    TOKENS.classification_total += chatTotal;
+    TOKENS.classification_calls += 1;
+
+    if (process.env.LOG_TOKENS === "1") {
+      console.log(
+        `🔍 [CLASSIFY] in=${chatIn} out=${chatOut} total=${chatTotal} ` +
+          `(acc_total=${TOKENS.classification_total}, calls=${TOKENS.classification_calls})`
+      );
+    }
+  } else {
+    TOKENS.chat_input += chatIn;
+    TOKENS.chat_output += chatOut;
+    TOKENS.chat_total += chatTotal;
+    TOKENS.chat_calls += 1;
+
+    if (process.env.LOG_TOKENS === "1") {
+      console.log(
+        `💬 [CHAT] in=${chatIn} out=${chatOut} total=${chatTotal} ` +
+          `(acc_total=${TOKENS.chat_total}, calls=${TOKENS.chat_calls})`
+      );
+    }
   }
 
   // 응답 형태 호환 처리
@@ -228,6 +305,7 @@ function logTokenSummary(tag = "") {
     console.log(
       `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
         `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
+        `CLASSIFY in=${TOKENS.classification_input} out=${TOKENS.classification_output} total=${TOKENS.classification_total} (calls=${TOKENS.classification_calls}) | ` +
         `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
         `(calls=${TOKENS.chat_calls})`
     );
@@ -755,17 +833,15 @@ export async function POST(request: NextRequest) {
   TOKENS.chat_output = 0;
   TOKENS.chat_total = 0;
   TOKENS.chat_calls = 0;
+  TOKENS.classification_input = 0;
+  TOKENS.classification_output = 0;
+  TOKENS.classification_total = 0;
+  TOKENS.classification_calls = 0;
   
   try {
     const body = await request.json();
     const question = (body?.question || "").trim();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
-    
-    if (!fs.existsSync(VECTORS_JSON)) {
-      return NextResponse.json({
-        error: "vectors.json not found. Run /api/pre-processing-for-embedding first.",
-      }, { status: 400 });
-    }
 
     // systemPrompt 처리
     let defaultSystemPrompt = "";
@@ -789,11 +865,18 @@ export async function POST(request: NextRequest) {
     const activeSystemPrompt =
       ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo + headlineConstraint;
 
-    const vectors = JSON.parse(fs.readFileSync(VECTORS_JSON, "utf8"));
-    if (!Array.isArray(vectors) || vectors.length === 0) {
-      return NextResponse.json({
-        error: "vectors.json is empty. Re-run /api/pre-processing-for-embedding.",
-      }, { status: 400 });
+    // vectors.json은 정보 요구 질문일 때만 필요하므로, 나중에 필요할 때 로드
+    let vectors: any[] = [];
+    if (fs.existsSync(VECTORS_JSON)) {
+      try {
+        vectors = JSON.parse(fs.readFileSync(VECTORS_JSON, "utf8"));
+        if (!Array.isArray(vectors)) {
+          vectors = [];
+        }
+      } catch (e) {
+        console.warn("Failed to load vectors.json:", e);
+        vectors = [];
+      }
     }
 
     // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
@@ -826,31 +909,52 @@ export async function POST(request: NextRequest) {
       console.error('[Chat Log] Failed to save user message in realtime:', error);
     });
 
-    const qEmb = await embedText(question);
+    // 정보 요구 질문인지 판별
+    const isInfoRequest = await isInfoRequestQuestion(question);
 
-    const scored = vectors
-      .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
-      .sort((a, b) => b.score - a.score);
+    let context = "";
+    let slimHits: any[] = [];
 
-    const ranked = scored.slice(0, TOP_K);
-    const slimHits = ranked.map(({ v, score }) => ({
-      id: v.id,
-      meta: v.meta,
-      text: v.text,
-      score: Number(score.toFixed(4)),
-    }));
+    // 정보 요구 질문인 경우에만 임베딩 및 RAG 검색 수행
+    if (isInfoRequest) {
+      // vectors.json이 없거나 비어있으면 에러 반환
+      if (!fs.existsSync(VECTORS_JSON) || vectors.length === 0) {
+        return NextResponse.json({
+          error: "vectors.json not found or empty. Run /api/pre-processing-for-embedding first.",
+        }, { status: 400 });
+      }
 
-    const context = slimHits
-      .map((h, i) => {
-        const m = h.meta || {};
-        return (
-          `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
-          `${m.region ? " | 지역:" + m.region : ""}` +
-          `${m.industry ? " | 산업군:" + m.industry : ""}\n` +
-          h.text
-        );
-      })
-      .join("\n\n");
+      const qEmb = await embedText(question);
+
+      const scored = vectors
+        .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
+        .sort((a, b) => b.score - a.score);
+
+      const ranked = scored.slice(0, TOP_K);
+      slimHits = ranked.map(({ v, score }) => ({
+        id: v.id,
+        meta: v.meta,
+        text: v.text,
+        score: Number(score.toFixed(4)),
+      }));
+
+      context = slimHits
+        .map((h, i) => {
+          const m = h.meta || {};
+          return (
+            `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
+            `${m.region ? " | 지역:" + m.region : ""}` +
+            `${m.industry ? " | 산업군:" + m.industry : ""}\n` +
+            h.text
+          );
+        })
+        .join("\n\n");
+    }
+
+    // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성)
+    const userMessageContent = isInfoRequest
+      ? `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 200자 이내로만 답하세요.`
+      : `질문: ${question}\n\n위 질문에 대화 맥락과 system prompt에 따라 자연스럽게 답하세요. 반드시 200자 이내로만 답하세요.`;
 
     const messages = [
       {
@@ -860,7 +964,7 @@ export async function POST(request: NextRequest) {
       ...history, // 이전 대화 맥락
       {
         role: "user",
-        content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 200자 이내로만 답하세요.`,
+        content: userMessageContent,
       },
     ];
 
@@ -882,7 +986,11 @@ export async function POST(request: NextRequest) {
     (async () => {
       try {
         const existingTokenTotal = await getTokenTotal(sessionId);
-        const currentTokenTotal = TOKENS.chat_total + TOKENS.embed_input; // 현재 요청에서 사용된 token
+        // classification, embedding, chat 모두 포함
+        const currentTokenTotal = 
+          TOKENS.classification_total + 
+          TOKENS.embed_input + 
+          TOKENS.chat_total;
         const newTokenTotal = existingTokenTotal + currentTokenTotal;
         await updateTokenTotal(sessionId, newTokenTotal);
       } catch (error) {
