@@ -36,12 +36,29 @@ if (!/\/(testapp|serviceapp)(\/|$)/.test(CLOVA_BASE)) {
 }
 
 export async function GET() {
+  // 실제 사용될 CLOVA API URL 구성
+  let clovaApiUrl = CLOVA_BASE;
+  if (!clovaApiUrl.endsWith('/')) {
+    clovaApiUrl += '/';
+  }
+  if (!clovaApiUrl.includes('/v3/')) {
+    clovaApiUrl += 'v3/chat-completions/HCX-005';
+  } else {
+    clovaApiUrl += 'HCX-005';
+  }
+  
   return NextResponse.json({
     ok: true,
     appId: APP_ID,
     embedBase: HLX_BASE,
     chatBase: CLOVA_BASE,
+    chatApiUrl: clovaApiUrl, // 실제 호출될 URL
     embedModel: EMB_MODEL,
     topK: TOP_K,
+    env: {
+      clovaApiBase: process.env.CLOVA_API_BASE || "not set",
+      appId: process.env.APP_ID || "not set",
+      clovaModel: process.env.CLOVA_MODEL || "not set",
+    }
   });
 }

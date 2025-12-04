@@ -154,7 +154,24 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     throw new Error("CLOVA_API_KEY environment variable is not set");
   }
   
-  const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
+  // URL 구성: CLOVA_BASE가 이미 /testapp 또는 /serviceapp을 포함하는지 확인
+  let apiUrl = CLOVA_BASE;
+  if (!apiUrl.endsWith('/')) {
+    apiUrl += '/';
+  }
+  // 이미 v3 경로가 포함되어 있지 않으면 추가
+  if (!apiUrl.includes('/v3/')) {
+    apiUrl += 'v3/chat-completions/';
+  }
+  apiUrl += CLOVA_MODEL;
+  
+  const url = apiUrl;
+
+  // 디버깅: URL 로깅 (개발 환경에서만)
+  if (process.env.NODE_ENV === 'development' || process.env.LOG_TOKENS === "1") {
+    console.log(`🔗 [CLOVA] API URL: ${url}`);
+    console.log(`🔗 [CLOVA] BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
+  }
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
@@ -182,10 +199,15 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok)
+  
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    console.error(`❌ [CLOVA] API Error ${res.status}: ${errorText}`);
+    console.error(`❌ [CLOVA] Request URL: ${url}`);
     throw new Error(
-      `CLOVA chat failed ${res.status}: ${await res.text().catch(() => "")}`
+      `CLOVA chat failed ${res.status}: ${errorText}`
     );
+  }
   const json = await res.json();
 
   // chat token usage logging
