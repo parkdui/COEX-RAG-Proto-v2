@@ -17,8 +17,8 @@ if (LOG_GOOGLE_PRIVATE_KEY) {
 
 async function getTodayConversationCount(): Promise<number> {
   if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
-    console.warn("Google Sheets API credentials are not set, returning default count");
-    return 538; // 기본값 (fallback)
+    console.warn("Google Sheets API credentials are not set, returning 0");
+    return 0; // 기본값: 오늘 대화 기록이 없으면 0
   }
 
   try {
@@ -85,13 +85,13 @@ async function getTodayConversationCount(): Promise<number> {
       }
     }
 
-    // 데이터가 없으면 0 반환 (새로운 하루의 첫 사용자일 수 있음)
-    // 하지만 기본값을 538로 설정하여 기존 동작 유지
+    // 오늘 날짜에 해당하는 대화 기록만 카운트
+    // 데이터가 없으면 0 반환 (새로운 하루의 첫 사용자)
     return count;
   } catch (error) {
     console.error("Error getting today's conversation count:", error);
-    // 에러 발생 시 기본값 반환
-    return 538;
+    // 에러 발생 시 0 반환 (오늘 대화 기록이 없는 것으로 간주)
+    return 0;
   }
 }
 
@@ -102,7 +102,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error in daily-conversation-count API:', error);
     return NextResponse.json(
-      { count: 538, error: String(error) }, // 에러 시에도 기본값 반환
+      { count: 0, error: String(error) }, // 에러 시 0 반환 (오늘 대화 기록이 없는 것으로 간주)
       { status: 500 }
     );
   }

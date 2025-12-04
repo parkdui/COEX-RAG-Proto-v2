@@ -10,7 +10,7 @@ import {
 import { randomBytes } from 'crypto';
 
 // 설정값
-const DAILY_LIMIT = 1000;
+const DAILY_LIMIT = 100;
 const CONCURRENT_LIMIT = 100; // 동시 접속 제한
 
 export async function GET() {
