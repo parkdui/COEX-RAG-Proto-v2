@@ -395,7 +395,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       <div className="fixed bottom-0 left-0 right-0 z-[60] px-6 pb-8 pt-4 safe-bottom">
         <button
           onClick={handleStartClick}
-          disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 100)}
+          disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 1000)}
           className="landing-start-btn touch-manipulation active:scale-95 disabled:opacity-50"
           style={{
             color: '#000',
