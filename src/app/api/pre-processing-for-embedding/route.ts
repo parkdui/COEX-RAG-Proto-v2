@@ -34,6 +34,10 @@ const TOKENS = {
 // ====== HyperCLOVAX Embedding API ======
 async function embedText(text: string) {
   if (!text || !text.trim()) throw new Error("empty text for embedding");
+  
+  if (!HLX_KEY) {
+    throw new Error("HYPERCLOVAX_API_KEY environment variable is not set");
+  }
 
   const url = `${HLX_BASE}/v1/api-tools/embedding/${EMB_MODEL}`;
   const headers = {
@@ -237,7 +241,12 @@ export async function POST() {
     logTokenSummary("after build");
     return NextResponse.json({ ok: true, count, file: "data/vectors.json" });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    console.error("[pre-processing-for-embedding] Error:", e);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ 
+      ok: false, 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? String(e) : undefined
+    }, { status: 500 });
   }
 }

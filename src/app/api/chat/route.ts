@@ -6,7 +6,7 @@ import { google } from 'googleapis';
 
 // ENV 로드
 const APP_ID = getEnv("APP_ID", "testapp");
-const TOP_K = parseInt(getEnv("TOP_K", "3"), 10);
+const TOP_K = parseInt(getEnv("TOP_K", "2"), 10); // 기본값 3 → 2로 변경 (토큰 절감)
 
 // 1) Embedding/Segmentation BASE
 let HLX_BASE = getEnv(
@@ -64,6 +64,10 @@ const TOKENS = {
 // ====== HyperCLOVAX Embedding API ======
 async function embedText(text: string) {
   if (!text || !text.trim()) throw new Error("empty text for embedding");
+  
+  if (!HLX_KEY) {
+    throw new Error("HYPERCLOVAX_API_KEY environment variable is not set");
+  }
 
   const url = `${HLX_BASE}/v1/api-tools/embedding/${EMB_MODEL}`;
   const headers = {
@@ -205,9 +209,11 @@ async function isInfoRequestQuestion(question: string): Promise<boolean> {
 
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
-  const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
+  if (!CLOVA_KEY) {
+    throw new Error("CLOVA_API_KEY environment variable is not set");
+  }
   
-  // CLOVA API 호출
+  const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
@@ -938,14 +944,21 @@ export async function POST(request: NextRequest) {
         score: Number(score.toFixed(4)),
       }));
 
+      // RAG Context 압축: 텍스트 길이 제한 (200자) + TOP_K 감소 (3→2)
+      const MAX_CONTEXT_TEXT_LENGTH = 200; // 각 이벤트 텍스트 최대 길이
       context = slimHits
         .map((h, i) => {
           const m = h.meta || {};
+          // 텍스트 길이 제한 (200자)
+          const text = h.text && h.text.length > MAX_CONTEXT_TEXT_LENGTH
+            ? h.text.substring(0, MAX_CONTEXT_TEXT_LENGTH) + '...'
+            : h.text || '';
+          
           return (
             `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
             `${m.region ? " | 지역:" + m.region : ""}` +
             `${m.industry ? " | 산업군:" + m.industry : ""}\n` +
-            h.text
+            text
           );
         })
         .join("\n\n");
@@ -953,15 +966,38 @@ export async function POST(request: NextRequest) {
 
     // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성)
     const userMessageContent = isInfoRequest
-      ? `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 200자 이내로만 답하세요.`
-      : `질문: ${question}\n\n위 질문에 대화 맥락과 system prompt에 따라 자연스럽게 답하세요. 반드시 200자 이내로만 답하세요.`;
+      ? `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 30자 이내로만 답하세요.`
+      : `질문: ${question}\n\n위 질문에 대화 맥락과 system prompt에 따라 자연스럽게 답하세요. 반드시 30자 이내로만 답하세요.`;
+
+    // History 최적화: 최근 2턴만 포함 (user+assistant 쌍 2개 = 4개 메시지)
+    // 비정보성 질문일 때는 이전 정보성 질문의 RAG context 제거
+    let optimizedHistory = history.slice(-4); // 최근 2턴만
+    
+    if (!isInfoRequest && optimizedHistory.length > 0) {
+      // 비정보성 질문: 이전 정보성 질문의 RAG context 제거하여 토큰 절감
+      optimizedHistory = optimizedHistory.map((msg: { role: string; content: string }) => {
+        if (msg.role === 'user' && msg.content && msg.content.includes('[참고 가능한 이벤트]')) {
+          // RAG context 부분 제거
+          const parts = msg.content.split('\n\n[참고 가능한 이벤트]');
+          if (parts.length > 1) {
+            const questionPart = parts[0]; // "질문: ..." 부분만
+            const afterContext = parts[1].split('위 정보만 사용해')[1] || '';
+            return {
+              ...msg,
+              content: questionPart + (afterContext ? '\n\n' + afterContext.trim() : '')
+            };
+          }
+        }
+        return msg;
+      });
+    }
 
     const messages = [
       {
         role: "system",
         content: activeSystemPrompt,
       },
-      ...history, // 이전 대화 맥락
+      ...optimizedHistory, // 최적화된 이전 대화 맥락 (최근 2턴만)
       {
         role: "user",
         content: userMessageContent,
@@ -972,7 +1008,7 @@ export async function POST(request: NextRequest) {
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
-      maxTokens: 700,
+      maxTokens: 70, // 30자 내외 답변 (30자 × 1.5 tokens + 여유 25 tokens)
     });
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
@@ -1006,7 +1042,11 @@ export async function POST(request: NextRequest) {
       tokens: result.tokens,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error("[chat] Error:", e);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? String(e) : undefined
+    }, { status: 500 });
   }
 }

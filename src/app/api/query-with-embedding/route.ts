@@ -5,7 +5,7 @@ import path from 'path';
 
 // ENV 로드
 const APP_ID = getEnv("APP_ID", "testapp");
-const TOP_K = parseInt(getEnv("TOP_K", "3"), 10);
+const TOP_K = parseInt(getEnv("TOP_K", "2"), 10); // 기본값 3 → 2로 변경 (토큰 절감)
 
 // 1) Embedding/Segmentation BASE
 let HLX_BASE = getEnv(
@@ -57,6 +57,10 @@ const TOKENS = {
 // ====== HyperCLOVAX Embedding API ======
 async function embedText(text: string) {
   if (!text || !text.trim()) throw new Error("empty text for embedding");
+  
+  if (!HLX_KEY) {
+    throw new Error("HYPERCLOVAX_API_KEY environment variable is not set");
+  }
 
   const url = `${HLX_BASE}/v1/api-tools/embedding/${EMB_MODEL}`;
   const headers = {
@@ -146,6 +150,10 @@ function extractEmbedding(json: any) {
 
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
+  if (!CLOVA_KEY) {
+    throw new Error("CLOVA_API_KEY environment variable is not set");
+  }
+  
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
 
   // 메시지 포맷 변환
@@ -251,11 +259,20 @@ export async function POST(request: NextRequest) {
       (body?.systemPrompt && body.systemPrompt.trim()) ||
       defaultSystemPrompt;
 
-    const vectors = JSON.parse(fs.readFileSync(VECTORS_JSON, "utf8"));
-    if (!Array.isArray(vectors) || vectors.length === 0) {
+    let vectors: any[];
+    try {
+      const vectorsData = fs.readFileSync(VECTORS_JSON, "utf8");
+      vectors = JSON.parse(vectorsData);
+      if (!Array.isArray(vectors) || vectors.length === 0) {
+        return NextResponse.json({
+          error: "vectors.json is empty. Re-run /api/pre-processing-for-embedding.",
+        }, { status: 400 });
+      }
+    } catch (e) {
+      console.error("Failed to read vectors.json:", e);
       return NextResponse.json({
-        error: "vectors.json is empty. Re-run /api/pre-processing-for-embedding.",
-      }, { status: 400 });
+        error: "Failed to read vectors.json. Please ensure the file exists and is valid JSON.",
+      }, { status: 500 });
     }
 
     const qEmb = await embedText(question);
@@ -272,14 +289,21 @@ export async function POST(request: NextRequest) {
       score: Number(score.toFixed(4)),
     }));
 
+    // RAG Context 압축: 텍스트 길이 제한 (200자) + TOP_K 감소 (3→2)
+    const MAX_CONTEXT_TEXT_LENGTH = 200; // 각 이벤트 텍스트 최대 길이
     const context = slimHits
       .map((h, i) => {
         const m = h.meta || {};
+        // 텍스트 길이 제한 (200자)
+        const text = h.text && h.text.length > MAX_CONTEXT_TEXT_LENGTH
+          ? h.text.substring(0, MAX_CONTEXT_TEXT_LENGTH) + '...'
+          : h.text || '';
+        
         return (
           `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
           `${m.region ? " | 지역:" + m.region : ""}` +
           `${m.industry ? " | 산업군:" + m.industry : ""}\n` +
-          h.text
+          text
         );
       })
       .join("\n\n");
@@ -292,26 +316,30 @@ export async function POST(request: NextRequest) {
       ...(body?.history || []), // 이전 대화 맥락
       {
         role: "user",
-        content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요.`,
+        content: `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 반드시 30자 이내로만 답하세요.`,
       },
     ];
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
-      maxTokens: 200,
+      maxTokens: 70, // 30자 내외 답변 (30자 × 1.5 tokens + 여유 25 tokens)
     });
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
+
+    logTokenSummary("after query");
 
     return NextResponse.json({
       answer: cleanedAnswer,
       hits: slimHits,
       tokens: result.tokens,
     });
-    
-    logTokenSummary("after query");
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error("[query-with-embedding] Error:", e);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? String(e) : undefined
+    }, { status: 500 });
   }
 }
