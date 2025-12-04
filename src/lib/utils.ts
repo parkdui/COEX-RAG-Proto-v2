@@ -11,16 +11,29 @@ export const getEnv = (k: string, d = "") => {
 
 // 코사인 유사도 계산
 export function cosineSim(a: number[], b: number[]) {
+  if (!a || !b || a.length === 0 || b.length === 0) {
+    return 0;
+  }
+  
   let dot = 0,
     na = 0,
     nb = 0;
   const len = Math.min(a.length, b.length);
   for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
+    const ai = a[i] || 0;
+    const bi = b[i] || 0;
+    dot += ai * bi;
+    na += ai * ai;
+    nb += bi * bi;
   }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  
+  const denominator = Math.sqrt(na) * Math.sqrt(nb);
+  if (denominator === 0 || !isFinite(denominator)) {
+    return 0; // 빈 벡터나 잘못된 데이터의 경우 0 반환
+  }
+  
+  const result = dot / denominator;
+  return isFinite(result) ? result : 0;
 }
 
 // 이모지 제거 함수

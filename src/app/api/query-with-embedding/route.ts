@@ -258,6 +258,14 @@ function logTokenSummary(tag = "") {
 }
 
 export async function POST(request: NextRequest) {
+  // 각 요청마다 TOKENS 초기화 (동시성 문제 방지)
+  TOKENS.embed_input = 0;
+  TOKENS.embed_calls = 0;
+  TOKENS.chat_input = 0;
+  TOKENS.chat_output = 0;
+  TOKENS.chat_total = 0;
+  TOKENS.chat_calls = 0;
+  
   try {
     const body = await request.json();
     const question = (body?.question || "").trim();
