@@ -25,6 +25,11 @@ export default function AppFlow() {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const leaveHandlerRef = useRef<(() => void) | null>(null);
 
+  // 디버깅: 상태 변경 로그
+  useEffect(() => {
+    console.log('[AppFlow] 상태 변경:', { currentPage, isCheckingAccess, accessStatus });
+  }, [currentPage, isCheckingAccess, accessStatus]);
+
   const handleNext = () => {
     setIsTransitioning(true);
     setCurrentPage('main');
@@ -45,28 +50,56 @@ export default function AppFlow() {
 
   // 페이지 진입 시 접속 체크
   useEffect(() => {
+    let isMounted = true;
+    let safetyTimeout: NodeJS.Timeout | null = null;
+
     const checkAccess = async () => {
       try {
+        if (!isMounted) return;
         setIsCheckingAccess(true);
-        const response = await fetch('/api/enter');
+        console.log('[AppFlow] 접속 체크 시작...');
+        
+        // 타임아웃 설정 (3초로 단축 - 더 빠른 fallback)
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout')), 3000);
+        });
+        
+        const fetchPromise = fetch('/api/enter', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!isMounted) return;
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data: EnterResponse = await response.json();
+        console.log('[AppFlow] 접속 체크 응답:', data);
+        
+        if (!isMounted) return;
+        
         setAccessStatus(data);
         
         if (!data.allowed) {
+          console.log('[AppFlow] 접속 차단됨:', data.reason);
           setCurrentPage('blocked');
           setIsCheckingAccess(false);
           return;
         }
         
+        console.log('[AppFlow] 접속 허용됨, LandingPage 표시');
         setIsCheckingAccess(false);
+        setCurrentPage('landing'); // 명시적으로 landing 페이지로 설정
       } catch (error) {
-        console.error('Failed to check access:', error);
-        // KV 연결 실패 시에도 기본적으로 LandingPage를 보여줌
+        console.error('[AppFlow] 접속 체크 실패:', error);
+        
+        if (!isMounted) return;
+        
+        // 에러 발생 시 기본적으로 LandingPage를 보여줌
         // (접속 제어 기능이 작동하지 않아도 서비스는 이용 가능)
         setAccessStatus({
           allowed: true, // 기본적으로 허용
@@ -74,11 +107,33 @@ export default function AppFlow() {
           message: undefined
         });
         setIsCheckingAccess(false);
-        // currentPage는 이미 'landing'으로 초기화되어 있음
+        setCurrentPage('landing'); // 명시적으로 landing 페이지로 설정
+        console.log('[AppFlow] 기본 허용 모드로 LandingPage 표시');
       }
     };
 
+    // 안전장치: 5초 후에도 로딩 중이면 강제로 LandingPage 표시
+    safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.warn('[AppFlow] 안전장치: 5초 타임아웃, 강제로 LandingPage 표시');
+        setIsCheckingAccess(false);
+        setCurrentPage('landing');
+        setAccessStatus({
+          allowed: true,
+          reason: undefined,
+          message: undefined
+        });
+      }
+    }, 5000);
+
     checkAccess();
+
+    return () => {
+      isMounted = false;
+      if (safetyTimeout) {
+        clearTimeout(safetyTimeout);
+      }
+    };
   }, []);
 
   // MainPage로 전환 시 heartbeat 시작
@@ -142,20 +197,24 @@ export default function AppFlow() {
   const renderCurrentPage = () => {
     if (isCheckingAccess) {
       return (
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center bg-transparent relative" style={{ zIndex: 10 }}>
           <div className="text-center">
-            <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '16px' }}>
+            <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '16px', fontWeight: 500 }}>
               접속 확인 중...
+            </div>
+            <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
+              잠시만 기다려주세요
             </div>
           </div>
         </div>
       );
     }
 
-    switch (currentPage) {
+    try {
+      switch (currentPage) {
       case 'blocked':
         return (
-          <div className="min-h-screen flex items-center justify-center px-6">
+          <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ zIndex: 10 }}>
             <div className="text-center max-w-md">
               <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '20px', fontWeight: 600 }}>
                 {accessStatus?.message || '접속이 제한되었습니다.'}
@@ -180,16 +239,19 @@ export default function AppFlow() {
         );
       case 'landing':
         return (
-          <LandingPage 
-            onStart={handleBlobAnimationStart} 
-            showBlob={false} 
-          />
+          <div className="relative" style={{ zIndex: 10 }}>
+            <LandingPage 
+              onStart={handleBlobAnimationStart} 
+              showBlob={false} 
+            />
+          </div>
         );
       case 'main':
         return (
           <div 
-            className="transition-opacity duration-500"
+            className="transition-opacity duration-500 relative"
             style={{ 
+              zIndex: 10,
               opacity: isTransitioning ? 0 : 1,
               animation: isTransitioning ? 'none' : 'fadeIn 0.6s ease-in-out'
             }}
@@ -199,11 +261,38 @@ export default function AppFlow() {
         );
       default:
         return (
-          <LandingPage 
-            onStart={handleBlobAnimationStart} 
-            showBlob={false} 
-          />
+          <div className="relative" style={{ zIndex: 10 }}>
+            <LandingPage 
+              onStart={handleBlobAnimationStart} 
+              showBlob={false} 
+            />
+          </div>
         );
+      }
+    } catch (error) {
+      console.error('Error rendering page:', error);
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-transparent relative" style={{ zIndex: 10 }}>
+          <div className="text-center">
+            <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '16px', fontWeight: 500 }}>
+              페이지를 불러오는 중 오류가 발생했습니다.
+            </div>
+            <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
+              브라우저 콘솔을 확인해주세요.
+            </div>
+            <button
+              onClick={() => {
+                setCurrentPage('landing');
+                setIsCheckingAccess(false);
+              }}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              style={{ fontFamily: 'Pretendard Variable' }}
+            >
+              다시 시도
+            </button>
+          </div>
+        </div>
+      );
     }
   };
 
@@ -211,12 +300,34 @@ export default function AppFlow() {
     <div className="min-h-screen relative" style={{ background: 'transparent' }}>
       {/* AppFlow 레벨에서 BlobBackground를 관리하여 상태 유지 */}
       {showBlobBackground && (
-        <BlobBackground
-          isAnimating={blobAnimating}
-          onAnimationComplete={handleBlobAnimationComplete}
-        />
+        <div 
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            zIndex: 0, 
+            pointerEvents: 'none',
+            isolation: 'isolate'
+          }}
+        >
+          <BlobBackground
+            isAnimating={blobAnimating}
+            onAnimationComplete={handleBlobAnimationComplete}
+          />
+        </div>
       )}
-      {renderCurrentPage()}
+      {/* 페이지 컨텐츠 - z-index로 확실히 위에 표시 */}
+      <div 
+        className="relative" 
+        style={{ 
+          minHeight: '100vh', 
+          width: '100%', 
+          zIndex: 10, 
+          position: 'relative',
+          isolation: 'isolate'
+        }}
+      >
+        {renderCurrentPage()}
+      </div>
       <style jsx>{`
         @keyframes fadeIn {
           from {

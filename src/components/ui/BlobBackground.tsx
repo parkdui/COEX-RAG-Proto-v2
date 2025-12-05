@@ -119,7 +119,7 @@ export default function BlobBackground({
         .coex-v2-host {
           position: fixed;
           inset: 0;
-          z-index: 0;
+          z-index: 0 !important;
           pointer-events: none;
           background: transparent;
         }

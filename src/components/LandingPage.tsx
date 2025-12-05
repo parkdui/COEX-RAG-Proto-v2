@@ -197,8 +197,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       {showVideo && (
         <video
           ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover z-50"
+          className="absolute inset-0 w-full h-full object-cover"
           style={{
+            zIndex: 50,
             position: 'absolute',
             top: 0,
             left: 0,
@@ -237,8 +238,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
 
       {/* 메인 콘텐츠 - 상단에 배치 */}
       <div 
-        className="relative z-[60] flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
+        className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
+          zIndex: 60,
           paddingTop: moveToBottom ? '20px' : '120px',
           paddingBottom: '120px', // 버튼 공간 확보
           transform: moveToBottom ? 'translateY(calc(100vh - 240px))' : 'translateY(0)',
@@ -392,7 +394,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
       </div>
 
       {/* 시작하기 버튼 - 화면 하단 고정 */}
-      <div className="fixed bottom-0 left-0 right-0 z-[60] px-6 pb-8 pt-4 safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 px-6 pb-8 pt-4 safe-bottom" style={{ zIndex: 60 }}>
         <button
           onClick={handleStartClick}
           disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 100)}

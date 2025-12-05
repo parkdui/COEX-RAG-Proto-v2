@@ -38,7 +38,7 @@ export function CanvasBackground({ boosted, phase, popActive, className }: Canva
           inset: 0;
           pointer-events: none;
           overflow: hidden;
-          z-index: 3;
+          z-index: 1;
           opacity: 1;
           transition: opacity 900ms ease, filter 1200ms ease;
         }
