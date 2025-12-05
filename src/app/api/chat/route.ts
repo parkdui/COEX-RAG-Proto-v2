@@ -281,6 +281,12 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   const chatOut = Number(chatUsage.completionTokens ?? 0);
   const chatTotal = Number(chatUsage.totalTokens ?? chatIn + chatOut);
 
+  // 응답 내용 추출
+  const responseContent =
+    json?.result?.message?.content?.[0]?.text ||
+    json?.result?.message?.content ||
+    "";
+
   // classification 호출인지 확인 (메시지가 2개이고 system + user 구조이며, 짧은 프롬프트인 경우)
   const isClassificationCall = 
     messages.length === 2 &&
@@ -294,7 +300,7 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     TOKENS.classification_total += chatTotal;
     TOKENS.classification_calls += 1;
 
-    if (process.env.LOG_TOKENS === "1") {
+    if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
       console.log(
         `🔍 [CLASSIFY] in=${chatIn} out=${chatOut} total=${chatTotal} ` +
           `(acc_total=${TOKENS.classification_total}, calls=${TOKENS.classification_calls})`
@@ -306,20 +312,21 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     TOKENS.chat_total += chatTotal;
     TOKENS.chat_calls += 1;
 
-    if (process.env.LOG_TOKENS === "1") {
-      console.log(
-        `💬 [CHAT] in=${chatIn} out=${chatOut} total=${chatTotal} ` +
-          `(acc_total=${TOKENS.chat_total}, calls=${TOKENS.chat_calls})`
-      );
+    // 상세 로깅: API 응답 후 실제 토큰 사용량 출력
+    if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
+      console.log("\n" + "=".repeat(80));
+      console.log("📥 [API RESPONSE] CLOVA Chat API 응답");
+      console.log("=".repeat(80));
+      console.log(`💬 [CHAT] input=${chatIn} output=${chatOut} total=${chatTotal}`);
+      console.log(`💬 [CHAT] 누적: input=${TOKENS.chat_input} output=${TOKENS.chat_output} total=${TOKENS.chat_total} (calls=${TOKENS.chat_calls})`);
+      console.log(`📝 [RESPONSE] ${responseContent.substring(0, 100)}${responseContent.length > 100 ? '...' : ''}`);
+      console.log("=".repeat(80) + "\n");
     }
   }
 
   // 응답 형태 호환 처리
   return {
-    content:
-      json?.result?.message?.content?.[0]?.text ||
-      json?.result?.message?.content ||
-      "",
+    content: responseContent,
     tokens: {
       input: chatIn,
       output: chatOut,
@@ -879,16 +886,15 @@ export async function POST(request: NextRequest) {
       console.warn("Could not read system prompt file:", e);
     }
 
-    // 현재 날짜 정보 추가
+    // 현재 날짜 정보 추가 (간소화)
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
     const weekday = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()];
-    const currentDateInfo = `\n\n[현재 날짜 정보]\n현재 날짜는 ${year}년 ${month}월 ${day}일(${weekday}요일)이다. 지나간 날짜의 이벤트는 추천하지 않아야 한다.\n`;
+    const currentDateInfo = `\n\n[날짜] ${year}년 ${month}월 ${day}일(${weekday}). 지나간 이벤트 추천 금지.`;
 
-    const headlineConstraint = "\n\n[응답 형식 규칙]\n응답의 첫 번째 문장(또는 첫 번째 문단)은 모바일 화면에서 최대 2줄로 표시될 수 있도록 작성해야 합니다. 한 줄은 약 12자 정도로 계산하여, 첫 번째 문장은 약 24자 이내로 작성하되, 문장이 자연스럽게 끝맺음되도록 해주세요.";
+    const headlineConstraint = "\n\n[응답] 첫 문장 24자 이내.";
     
     const activeSystemPrompt =
       ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo + headlineConstraint;
@@ -966,34 +972,34 @@ export async function POST(request: NextRequest) {
         score: Number(score.toFixed(4)),
       }));
 
-      // RAG Context 압축: 텍스트 길이 제한 (200자) + TOP_K 감소 (3→2)
-      const MAX_CONTEXT_TEXT_LENGTH = 200; // 각 이벤트 텍스트 최대 길이
+      // RAG Context 압축: 텍스트 길이 제한 (100자로 더 줄임) + TOP_K 감소 (3→2)
+      const MAX_CONTEXT_TEXT_LENGTH = 100; // 각 이벤트 텍스트 최대 길이 (200→100으로 축소)
       context = slimHits
         .map((h, i) => {
           const m = h.meta || {};
-          // 텍스트 길이 제한 (200자)
+          // 텍스트 길이 제한 (100자)
           const text = h.text && h.text.length > MAX_CONTEXT_TEXT_LENGTH
             ? h.text.substring(0, MAX_CONTEXT_TEXT_LENGTH) + '...'
             : h.text || '';
           
+          // 메타 정보도 간소화
           return (
             `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
-            `${m.region ? " | 지역:" + m.region : ""}` +
-            `${m.industry ? " | 산업군:" + m.industry : ""}\n` +
+            `${m.industry ? " | " + m.industry : ""}\n` +
             text
           );
         })
         .join("\n\n");
     }
 
-    // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성)
+    // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성) - 프롬프트 간소화
     const userMessageContent = isInfoRequest
-      ? `질문: ${question}\n\n[참고 가능한 이벤트]\n${context}\n\n위 정보만 사용해 사용자 질문에 답하세요. 만약 [참고 가능한 이벤트]에 대한 정보를 묻지 않고 있다면, 대화 맥락과 system prompt에 따라 '질문'에 답하세요. 반드시 30자 이내로만 답하세요.`
-      : `질문: ${question}\n\n위 질문에 대화 맥락과 system prompt에 따라 자연스럽게 답하세요. 반드시 30자 이내로만 답하세요.`;
+      ? `질문: ${question}\n\n[참고 이벤트]\n${context}\n\n위 정보로 답하세요. 30자 이내.`
+      : `질문: ${question}\n\n30자 이내로 답하세요.`;
 
-    // History 최적화: 최근 2턴만 포함 (user+assistant 쌍 2개 = 4개 메시지)
+    // History 최적화: 최근 1턴만 포함 (user+assistant 쌍 1개 = 2개 메시지) - 토큰 절감 강화
     // 비정보성 질문일 때는 이전 정보성 질문의 RAG context 제거
-    let optimizedHistory = history.slice(-4); // 최근 2턴만
+    let optimizedHistory = history.slice(-2); // 최근 1턴만 (2턴→1턴으로 축소)
     
     if (!isInfoRequest && optimizedHistory.length > 0) {
       // 비정보성 질문: 이전 정보성 질문의 RAG context 제거하여 토큰 절감
@@ -1019,12 +1025,32 @@ export async function POST(request: NextRequest) {
         role: "system",
         content: activeSystemPrompt,
       },
-      ...optimizedHistory, // 최적화된 이전 대화 맥락 (최근 2턴만)
+      ...optimizedHistory, // 최적화된 이전 대화 맥락 (최근 1턴만)
       {
         role: "user",
         content: userMessageContent,
       },
     ];
+
+    // 상세 로깅: API 호출 전 메시지 내용 출력
+    if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
+      console.log("\n" + "=".repeat(80));
+      console.log("📤 [API CALL] CLOVA Chat API 호출");
+      console.log("=".repeat(80));
+      console.log(`\n📋 System Prompt 길이: ${activeSystemPrompt.length}자 (약 ${Math.round(activeSystemPrompt.length * 1.4)} tokens)`);
+      console.log(`📋 History 메시지 수: ${optimizedHistory.length}개`);
+      optimizedHistory.forEach((msg: any, idx: number) => {
+        const contentPreview = typeof msg.content === 'string' 
+          ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+          : String(msg.content).substring(0, 100);
+        console.log(`  [${idx + 1}] ${msg.role}: ${contentPreview} (${msg.content?.length || 0}자)`);
+      });
+      console.log(`📋 User Message: ${userMessageContent.substring(0, 200)}${userMessageContent.length > 200 ? '...' : ''} (${userMessageContent.length}자)`);
+      console.log(`📋 총 메시지 수: ${messages.length}개`);
+      const totalChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : String(m.content).length), 0);
+      console.log(`📋 총 문자 수: ${totalChars}자 (약 ${Math.round(totalChars * 1.4)} tokens 예상)`);
+      console.log("=".repeat(80) + "\n");
+    }
 
     // 메시지 처리
 
@@ -1057,6 +1083,19 @@ export async function POST(request: NextRequest) {
     })();
 
     logTokenSummary("after query");
+
+    // 최종 토큰 사용량 요약 로그
+    if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
+      const totalTokens = TOKENS.classification_total + TOKENS.embed_input + TOKENS.chat_total;
+      console.log("\n" + "=".repeat(80));
+      console.log("📊 [TOKEN SUMMARY] 이번 요청 토큰 사용량");
+      console.log("=".repeat(80));
+      console.log(`🔍 Classification: ${TOKENS.classification_total} tokens (${TOKENS.classification_calls} calls)`);
+      console.log(`📦 Embedding: ${TOKENS.embed_input} tokens (${TOKENS.embed_calls} calls)`);
+      console.log(`💬 Chat: ${TOKENS.chat_total} tokens (${TOKENS.chat_calls} calls)`);
+      console.log(`📊 총합: ${totalTokens} tokens`);
+      console.log("=".repeat(80) + "\n");
+    }
 
     return NextResponse.json({
       answer: cleanedAnswer,
