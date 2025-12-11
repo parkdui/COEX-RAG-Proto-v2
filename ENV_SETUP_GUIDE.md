@@ -94,3 +94,7 @@ UPSTASH_REDIS_REST_TOKEN=복사한_TOKEN
 2. 또는 Vercel 지원팀에 문의
 
 
+
+
+
+

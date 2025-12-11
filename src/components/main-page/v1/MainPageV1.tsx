@@ -401,7 +401,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         // AI 응답 요청
         chatState.setIsLoading(true);
         try {
-          const historyToSend = chatState.chatHistory.slice(-10);
+          const historyToSend = chatState.chatHistory.slice(-4); // 최근 2턴 (토큰 절감 + 맥락 유지)
           const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend);
 
           if (chatData.error) {
@@ -553,7 +553,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.setIsLoading(true);
 
     try {
-      const historyToSend = chatState.chatHistory.slice(-10);
+      const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
       const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend);
 
       if (data.error) {
@@ -797,7 +797,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.setIsLoading(true);
 
     try {
-      const historyToSend = chatState.chatHistory.slice(-10);
+      const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
       const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend);
 
       if (data.error) {

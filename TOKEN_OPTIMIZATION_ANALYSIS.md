@@ -255,3 +255,7 @@ const recentHistory = history.slice(-4); // 최근 2턴만
 - 토큰 사용량: 38,580 → ~25,000 tokens (35% 감소)
 - 비용: $0.05 → $0.032 per session (36% 절감)
 
+
+
+
+

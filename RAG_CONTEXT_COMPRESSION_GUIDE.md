@@ -261,3 +261,7 @@ const MAX_CONTEXT_LENGTH = 150; // 각 이벤트당 150자
 - 약 500-600 tokens 추가 절감 가능
 - 세션당 총 토큰: ~23,000 tokens (40% 감소)
 
+
+
+
+

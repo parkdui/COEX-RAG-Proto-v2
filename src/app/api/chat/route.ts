@@ -6,7 +6,7 @@ import { google } from 'googleapis';
 
 // ENV 로드
 const APP_ID = getEnv("APP_ID", "testapp");
-const TOP_K = parseInt(getEnv("TOP_K", "2"), 10); // 기본값 3 → 2로 변경 (토큰 절감)
+const TOP_K = parseInt(getEnv("TOP_K", "1"), 10); // 기본값 2 → 1로 변경 (토큰 절감 극대화)
 
 // 1) Embedding/Segmentation BASE
 let HLX_BASE = getEnv(
@@ -157,26 +157,22 @@ function extractEmbedding(json: any) {
 
 // ====== 정보 요구 질문 판별 함수 ======
 async function isInfoRequestQuestion(question: string): Promise<boolean> {
-  const classificationPrompt = `다음 사용자 질문이 코엑스의 이벤트, 장소, 행사, 식당, 카페 등에 대한 정보를 요구하는 질문인지 판별해주세요.
-
-정보 요구 질문의 예시:
-- "추천해줘", "알려줘", "어디에 있어?", "어떤 곳이야?", "정보를 주세요"
-- "식당 추천", "카페 위치", "이벤트 일정", "전시 정보"
-- "데이트하기 좋은 곳", "쇼핑하기 좋은 곳", "조용한 카페"
-
-정보 요구 질문이 아닌 예시:
-- "안녕하세요", "고마워", "좋아", "알겠어", "네", "아니요"
-- "그렇구나", "재밌겠다", "좋은 생각이야"
-- 단순한 감탄사나 응답
-
-질문: "${question}"
-
-위 질문이 정보를 요구하는 질문이면 "YES", 그렇지 않으면 "NO"로만 답변하세요.`;
+  // 간단한 키워드 기반 판별로 Classification API 호출 최소화
+  const infoKeywords = ['추천', '알려', '어디', '어떤', '정보', '위치', '일정', '식당', '카페', '이벤트', '전시', '행사'];
+  const hasInfoKeyword = infoKeywords.some(keyword => question.includes(keyword));
+  
+  // 키워드가 있으면 바로 true 반환 (Classification API 스킵)
+  if (hasInfoKeyword) {
+    return true;
+  }
+  
+  // 키워드가 없으면 Classification API 호출
+  const classificationPrompt = `"${question}" 이벤트/장소/식당 정보 요구? YES/NO만.`;
 
   const messages = [
     {
       role: "system",
-      content: "당신은 사용자 질문을 정보 요구 질문인지 판별하는 전문가입니다. YES 또는 NO로만 답변하세요.",
+      content: "YES/NO만.",
     },
     {
       role: "user",
@@ -292,7 +288,8 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     messages.length === 2 &&
     messages[0]?.role === "system" &&
     messages[1]?.role === "user" &&
-    messages[1]?.content?.includes("정보를 요구하는 질문인지 판별");
+    (messages[1]?.content?.includes("코엑스 이벤트/장소/식당 정보를 요구") || 
+     messages[0]?.content === "YES 또는 NO만 답변.");
 
   if (isClassificationCall) {
     TOKENS.classification_input += chatIn;
@@ -886,18 +883,23 @@ export async function POST(request: NextRequest) {
       console.warn("Could not read system prompt file:", e);
     }
 
-    // 현재 날짜 정보 추가 (간소화)
+    // 현재 날짜 정보 추가 (최소화)
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
     const weekday = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()];
-    const currentDateInfo = `\n\n[날짜] ${year}년 ${month}월 ${day}일(${weekday}). 지나간 이벤트 추천 금지.`;
+    const currentDateInfo = `\n[날짜] ${year}-${month}-${day}(${weekday}). 지나간 이벤트 금지.`;
 
-    const headlineConstraint = "\n\n[응답] 첫 문장 24자 이내.";
+    const headlineConstraint = "\n[응답] 첫 문장 24자 이내.";
     
-    const activeSystemPrompt =
-      ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo + headlineConstraint;
+    // System Prompt 최적화: 첫 메시지에만 전체 전송, 이후에는 최소한만
+    const fullSystemPrompt = ((body?.systemPrompt && body.systemPrompt.trim()) || defaultSystemPrompt) + currentDateInfo + headlineConstraint;
+    
+    // 첫 메시지가 아니면 System Prompt를 최소화 (핵심 지시만)
+    const activeSystemPrompt = isFirstMessage 
+      ? fullSystemPrompt // 첫 메시지: 전체 System Prompt (약 630 토큰)
+      : "이솔(SORI). 따뜻한 존댓말, 30자 이내." + currentDateInfo; // 이후: 극대 최소화 (약 30 토큰)
 
     // vectors.json은 정보 요구 질문일 때만 필요하므로, 나중에 필요할 때 로드
     let vectors: any[] = [];
@@ -925,18 +927,20 @@ export async function POST(request: NextRequest) {
     const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
     
     // 이전 대화 히스토리에서 질문 번호 계산
-    const history = body?.history || [];
+    const fullHistory = body?.history || [];
+    
     let previousConversationCount = 0;
-    for (let i = 0; i < history.length; i++) {
-      const msg = history[i];
+    for (let i = 0; i < fullHistory.length; i++) {
+      const msg = fullHistory[i];
       if (msg && msg.role === 'user') {
-        const aiMsg = history[i + 1];
+        const aiMsg = fullHistory[i + 1];
         if (aiMsg && aiMsg.role === 'assistant') {
           previousConversationCount++;
         }
       }
     }
     const messageNumber = previousConversationCount + 1; // 현재 질문 번호
+    const isFirstMessage = messageNumber === 1; // 첫 메시지 여부
     
     // 실시간 로깅: 질문 입력 시 즉시 저장 (비동기, 에러 무시)
     saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, activeSystemPrompt).catch((error) => {
@@ -964,7 +968,9 @@ export async function POST(request: NextRequest) {
         .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
         .sort((a, b) => b.score - a.score);
 
-      const ranked = scored.slice(0, TOP_K);
+      // TOP_K를 3에서 2로 감소
+      const OPTIMIZED_TOP_K = 2;
+      const ranked = scored.slice(0, OPTIMIZED_TOP_K);
       slimHits = ranked.map(({ v, score }) => ({
         id: v.id,
         meta: v.meta,
@@ -972,60 +978,41 @@ export async function POST(request: NextRequest) {
         score: Number(score.toFixed(4)),
       }));
 
-      // RAG Context 압축: 텍스트 길이 제한 (100자로 더 줄임) + TOP_K 감소 (3→2)
-      const MAX_CONTEXT_TEXT_LENGTH = 100; // 각 이벤트 텍스트 최대 길이 (200→100으로 축소)
+      // RAG Context 극대 압축: 텍스트 30자로 제한, 메타데이터 최소화
+      const MAX_CONTEXT_TEXT_LENGTH = 30; // 각 이벤트 텍스트 최대 길이 (50→30으로 축소)
       context = slimHits
         .map((h, i) => {
           const m = h.meta || {};
-          // 텍스트 길이 제한 (100자)
+          // 텍스트 길이 제한 (30자)
           const text = h.text && h.text.length > MAX_CONTEXT_TEXT_LENGTH
             ? h.text.substring(0, MAX_CONTEXT_TEXT_LENGTH) + '...'
             : h.text || '';
           
-          // 메타 정보도 간소화
-          return (
-            `[${i + 1}] ${m.title || ""} | ${m.date || ""} | ${m.venue || ""}` +
-            `${m.industry ? " | " + m.industry : ""}\n` +
-            text
-          );
+          // 메타 정보 최소화 (제목만, 날짜 제거)
+          return `${m.title || ""}: ${text}`;
         })
-        .join("\n\n");
+        .join(" | ");
     }
 
-    // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성) - 프롬프트 간소화
+    // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성) - 극대 간소화
     const userMessageContent = isInfoRequest
-      ? `질문: ${question}\n\n[참고 이벤트]\n${context}\n\n위 정보로 답하세요. 30자 이내.`
-      : `질문: ${question}\n\n30자 이내로 답하세요.`;
+      ? context 
+        ? `${question}\n[이벤트] ${context}`
+        : question // context가 비어있으면 질문만
+      : question; // 비정보 질문도 질문만
 
-    // History 최적화: 최근 1턴만 포함 (user+assistant 쌍 1개 = 2개 메시지) - 토큰 절감 강화
-    // 비정보성 질문일 때는 이전 정보성 질문의 RAG context 제거
-    let optimizedHistory = history.slice(-2); // 최근 1턴만 (2턴→1턴으로 축소)
+    // History 최적화: 토큰 절감을 위해 히스토리 완전 제거
+    // System Prompt가 첫 메시지에만 전송되므로, 이후 메시지에서는 히스토리 없이도 충분
+    let optimizedHistory: any[] = [];
     
-    if (!isInfoRequest && optimizedHistory.length > 0) {
-      // 비정보성 질문: 이전 정보성 질문의 RAG context 제거하여 토큰 절감
-      optimizedHistory = optimizedHistory.map((msg: { role: string; content: string }) => {
-        if (msg.role === 'user' && msg.content && msg.content.includes('[참고 가능한 이벤트]')) {
-          // RAG context 부분 제거
-          const parts = msg.content.split('\n\n[참고 가능한 이벤트]');
-          if (parts.length > 1) {
-            const questionPart = parts[0]; // "질문: ..." 부분만
-            const afterContext = parts[1].split('위 정보만 사용해')[1] || '';
-            return {
-              ...msg,
-              content: questionPart + (afterContext ? '\n\n' + afterContext.trim() : '')
-            };
-          }
-        }
-        return msg;
-      });
-    }
+    // 히스토리는 완전히 제거하여 토큰 절감 (대화 품질은 System Prompt로 유지)
 
     const messages = [
       {
         role: "system",
         content: activeSystemPrompt,
       },
-      ...optimizedHistory, // 최적화된 이전 대화 맥락 (최근 1턴만)
+      ...optimizedHistory, // 히스토리 완전 제거 (토큰 절감, System Prompt로 맥락 유지)
       {
         role: "user",
         content: userMessageContent,
@@ -1056,7 +1043,7 @@ export async function POST(request: NextRequest) {
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
-      maxTokens: 70, // 30자 내외 답변 (30자 × 1.5 tokens + 여유 25 tokens)
+      maxTokens: 100, // 30자 이내 답변 보장 + 문장 완성 여유 (70→100으로 증가하여 끊김 방지)
     });
 
     const cleanedAnswer = removeEmojiLikeExpressions(result.content);
