@@ -259,3 +259,4 @@ const recentHistory = history.slice(-4); // 최근 2턴만
 
 
 
+
