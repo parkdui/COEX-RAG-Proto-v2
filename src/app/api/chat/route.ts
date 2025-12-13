@@ -832,11 +832,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 세션 ID 생성 (브라우저 세션 기반 - 새로고침 전까지 동일)
-    const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const userAgent = request.headers.get('user-agent') || 'unknown';
-    const sessionString = `${clientIP}-${userAgent}`;
-    const sessionId = `session-${Math.abs(sessionString.split('').reduce((a, b) => a + b.charCodeAt(0), 0))}`;
+    // 세션 ID 생성: 클라이언트에서 전달받거나, 고유한 ID 생성
+    // body에서 sessionId를 받으면 사용하고, 없으면 고유한 ID 생성 (타임스탬프 + 랜덤 포함)
+    let sessionId = body?.sessionId;
+    if (!sessionId || typeof sessionId !== 'string') {
+      // 고유한 세션 ID 생성 (타임스탬프 + 랜덤 문자열)
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 15);
+      const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      const sessionString = `${timestamp}-${random}-${clientIP}-${userAgent}`;
+      // 더 안전한 해시 생성
+      const hash = sessionString.split('').reduce((a, b) => {
+        const char = b.charCodeAt(0);
+        return ((a << 5) - a) + char;
+      }, 0);
+      sessionId = `session-${Math.abs(hash)}-${timestamp}`;
+    }
+    
+    console.log(`[Chat] Session ID: ${sessionId}`);
     
     // 한국 시간으로 timestamp 생성 (YYYY-MM-DD HH:MM:SS 형식)
     const now = new Date();
@@ -859,8 +873,17 @@ export async function POST(request: NextRequest) {
     const messageNumber = previousConversationCount + 1; // 현재 질문 번호
     
     // 디버깅: messageNumber 확인
-    console.log(`[Chat] Message number calculation: history length=${fullHistory.length}, previousConversationCount=${previousConversationCount}, messageNumber=${messageNumber}`);
-    console.log(`[Chat] History:`, JSON.stringify(fullHistory.map((m: any) => ({ role: m.role, content: m.content?.substring(0, 50) }))));
+    console.log(`[Chat] ====== MESSAGE NUMBER CALCULATION ======`);
+    console.log(`[Chat] History length: ${fullHistory.length}`);
+    console.log(`[Chat] Previous conversation count: ${previousConversationCount}`);
+    console.log(`[Chat] Current message number: ${messageNumber}`);
+    console.log(`[Chat] History structure:`, fullHistory.map((m: any, idx: number) => ({
+      index: idx,
+      role: m.role,
+      contentLength: m.content?.length || 0,
+      contentPreview: m.content?.substring(0, 30) || ''
+    })));
+    console.log(`[Chat] ========================================`);
     
     // System Prompt 읽기 및 날짜 정보 추가
     let defaultSystemPrompt = "";
