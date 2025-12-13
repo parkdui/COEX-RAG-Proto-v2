@@ -449,7 +449,13 @@ async function findLastMessageNumber(sessionId: string): Promise<number> {
 }
 
 // 세션의 row index 찾기 또는 생성
-async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number): Promise<number> {
+// body에서 rowIndex를 받으면 직접 사용, 없으면 찾거나 생성
+async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number, providedRowIndex?: number | null): Promise<number> {
+  // rowIndex가 제공되면 직접 사용 (동시 사용자 문제 해결)
+  if (providedRowIndex && providedRowIndex > 0) {
+    console.log(`[Google Sheets] Using provided rowIndex: ${providedRowIndex}`);
+    return providedRowIndex;
+  }
   const client = await getGoogleSheetsClient();
   if (!client) {
     throw new Error("Google Sheets client not available");
@@ -576,19 +582,20 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
 }
 
 // 실시간으로 사용자 메시지 저장 (D column부터 시작)
-async function saveUserMessageRealtime(sessionId: string, messageNumber: number, userMessage: string, timestamp: string, systemPrompt: string) {
+// rowIndex를 반환하여 클라이언트에 전달할 수 있도록 함
+async function saveUserMessageRealtime(sessionId: string, messageNumber: number, userMessage: string, timestamp: string, systemPrompt: string, providedRowIndex?: number | null): Promise<number | null> {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
       console.warn("[Google Sheets] Client not available, skipping user message save");
-      return;
+      return null;
     }
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     console.log(`[Google Sheets] Saving user message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
-    // 세션 row 찾기 또는 생성 (messageNumber 전달)
-    const rowIndex = await findOrCreateSessionRow(sessionId, timestamp, systemPrompt, messageNumber);
+    // 세션 row 찾기 또는 생성 (messageNumber 전달, providedRowIndex 사용)
+    const rowIndex = await findOrCreateSessionRow(sessionId, timestamp, systemPrompt, messageNumber, providedRowIndex);
     
     console.log(`[Google Sheets] Row index: ${rowIndex}`);
     
@@ -913,17 +920,53 @@ export async function POST(request: NextRequest) {
     const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
     const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
     
-    // 질문 번호 계산: Google Sheets에서 마지막 질문 번호를 확인하여 정확한 번호 사용
-    // 이 방법이 가장 정확함 (history가 없어도, 전달되지 않아도 정확한 번호 사용)
-    const lastMessageNumber = await findLastMessageNumber(sessionId);
-    const messageNumber = lastMessageNumber + 1; // 다음 질문 번호
+    // 질문 번호 계산: body에서 받거나, Google Sheets에서 확인
+    // body에서 rowIndex를 받으면 해당 row의 마지막 질문 번호 확인
+    let messageNumber = body?.messageNumber;
+    let rowIndex: number | undefined = body?.rowIndex; // 클라이언트에서 전달받은 rowIndex
+    
+    if (!messageNumber || typeof messageNumber !== 'number') {
+      // messageNumber가 없으면 Google Sheets에서 확인
+      if (rowIndex && typeof rowIndex === 'number' && rowIndex > 0) {
+        // rowIndex가 제공되면 해당 row에서 마지막 질문 번호 확인
+        const client = await getGoogleSheetsClient();
+        if (client) {
+          const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+          try {
+            const rowData = await sheets.spreadsheets.values.get({
+              spreadsheetId: LOG_GOOGLE_SHEET_ID,
+              range: `${LOG_GOOGLE_SHEET_NAME}!A${rowIndex}:N${rowIndex}`,
+            });
+            if (rowData.data.values && rowData.data.values[0]) {
+              const row = rowData.data.values[0];
+              // D(3), F(5), H(7), J(9), L(11), N(13) 열을 확인하여 마지막 질문 번호 찾기
+              for (let msgNum = 6; msgNum >= 1; msgNum--) {
+                const columnIndex = 3 + (msgNum - 1) * 2;
+                if (row[columnIndex] && row[columnIndex].trim() !== "") {
+                  messageNumber = msgNum + 1;
+                  console.log(`[Chat] Found last message number ${msgNum} in row ${rowIndex}, using messageNumber ${messageNumber}`);
+                  break;
+                }
+              }
+              if (!messageNumber) messageNumber = 1;
+            }
+          } catch (error) {
+            console.error("[Chat] Error reading row data:", error);
+          }
+        }
+      } else {
+        // rowIndex가 없으면 기존 방식 사용
+        const lastMessageNumber = await findLastMessageNumber(sessionId);
+        messageNumber = lastMessageNumber + 1;
+      }
+    }
     
     // 디버깅: messageNumber 확인
     console.log(`[Chat] ====== MESSAGE NUMBER CALCULATION ======`);
     console.log(`[Chat] SessionId: ${sessionId}`);
-    console.log(`[Chat] Last message number from Google Sheets: ${lastMessageNumber}`);
-    console.log(`[Chat] Current message number: ${messageNumber}`);
+    console.log(`[Chat] Body rowIndex: ${body?.rowIndex}`);
     console.log(`[Chat] Body messageNumber: ${body?.messageNumber}`);
+    console.log(`[Chat] Calculated messageNumber: ${messageNumber}`);
     console.log(`[Chat] History length: ${body?.history?.length || 0}`);
     console.log(`[Chat] ========================================`);
     
