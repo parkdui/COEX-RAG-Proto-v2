@@ -873,12 +873,16 @@ export async function POST(request: NextRequest) {
       ? `${defaultSystemPrompt}\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`
       : `너는 '이솔(SORI)'이라는 이름의 젊은 여성 AI 마스코트다. 코엑스를 방문한 사람과 자연스럽게 대화하며 즐거움, 영감, 새로운 시선을 선사하는 동행자다.\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`;
     
-    // 실시간 로깅: 질문 입력 시 즉시 저장 (비동기, 에러 무시)
+    // 실시간 로깅: 질문 입력 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
     // 시스템 프롬프트의 첫 100자만 로그에 저장 (토큰 절감을 위해)
     const systemPromptForLog = activeSystemPrompt.substring(0, 100) + (activeSystemPrompt.length > 100 ? '...' : '');
-    saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog).catch((error) => {
+    try {
+      await saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog);
+      console.log(`[Chat Log] User message ${messageNumber} saved successfully`);
+    } catch (error) {
       console.error('[Chat Log] Failed to save user message in realtime:', error);
-    });
+      // 에러가 발생해도 메인 플로우는 계속 진행
+    }
 
     console.log("[chat] System prompt loaded, length:", activeSystemPrompt.length);
 
