@@ -873,8 +873,9 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number, providedR
       }
       
       if (rowIndex === -1) {
-      console.error(`[Chat Log] Row with data not found for token update after ${maxRetries} retries`);
-      return;
+        console.error(`[Chat Log] Row with data not found for token update after ${maxRetries} retries`);
+        return;
+      }
     }
     
     // P column = index 15 (0-based)
