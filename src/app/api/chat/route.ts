@@ -991,7 +991,7 @@ export async function POST(request: NextRequest) {
     // 질문 번호 계산: body에서 받거나, Google Sheets에서 확인
     // 프론트엔드에서 messageNumber를 계산해서 보내도록 수정했으므로, body에서 받은 값을 우선 사용
     let messageNumber = body?.messageNumber;
-    let rowIndex: number | undefined = body?.rowIndex; // 클라이언트에서 전달받은 rowIndex
+    const rowIndex: number | undefined = body?.rowIndex; // 클라이언트에서 전달받은 rowIndex
     
     // messageNumber가 없거나 유효하지 않으면 계산
     if (!messageNumber || typeof messageNumber !== 'number' || messageNumber < 1) {
