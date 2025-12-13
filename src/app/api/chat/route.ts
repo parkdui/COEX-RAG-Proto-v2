@@ -1001,13 +1001,21 @@ export async function POST(request: NextRequest) {
 
     // 메시지 처리
     console.log("[chat] Calling CLOVA Chat API, messages count:", messages.length);
+    console.log("[chat] Messages:", JSON.stringify(messages, null, 2));
     
-    const result = await callClovaChat(messages, {
-      temperature: 0.3,
-      maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
-    });
-    
-    console.log("[chat] CLOVA Chat API response received");
+    let result;
+    try {
+      result = await callClovaChat(messages, {
+        temperature: 0.3,
+        maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
+      });
+      console.log("[chat] CLOVA Chat API response received");
+    } catch (clovaError) {
+      console.error("[chat] ❌ CLOVA Chat API call failed:", clovaError);
+      console.error("[chat] ❌ Error details:", clovaError instanceof Error ? clovaError.message : String(clovaError));
+      console.error("[chat] ❌ Error stack:", clovaError instanceof Error ? clovaError.stack : "N/A");
+      throw clovaError; // 에러를 다시 throw하여 상위 catch 블록에서 처리
+    }
 
     let cleanedAnswer = removeEmojiLikeExpressions(result.content || '').trim();
 
