@@ -34,6 +34,14 @@ let CLOVA_BASE = getEnv(
   "https://clovastudio.apigw.ntruss.com"
 );
 
+// stream 도메인이면 apigw로 교체
+if (/clovastudio\.stream\.ntruss\.com/.test(CLOVA_BASE)) {
+  CLOVA_BASE = CLOVA_BASE.replace(
+    "clovastudio.stream.ntruss.com",
+    "clovastudio.apigw.ntruss.com"
+  );
+}
+
 // /testapp|/serviceapp 경로 없으면 붙이기 (CLOVA_BASE에도 동일하게 적용)
 if (!/\/(testapp|serviceapp)(\/|$)/.test(CLOVA_BASE)) {
   CLOVA_BASE = CLOVA_BASE.replace(/\/$/, "") + "/" + APP_ID;
@@ -188,16 +196,27 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   
   // URL 구성: CLOVA_BASE가 이미 /testapp 또는 /serviceapp을 포함하는지 확인
   let apiUrl = CLOVA_BASE;
-  if (!apiUrl.endsWith('/')) {
-    apiUrl += '/';
-  }
-  // 이미 v3 경로가 포함되어 있지 않으면 추가
+  // 끝에 슬래시 제거 후 정리
+  apiUrl = apiUrl.replace(/\/+$/, '');
+  
+  // v3 경로가 포함되어 있지 않으면 추가
   if (!apiUrl.includes('/v3/')) {
-    apiUrl += 'v3/chat-completions/';
+    apiUrl += '/v3/chat-completions/';
+  } else {
+    // 이미 v3가 있으면 끝에 슬래시만 확인
+    if (!apiUrl.endsWith('/')) {
+      apiUrl += '/';
+    }
   }
   apiUrl += CLOVA_MODEL;
   
   const url = apiUrl;
+  
+  // 디버깅: URL 로깅
+  if (process.env.LOG_TOKENS === "1" || process.env.NODE_ENV === 'development') {
+    console.log(`🔗 [CLOVA] API URL: ${url}`);
+    console.log(`🔗 [CLOVA] BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
+  }
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
