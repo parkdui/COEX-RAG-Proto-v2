@@ -920,12 +920,12 @@ export async function POST(request: NextRequest) {
     const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
     
     // 질문 번호 계산: body에서 받거나, Google Sheets에서 확인
-    // body에서 rowIndex를 받으면 해당 row의 마지막 질문 번호 확인
+    // 프론트엔드에서 messageNumber를 계산해서 보내도록 수정했으므로, body에서 받은 값을 우선 사용
     let messageNumber = body?.messageNumber;
     let rowIndex: number | undefined = body?.rowIndex; // 클라이언트에서 전달받은 rowIndex
     
-    if (!messageNumber || typeof messageNumber !== 'number') {
-      // messageNumber가 없으면 Google Sheets에서 확인
+    // messageNumber가 없거나 유효하지 않으면 계산
+    if (!messageNumber || typeof messageNumber !== 'number' || messageNumber < 1) {
       if (rowIndex && typeof rowIndex === 'number' && rowIndex > 0) {
         // rowIndex가 제공되면 해당 row에서 마지막 질문 번호 확인
         const client = await getGoogleSheetsClient();
@@ -939,19 +939,25 @@ export async function POST(request: NextRequest) {
             if (rowData.data.values && rowData.data.values[0]) {
               const row = rowData.data.values[0];
               // D(3), F(5), H(7), J(9), L(11), N(13) 열을 확인하여 마지막 질문 번호 찾기
+              let lastMsgNum = 0;
               for (let msgNum = 6; msgNum >= 1; msgNum--) {
                 const columnIndex = 3 + (msgNum - 1) * 2;
                 if (row[columnIndex] && row[columnIndex].trim() !== "") {
-                  messageNumber = msgNum + 1;
-                  console.log(`[Chat] Found last message number ${msgNum} in row ${rowIndex}, using messageNumber ${messageNumber}`);
+                  lastMsgNum = msgNum;
                   break;
                 }
               }
-              if (!messageNumber) messageNumber = 1;
+              messageNumber = lastMsgNum + 1;
+              console.log(`[Chat] Found last message number ${lastMsgNum} in row ${rowIndex}, using messageNumber ${messageNumber}`);
+            } else {
+              messageNumber = 1; // row가 비어있으면 첫 번째 질문
             }
           } catch (error) {
             console.error("[Chat] Error reading row data:", error);
+            messageNumber = 1; // 에러 발생 시 첫 번째 질문으로 간주
           }
+        } else {
+          messageNumber = 1; // 클라이언트가 없으면 첫 번째 질문으로 간주
         }
       } else {
         // rowIndex가 없으면 기존 방식 사용

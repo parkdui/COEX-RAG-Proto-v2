@@ -23,6 +23,7 @@ const useChatState = () => {
   const [isGoButtonDisabled, setIsGoButtonDisabled] = useState(false);
   const [rowIndex, setRowIndex] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messageNumber, setMessageNumber] = useState<number>(0);
 
   const addMessage = useCallback((message: Message) => {
     setMessages(prev => [...prev, message]);
@@ -50,7 +51,9 @@ const useChatState = () => {
     rowIndex,
     setRowIndex,
     sessionId,
-    setSessionId
+    setSessionId,
+    messageNumber,
+    setMessageNumber
   }), [
     messages,
     chatHistory,
@@ -61,7 +64,8 @@ const useChatState = () => {
     addMessage,
     addErrorMessage,
     rowIndex,
-    sessionId
+    sessionId,
+    messageNumber
   ]);
 };
 
@@ -87,7 +91,7 @@ const useVoiceRecording = () => {
  * API 요청 함수들
  */
 const apiRequests = {
-  async sendChatRequest(question: string, systemPrompt: string, history: Message[], rowIndex?: number | null, sessionId?: string | null) {
+  async sendChatRequest(question: string, systemPrompt: string, history: Message[], rowIndex?: number | null, sessionId?: string | null, messageNumber?: number) {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,7 +100,8 @@ const apiRequests = {
         systemPrompt, 
         history,
         rowIndex: rowIndex || undefined,
-        sessionId: sessionId || undefined
+        sessionId: sessionId || undefined,
+        messageNumber: messageNumber || undefined
       }),
     });
     return response.json();
@@ -416,7 +421,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         chatState.setIsLoading(true);
         try {
           const historyToSend = chatState.chatHistory.slice(-4); // 최근 2턴 (토큰 절감 + 맥락 유지)
-          const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
+          const nextMessageNumber = chatState.messageNumber + 1;
+          const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
 
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
@@ -428,6 +434,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
             if (chatData.sessionId) {
               chatState.setSessionId(chatData.sessionId);
             }
+            // messageNumber 업데이트
+            chatState.setMessageNumber(nextMessageNumber);
             
             await pushAssistantMessage({
               answer: chatData.answer,
@@ -576,7 +584,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
     try {
       const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
-      const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
+      const nextMessageNumber = chatState.messageNumber + 1;
+      const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
@@ -588,6 +597,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         if (data.sessionId) {
           chatState.setSessionId(data.sessionId);
         }
+        // messageNumber 업데이트
+        chatState.setMessageNumber(nextMessageNumber);
         
         await pushAssistantMessage({
           answer: data.answer,
@@ -621,12 +632,14 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     chatState.setIsLoading(true);
 
     try {
+      const nextMessageNumber = 1; // 첫 번째 메시지
       const data = await apiRequests.sendChatRequest(
         "안녕하세요! 이솔이에요. 오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?",
         chatState.systemPrompt,
         [],
         chatState.rowIndex,
-        chatState.sessionId
+        chatState.sessionId,
+        nextMessageNumber
       );
 
       if (data.error) {
@@ -639,6 +652,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         if (data.sessionId) {
           chatState.setSessionId(data.sessionId);
         }
+        // messageNumber 업데이트
+        chatState.setMessageNumber(nextMessageNumber);
         
         await pushAssistantMessage({
           answer: data.answer,
@@ -838,7 +853,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
     try {
       const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
-      const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
+      const nextMessageNumber = chatState.messageNumber + 1;
+      const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
@@ -850,6 +866,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         if (data.sessionId) {
           chatState.setSessionId(data.sessionId);
         }
+        // messageNumber 업데이트
+        chatState.setMessageNumber(nextMessageNumber);
         
         await pushAssistantMessage({
           answer: data.answer,
