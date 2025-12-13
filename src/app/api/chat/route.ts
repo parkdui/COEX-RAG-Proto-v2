@@ -352,6 +352,9 @@ async function getGoogleSheetsClient() {
   if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     // 환경 변수가 없으면 null 반환 (로깅 스킵)
     console.warn("[Google Sheets] Credentials not set, skipping logging");
+    console.warn(`[Google Sheets] LOG_GOOGLE_SHEET_ID: ${LOG_GOOGLE_SHEET_ID ? 'set' : 'NOT SET'}`);
+    console.warn(`[Google Sheets] LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'set' : 'NOT SET'}`);
+    console.warn(`[Google Sheets] LOG_GOOGLE_PRIVATE_KEY: ${LOG_GOOGLE_PRIVATE_KEY ? 'set' : 'NOT SET'}`);
     return null;
   }
 
@@ -362,18 +365,20 @@ async function getGoogleSheetsClient() {
     LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
   }
 
-  // Google Auth 설정
-  const auth = new google.auth.JWT({
-    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: LOG_GOOGLE_PRIVATE_KEY,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-
   try {
+    // Google Auth 설정
+    const auth = new google.auth.JWT({
+      email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: LOG_GOOGLE_PRIVATE_KEY,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
     const sheets = google.sheets({ version: "v4", auth });
+    console.log("[Google Sheets] Client created successfully");
     return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
   } catch (error) {
     console.error("[Google Sheets] Failed to create client:", error);
+    console.error("[Google Sheets] Error details:", error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -423,6 +428,8 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
   }
   const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
   
+  console.log(`[Google Sheets] Finding or creating session row: sessionId=${sessionId}, messageNumber=${messageNumber}`);
+  
   // 헤더 확인
   await ensureHeaders();
   
@@ -463,6 +470,8 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       newRow.push("");
     }
     
+    console.log(`[Google Sheets] Creating new row for session: ${sessionId}`);
+    
     await sheets.spreadsheets.values.append({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
       range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
@@ -478,7 +487,9 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
     });
     
-    return (updatedData.data.values?.length || 1); // 1-based index
+    const rowIndex = (updatedData.data.values?.length || 1); // 1-based index
+    console.log(`[Google Sheets] New row created at index: ${rowIndex}`);
+    return rowIndex;
   } else {
     // 두 번째 질문 이후는 기존 세션 row 찾기
     const existingData = await sheets.spreadsheets.values.get({
@@ -540,14 +551,20 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
     }
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
+    console.log(`[Google Sheets] Saving user message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
+    
     // 세션 row 찾기 또는 생성 (messageNumber 전달)
     const rowIndex = await findOrCreateSessionRow(sessionId, timestamp, systemPrompt, messageNumber);
+    
+    console.log(`[Google Sheets] Row index: ${rowIndex}`);
     
     // D column부터 시작 (A=0, B=1, C=2, D=3)
     // 첫 번째 질문: D column (index 3), 두 번째 질문: F column (index 5), ...
     // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7)...
     const columnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, ...
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
+    
+    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -557,8 +574,11 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
         values: [[userMessage.substring(0, 1000)]]
       },
     });
+    
+    console.log(`[Google Sheets] User message saved successfully`);
   } catch (error) {
-    console.error("Error saving user message in realtime:", error);
+    console.error("[Google Sheets] Error saving user message in realtime:", error);
+    console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
   }
 }
 
@@ -571,6 +591,8 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
       return;
     }
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+    
+    console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
     // 사용자 메시지가 저장된 row를 찾기 위해 재시도 로직 추가
     let rowIndex = -1;
