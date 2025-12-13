@@ -407,6 +407,47 @@ async function ensureHeaders() {
   }
 }
 
+// 세션의 마지막 질문 번호 찾기 (Google Sheets에서 확인)
+async function findLastMessageNumber(sessionId: string): Promise<number> {
+  const client = await getGoogleSheetsClient();
+  if (!client) {
+    return 0; // 클라이언트가 없으면 0 반환
+  }
+  const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+  
+  try {
+    // A~N column까지 가져와서 마지막 질문 번호 확인
+    // D, F, H, J, L, N 열에 질문이 저장됨
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:N`, // A~N column 확인
+    });
+
+    if (existingData.data.values) {
+      // 가장 최근 row부터 검색 (뒤에서부터)
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+        const row = existingData.data.values[i];
+        if (row && row[0] === sessionId) {
+          // D(3), F(5), H(7), J(9), L(11), N(13) 열을 확인하여 마지막 질문 번호 찾기
+          for (let msgNum = 6; msgNum >= 1; msgNum--) {
+            const columnIndex = 3 + (msgNum - 1) * 2; // D=3, F=5, H=7, J=9, L=11, N=13
+            if (row[columnIndex] && row[columnIndex].trim() !== "") {
+              console.log(`[Google Sheets] Found last message number: ${msgNum} for sessionId: ${sessionId}`);
+              return msgNum;
+            }
+          }
+          // 질문이 없으면 0 반환
+          return 0;
+        }
+      }
+    }
+    return 0; // 세션을 찾지 못했으면 0
+  } catch (error) {
+    console.error("[Google Sheets] Error finding last message number:", error);
+    return 0;
+  }
+}
+
 // 세션의 row index 찾기 또는 생성
 async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number): Promise<number> {
   const client = await getGoogleSheetsClient();
@@ -859,42 +900,18 @@ export async function POST(request: NextRequest) {
     const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
     const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
     
-    // 이전 대화 히스토리에서 질문 번호 계산
-    // body에서 직접 messageNumber를 받거나, history에서 계산
-    let messageNumber = body?.messageNumber;
-    
-    if (!messageNumber || typeof messageNumber !== 'number') {
-      // messageNumber가 전달되지 않았으면 history에서 계산
-      const fullHistory = body?.history || [];
-      
-      let previousConversationCount = 0;
-      for (let i = 0; i < fullHistory.length; i++) {
-        const msg = fullHistory[i];
-        if (msg && msg.role === 'user') {
-          const aiMsg = fullHistory[i + 1];
-          if (aiMsg && aiMsg.role === 'assistant') {
-            previousConversationCount++;
-          }
-        }
-      }
-      messageNumber = previousConversationCount + 1; // 현재 질문 번호
-    }
+    // 질문 번호 계산: Google Sheets에서 마지막 질문 번호를 확인하여 정확한 번호 사용
+    // 이 방법이 가장 정확함 (history가 없어도, 전달되지 않아도 정확한 번호 사용)
+    const lastMessageNumber = await findLastMessageNumber(sessionId);
+    const messageNumber = lastMessageNumber + 1; // 다음 질문 번호
     
     // 디버깅: messageNumber 확인
     console.log(`[Chat] ====== MESSAGE NUMBER CALCULATION ======`);
+    console.log(`[Chat] SessionId: ${sessionId}`);
+    console.log(`[Chat] Last message number from Google Sheets: ${lastMessageNumber}`);
+    console.log(`[Chat] Current message number: ${messageNumber}`);
     console.log(`[Chat] Body messageNumber: ${body?.messageNumber}`);
     console.log(`[Chat] History length: ${body?.history?.length || 0}`);
-    console.log(`[Chat] Calculated messageNumber: ${messageNumber}`);
-    if (body?.history && body.history.length > 0) {
-      console.log(`[Chat] History structure:`, body.history.map((m: any, idx: number) => ({
-        index: idx,
-        role: m.role,
-        contentLength: m.content?.length || 0,
-        contentPreview: m.content?.substring(0, 30) || ''
-      })));
-    } else {
-      console.log(`[Chat] History is empty or not provided`);
-    }
     console.log(`[Chat] ========================================`);
     
     // System Prompt 읽기 및 날짜 정보 추가
