@@ -322,11 +322,6 @@ interface ChatLog {
   }>;
 }
 
-interface SessionChatLog extends ChatLog {
-  sessionId: string;
-}
-
-
 // Google Sheets 인증 및 클라이언트 생성 헬퍼 함수
 async function getGoogleSheetsClient() {
   const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
