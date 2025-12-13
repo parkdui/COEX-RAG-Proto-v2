@@ -718,121 +718,7 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
   }
 }
 
-async function saveSessionBasedChatLog(logData: SessionChatLog) {
-  // 환경 변수 로드
-  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
-  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
-  const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
-    process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let LOG_GOOGLE_PRIVATE_KEY =
-    process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
-  
-  if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Sheets API credentials are not set");
-  }
-
-  // 개인 키 형식 처리
-  if (LOG_GOOGLE_PRIVATE_KEY) {
-    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/^"(.*)"$/, '$1');
-    LOG_GOOGLE_PRIVATE_KEY = LOG_GOOGLE_PRIVATE_KEY.replace(/\n$/, '');
-  }
-
-  // Google Auth 설정
-  const auth = new google.auth.JWT({
-    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: LOG_GOOGLE_PRIVATE_KEY,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-
-  const sheets = google.sheets({ version: "v4", auth });
-
-  // 헤더가 있는지 확인하고 없으면 추가
-  try {
-    const headerResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
-    });
-
-    if (!headerResponse.data.values || headerResponse.data.values.length === 0) {
-      // 헤더 추가 (세션 ID 포함)
-      const headers = ["세션 ID", "일시", "시스템 프롬프트"];
-      for (let i = 0; i < 10; i++) {
-        headers.push(`사용자 메시지 ${i + 1}`);
-        headers.push(`AI 메시지 ${i + 1}`);
-      }
-      headers.push("Token 합계"); // P column
-      
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A1:P1`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [headers]
-        }
-      });
-    }
-  } catch {
-    // 헤더 추가
-  }
-
-  // 기존 세션 로그가 있는지 확인
-  try {
-    const existingData = await sheets.spreadsheets.values.get({
-      spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
-    });
-
-    let existingRowIndex = -1;
-    if (existingData.data.values) {
-      for (let i = 0; i < existingData.data.values.length; i++) {
-        if (existingData.data.values[i][0] === logData.sessionId) {
-          existingRowIndex = i + 1; // 1-based index
-          break;
-        }
-      }
-    }
-
-    const buildRowFromLog = (conversation: typeof logData.conversation) => {
-      const row = [
-        logData.sessionId,
-        logData.timestamp,
-        logData.systemPrompt.substring(0, 1000),
-      ];
-      conversation.forEach((conv) => {
-        row.push(conv.userMessage.substring(0, 1000));
-        row.push(conv.aiMessage.substring(0, 1000));
-      });
-      return row;
-    };
-
-    if (existingRowIndex > 0) {
-      const targetRow = `${LOG_GOOGLE_SHEET_NAME}!A${existingRowIndex}:P${existingRowIndex}`;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: targetRow,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [buildRowFromLog(logData.conversation)],
-        },
-      });
-    } else {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [buildRowFromLog(logData.conversation)],
-        },
-      });
-    }
-
-    // 세션 기반 채팅 로그 저장 완료
-  } catch (error) {
-    console.error("Error saving session-based chat log:", error);
-    throw error;
-  }
-}
+// 사용하지 않는 함수 제거됨 (실시간 로깅 방식으로 대체)
 
 export async function POST(request: NextRequest) {
   // 각 요청마다 TOKENS 초기화
@@ -891,7 +777,6 @@ export async function POST(request: NextRequest) {
       }
     }
     const messageNumber = previousConversationCount + 1; // 현재 질문 번호
-    const isFirstMessage = messageNumber === 1; // 첫 메시지 여부
     
     // System Prompt 읽기 및 날짜 정보 추가
     let defaultSystemPrompt = "";
@@ -955,7 +840,7 @@ export async function POST(request: NextRequest) {
       const MAX_CONTEXT_TEXT_LENGTH = 10; // 각 이벤트 텍스트 최대 길이 (15→10로 축소)
       const MAX_TITLE_LENGTH = 5; // 제목 최대 길이
       context = slimHits
-        .map((h, i) => {
+        .map((h) => {
           const m = h.meta || {};
           // 제목 길이 제한 (5자)
           const title = (m.title || "").length > MAX_TITLE_LENGTH
@@ -985,7 +870,7 @@ export async function POST(request: NextRequest) {
 
     // History 최적화: 토큰 절감을 위해 히스토리 완전 제거
     // System Prompt가 첫 메시지에만 전송되므로, 이후 메시지에서는 히스토리 없이도 충분
-    let optimizedHistory: any[] = [];
+    const optimizedHistory: any[] = [];
     
     // 히스토리는 완전히 제거하여 토큰 절감 (대화 품질은 System Prompt로 유지)
 
