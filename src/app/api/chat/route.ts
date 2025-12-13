@@ -41,10 +41,8 @@ if (!/\/(testapp|serviceapp)(\/|$)/.test(CLOVA_BASE)) {
 const CLOVA_KEY = getEnv("CLOVA_API_KEY");
 const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 
-// CLOVA API 설정
-
 // 파일 경로
-  const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
+const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
 const systemPromptPath = path.join(process.cwd(), "public", "LLM", "system_prompt.txt");
 
 // ==== Token counters ====
@@ -66,18 +64,11 @@ async function embedText(text: string) {
   if (!text || !text.trim()) throw new Error("empty text for embedding");
   
   // Embedding API input 토큰 절감: 질문 길이 제한 (50자로 제한)
-  const originalText = text;
   const truncatedText = text.length > 50 ? text.substring(0, 50) : text;
   
-  // ====== 디버깅: Embedding API Input 출력 ======
-  console.log("\n" + "=".repeat(80));
-  console.log("📦 [EMBEDDING API CALL] 실제 전송되는 Input 내용");
-  console.log("=".repeat(80));
-  console.log(`🔗 URL: ${HLX_BASE}/v1/api-tools/embedding/${EMB_MODEL}`);
-  console.log(`📝 원본 텍스트: "${originalText}" (${originalText.length}자)`);
-  console.log(`✂️  축소된 텍스트: "${truncatedText}" (${truncatedText.length}자)`);
-  console.log(`📊 예상 토큰: 약 ${Math.round(truncatedText.length * 1.4)} tokens`);
-  console.log("=".repeat(80) + "\n");
+  if (process.env.LOG_TOKENS === "1") {
+    console.log(`📦 [EMBEDDING] 텍스트: "${truncatedText.substring(0, 30)}..." (${truncatedText.length}자, 약 ${Math.round(truncatedText.length * 1.4)} tokens)`);
+  }
   
   if (!HLX_KEY) {
     throw new Error("HYPERCLOVAX_API_KEY environment variable is not set");
@@ -208,12 +199,6 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   
   const url = apiUrl;
 
-  // 디버깅: URL 로깅 (개발 환경에서만)
-  if (process.env.NODE_ENV === 'development' || process.env.LOG_TOKENS === "1") {
-    console.log(`🔗 [CLOVA] API URL: ${url}`);
-    console.log(`🔗 [CLOVA] BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
-  }
-
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
     role: m.role,
@@ -229,38 +214,6 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     repeatPenalty: opts.repeatPenalty ?? 1.1,
     stop: [],
   };
-
-  // ====== 디버깅: API 호출 전 실제 Input 내용 출력 ======
-  console.log("\n" + "=".repeat(80));
-  console.log("📤 [CLOVA API CALL] 실제 전송되는 Input 내용");
-  console.log("=".repeat(80));
-  console.log(`🔗 URL: ${url}`);
-  console.log(`⚙️  Options: temperature=${body.temperature}, topP=${body.topP}, maxTokens=${body.maxTokens}`);
-  console.log(`\n📋 메시지 개수: ${messages.length}개`);
-  console.log("\n📝 원본 Messages:");
-  messages.forEach((msg, idx) => {
-    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-    const contentLength = typeof msg.content === 'string' ? msg.content.length : JSON.stringify(msg.content).length;
-    console.log(`  [${idx + 1}] role: "${msg.role}"`);
-    console.log(`      content: "${content}"`);
-    console.log(`      길이: ${contentLength}자 (약 ${Math.round(contentLength * 1.4)} tokens)`);
-  });
-  console.log("\n📦 Wrapped Messages (실제 전송 형식):");
-  wrappedMessages.forEach((msg, idx) => {
-    const text = msg.content[0]?.text || '';
-    const textLength = text.length;
-    console.log(`  [${idx + 1}] role: "${msg.role}"`);
-    console.log(`      content: [{"type": "text", "text": "${text}"}]`);
-    console.log(`      텍스트 길이: ${textLength}자 (약 ${Math.round(textLength * 1.4)} tokens)`);
-  });
-  const totalInputChars = wrappedMessages.reduce((sum, m) => {
-    const text = m.content[0]?.text || '';
-    return sum + text.length;
-  }, 0);
-  console.log(`\n📊 총 Input 문자 수: ${totalInputChars}자 (약 ${Math.round(totalInputChars * 1.4)} tokens 예상)`);
-  console.log("\n📄 전체 Request Body (JSON):");
-  console.log(JSON.stringify(body, null, 2));
-  console.log("=".repeat(80) + "\n");
 
   // CLOVA Chat 요청
 
@@ -1049,25 +1002,6 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // 상세 로깅: API 호출 전 메시지 내용 출력
-    if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
-      console.log("\n" + "=".repeat(80));
-      console.log("📤 [API CALL] CLOVA Chat API 호출");
-      console.log("=".repeat(80));
-      console.log(`\n📋 System Prompt 길이: ${activeSystemPrompt.length}자 (약 ${Math.round(activeSystemPrompt.length * 1.4)} tokens)`);
-      console.log(`📋 History 메시지 수: ${optimizedHistory.length}개`);
-      optimizedHistory.forEach((msg: any, idx: number) => {
-        const contentPreview = typeof msg.content === 'string' 
-          ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-          : String(msg.content).substring(0, 100);
-        console.log(`  [${idx + 1}] ${msg.role}: ${contentPreview} (${msg.content?.length || 0}자)`);
-      });
-      console.log(`📋 User Message: ${userMessageContent.substring(0, 200)}${userMessageContent.length > 200 ? '...' : ''} (${userMessageContent.length}자)`);
-      console.log(`📋 총 메시지 수: ${messages.length}개`);
-      const totalChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : String(m.content).length), 0);
-      console.log(`📋 총 문자 수: ${totalChars}자 (약 ${Math.round(totalChars * 1.4)} tokens 예상)`);
-      console.log("=".repeat(80) + "\n");
-    }
 
     // 메시지 처리
 
