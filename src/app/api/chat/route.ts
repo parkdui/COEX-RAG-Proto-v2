@@ -616,14 +616,17 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
     });
     
     console.log(`[Google Sheets] User message saved successfully`);
+    return rowIndex; // rowIndex 반환
   } catch (error) {
     console.error("[Google Sheets] Error saving user message in realtime:", error);
     console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
+    return null;
   }
 }
 
 // 실시간으로 AI 메시지 저장 (E column부터 시작)
-async function saveAIMessageRealtime(sessionId: string, messageNumber: number, aiMessage: string) {
+// providedRowIndex를 사용하여 정확한 row에 저장 (동시 사용자 문제 해결)
+async function saveAIMessageRealtime(sessionId: string, messageNumber: number, aiMessage: string, providedRowIndex?: number | null) {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
@@ -634,48 +637,55 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     
     console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
-    // 세션 row 찾기: D column에 값이 있는 가장 최근 row 찾기 (sessionId 무시)
-    // sessionId가 매번 달라질 수 있으므로, 가장 최근에 생성된 row를 찾아서 사용
+    // rowIndex 찾기: providedRowIndex가 있으면 사용, 없으면 찾기
     let rowIndex = -1;
-    const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
-    const retryDelay = 200; // 200ms
     
-    for (let retry = 0; retry < maxRetries; retry++) {
-      // A~D column까지 가져와서 D column에 값이 있는 가장 최근 row 찾기
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
-      });
+    if (providedRowIndex && providedRowIndex > 0) {
+      // 제공된 rowIndex 사용 (동시 사용자 문제 해결)
+      rowIndex = providedRowIndex;
+      console.log(`[Google Sheets] Using provided rowIndex: ${rowIndex} for AI message ${messageNumber}`);
+    } else {
+      // rowIndex가 없으면 찾기 (하위 호환성)
+      const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
+      const retryDelay = 200; // 200ms
+      
+      for (let retry = 0; retry < maxRetries; retry++) {
+        // A~D column까지 가져와서 D column에 값이 있는 가장 최근 row 찾기
+        const existingData = await sheets.spreadsheets.values.get({
+          spreadsheetId: LOG_GOOGLE_SHEET_ID,
+          range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
+        });
 
-      if (existingData.data.values) {
-        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
-        // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
-        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-          const row = existingData.data.values[i];
-          if (row && row[3] && row[3].trim() !== "") {
-            // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
-            rowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
-            console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
-            break;
+        if (existingData.data.values) {
+          // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+          // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
+          for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+            const row = existingData.data.values[i];
+            if (row && row[3] && row[3].trim() !== "") {
+              // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
+              rowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
+              console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
+              break;
+            }
           }
+        }
+        
+        if (rowIndex > 0) {
+          break; // row를 찾았으면 재시도 중단
+        }
+        
+        // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
+        if (retry < maxRetries - 1) {
+          console.log(`[Google Sheets] Row with data not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
       
-      if (rowIndex > 0) {
-        break; // row를 찾았으면 재시도 중단
+      if (rowIndex === -1) {
+        console.error(`[Chat Log] ❌ Row with data not found for AI message ${messageNumber} after ${maxRetries} retries`);
+        return;
       }
-      
-      // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
-      if (retry < maxRetries - 1) {
-        console.log(`[Google Sheets] Row with data not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-    
-    if (rowIndex === -1) {
-      console.error(`[Chat Log] ❌ Row with data not found for AI message ${messageNumber} after ${maxRetries} retries`);
-      return;
     }
     
     // E column부터 시작 (A=0, B=1, C=2, D=3, E=4)
@@ -946,9 +956,10 @@ export async function POST(request: NextRequest) {
     // 실시간 로깅: 질문 입력 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
     // 시스템 프롬프트의 첫 100자만 로그에 저장 (토큰 절감을 위해)
     const systemPromptForLog = activeSystemPrompt.substring(0, 100) + (activeSystemPrompt.length > 100 ? '...' : '');
+    let savedRowIndex: number | null = null;
     try {
-      await saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog);
-      console.log(`[Chat Log] User message ${messageNumber} saved successfully`);
+      savedRowIndex = await saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog, rowIndex);
+      console.log(`[Chat Log] User message ${messageNumber} saved successfully at row ${savedRowIndex}`);
     } catch (error) {
       console.error('[Chat Log] Failed to save user message in realtime:', error);
       // 에러가 발생해도 메인 플로우는 계속 진행
@@ -1067,8 +1078,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 실시간 로깅: AI 답변 수신 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
+    // savedRowIndex를 사용하여 정확한 row에 저장
     try {
-      await saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer);
+      await saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer, savedRowIndex);
       console.log(`[Chat Log] AI message ${messageNumber} saved successfully`);
     } catch (error) {
       console.error('[Chat Log] Failed to save AI message in realtime:', error);
