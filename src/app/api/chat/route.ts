@@ -65,6 +65,20 @@ const TOKENS = {
 async function embedText(text: string) {
   if (!text || !text.trim()) throw new Error("empty text for embedding");
   
+  // Embedding API input 토큰 절감: 질문 길이 제한 (50자로 제한)
+  const originalText = text;
+  const truncatedText = text.length > 50 ? text.substring(0, 50) : text;
+  
+  // ====== 디버깅: Embedding API Input 출력 ======
+  console.log("\n" + "=".repeat(80));
+  console.log("📦 [EMBEDDING API CALL] 실제 전송되는 Input 내용");
+  console.log("=".repeat(80));
+  console.log(`🔗 URL: ${HLX_BASE}/v1/api-tools/embedding/${EMB_MODEL}`);
+  console.log(`📝 원본 텍스트: "${originalText}" (${originalText.length}자)`);
+  console.log(`✂️  축소된 텍스트: "${truncatedText}" (${truncatedText.length}자)`);
+  console.log(`📊 예상 토큰: 약 ${Math.round(truncatedText.length * 1.4)} tokens`);
+  console.log("=".repeat(80) + "\n");
+  
   if (!HLX_KEY) {
     throw new Error("HYPERCLOVAX_API_KEY environment variable is not set");
   }
@@ -80,7 +94,7 @@ async function embedText(text: string) {
   let res = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text: truncatedText }),
   });
 
   // 4xx면 v2
@@ -88,7 +102,7 @@ async function embedText(text: string) {
     res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ texts: [text] }),
+      body: JSON.stringify({ texts: [truncatedText] }),
     });
   }
 
@@ -216,6 +230,38 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     stop: [],
   };
 
+  // ====== 디버깅: API 호출 전 실제 Input 내용 출력 ======
+  console.log("\n" + "=".repeat(80));
+  console.log("📤 [CLOVA API CALL] 실제 전송되는 Input 내용");
+  console.log("=".repeat(80));
+  console.log(`🔗 URL: ${url}`);
+  console.log(`⚙️  Options: temperature=${body.temperature}, topP=${body.topP}, maxTokens=${body.maxTokens}`);
+  console.log(`\n📋 메시지 개수: ${messages.length}개`);
+  console.log("\n📝 원본 Messages:");
+  messages.forEach((msg, idx) => {
+    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    const contentLength = typeof msg.content === 'string' ? msg.content.length : JSON.stringify(msg.content).length;
+    console.log(`  [${idx + 1}] role: "${msg.role}"`);
+    console.log(`      content: "${content}"`);
+    console.log(`      길이: ${contentLength}자 (약 ${Math.round(contentLength * 1.4)} tokens)`);
+  });
+  console.log("\n📦 Wrapped Messages (실제 전송 형식):");
+  wrappedMessages.forEach((msg, idx) => {
+    const text = msg.content[0]?.text || '';
+    const textLength = text.length;
+    console.log(`  [${idx + 1}] role: "${msg.role}"`);
+    console.log(`      content: [{"type": "text", "text": "${text}"}]`);
+    console.log(`      텍스트 길이: ${textLength}자 (약 ${Math.round(textLength * 1.4)} tokens)`);
+  });
+  const totalInputChars = wrappedMessages.reduce((sum, m) => {
+    const text = m.content[0]?.text || '';
+    return sum + text.length;
+  }, 0);
+  console.log(`\n📊 총 Input 문자 수: ${totalInputChars}자 (약 ${Math.round(totalInputChars * 1.4)} tokens 예상)`);
+  console.log("\n📄 전체 Request Body (JSON):");
+  console.log(JSON.stringify(body, null, 2));
+  console.log("=".repeat(80) + "\n");
+
   // CLOVA Chat 요청
 
   const res = await fetch(url, {
@@ -250,10 +296,16 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   const chatTotal = Number(chatUsage.totalTokens ?? chatIn + chatOut);
 
   // 응답 내용 추출
-  const responseContent =
+  let responseContent =
     json?.result?.message?.content?.[0]?.text ||
     json?.result?.message?.content ||
     "";
+  
+  // 응답이 비어있거나 너무 짧을 때 기본 메시지 제공
+  if (!responseContent || responseContent.trim().length < 5) {
+    responseContent = '안녕하세요! 코엑스에서 무엇을 도와드릴까요?';
+    console.warn(`[WARNING] CLOVA API 응답이 비어있거나 너무 짧습니다. 기본 메시지 사용: "${responseContent}"`);
+  }
 
   // classification 호출인지 확인 (메시지가 2개이고 system + user 구조이며, 짧은 프롬프트인 경우)
   const isClassificationCall = 
@@ -847,27 +899,6 @@ export async function POST(request: NextRequest) {
     const question = (body?.question || "").trim();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
-    // systemPrompt 처리
-    let defaultSystemPrompt = "";
-    try {
-      defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
-    } catch (e) {
-      console.warn("Could not read system prompt file:", e);
-    }
-
-    // 현재 날짜 정보 추가 (최소화)
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getDate()).padStart(2, '0');
-    const weekday = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()];
-    const currentDateInfo = `\n[날짜] ${year}-${month}-${day}(${weekday}). 지나간 이벤트 금지.`;
-
-    // System Prompt 극대 최소화: 모든 메시지에서 최소한만 사용
-    const activeSystemPrompt = isFirstMessage 
-      ? "이솔(SORI). 따뜻한 존댓말, 30자 이내. 코엑스 안내." + currentDateInfo // 첫 메시지: 최소화 (약 50 토큰)
-      : "이솔(SORI). 따뜻한 존댓말, 30자 이내." + currentDateInfo; // 이후: 극대 최소화 (약 30 토큰)
-
     // vectors.json은 정보 요구 질문일 때만 필요하므로, 나중에 필요할 때 로드
     let vectors: any[] = [];
     if (fs.existsSync(VECTORS_JSON)) {
@@ -909,8 +940,30 @@ export async function POST(request: NextRequest) {
     const messageNumber = previousConversationCount + 1; // 현재 질문 번호
     const isFirstMessage = messageNumber === 1; // 첫 메시지 여부
     
+    // System Prompt 읽기 및 날짜 정보 추가
+    let defaultSystemPrompt = "";
+    try {
+      defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
+    } catch (e) {
+      console.warn("Could not read system prompt file:", e);
+    }
+    
+    // 현재 날짜 정보 추가 (한국 시간 기준)
+    const currentDate = new Date(koreanTime);
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const dateString = `${year}년 ${month}월 ${day}일`;
+    
+    // System Prompt에 날짜 정보 추가
+    const activeSystemPrompt = defaultSystemPrompt 
+      ? `${defaultSystemPrompt}\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`
+      : `너는 '이솔(SORI)'이라는 이름의 젊은 여성 AI 마스코트다. 코엑스를 방문한 사람과 자연스럽게 대화하며 즐거움, 영감, 새로운 시선을 선사하는 동행자다.\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`;
+    
     // 실시간 로깅: 질문 입력 시 즉시 저장 (비동기, 에러 무시)
-    saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, activeSystemPrompt).catch((error) => {
+    // 시스템 프롬프트의 첫 100자만 로그에 저장 (토큰 절감을 위해)
+    const systemPromptForLog = activeSystemPrompt.substring(0, 100) + (activeSystemPrompt.length > 100 ? '...' : '');
+    saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog).catch((error) => {
       console.error('[Chat Log] Failed to save user message in realtime:', error);
     });
 
@@ -935,9 +988,8 @@ export async function POST(request: NextRequest) {
         .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
         .sort((a, b) => b.score - a.score);
 
-      // TOP_K를 3에서 2로 감소
-      // TOP_K를 1로 고정 (최대 절감)
-      const OPTIMIZED_TOP_K = 1;
+      // TOP_K를 환경변수에서 읽거나 기본값 1 사용 (토큰 절감 극대화)
+      const OPTIMIZED_TOP_K = TOP_K; // 환경변수 TOP_K 사용 (기본값 1)
       const ranked = scored.slice(0, OPTIMIZED_TOP_K);
       slimHits = ranked.map(({ v, score }) => ({
         id: v.id,
@@ -946,28 +998,37 @@ export async function POST(request: NextRequest) {
         score: Number(score.toFixed(4)),
       }));
 
-      // RAG Context 극대 압축: 텍스트 20자로 제한, 제목만
-      const MAX_CONTEXT_TEXT_LENGTH = 20; // 각 이벤트 텍스트 최대 길이 (30→20으로 축소)
+      // RAG Context 극대 압축: 텍스트 10자로 제한, 제목만 (최대 5자)
+      const MAX_CONTEXT_TEXT_LENGTH = 10; // 각 이벤트 텍스트 최대 길이 (15→10로 축소)
+      const MAX_TITLE_LENGTH = 5; // 제목 최대 길이
       context = slimHits
         .map((h, i) => {
           const m = h.meta || {};
-          // 텍스트 길이 제한 (20자)
+          // 제목 길이 제한 (5자)
+          const title = (m.title || "").length > MAX_TITLE_LENGTH
+            ? (m.title || "").substring(0, MAX_TITLE_LENGTH)
+            : (m.title || "");
+          // 텍스트 길이 제한 (10자)
           const text = h.text && h.text.length > MAX_CONTEXT_TEXT_LENGTH
             ? h.text.substring(0, MAX_CONTEXT_TEXT_LENGTH)
             : h.text || '';
           
-          // 메타 정보 최소화 (제목만)
-          return `${m.title || ""}:${text}`;
+          // 메타 정보 최소화 (제목+텍스트, 구분자 제거)
+          return `${title}${text}`;
         })
         .join("|");
     }
 
     // 메시지 구성 (정보 요구 질문 여부에 따라 다르게 구성) - 극대 간소화
+    // 질문 길이 제한 (30자로 제한하여 input 토큰 절감)
+    const truncatedQuestion = question.length > 30 ? question.substring(0, 30) : question;
+    
+    // System Prompt가 없으므로 User Message에 최소한의 지시 포함
     const userMessageContent = isInfoRequest
       ? context 
-        ? `${question} [${context}]` // 최소 형식
-        : question // context가 비어있으면 질문만
-      : question; // 비정보 질문도 질문만
+        ? `${truncatedQuestion}[${context}]` // 접두사 제거, 최소 형식
+        : `${truncatedQuestion}` // context가 비어있으면 질문만
+      : `${truncatedQuestion}`; // 비정보 질문도 질문만
 
     // History 최적화: 토큰 절감을 위해 히스토리 완전 제거
     // System Prompt가 첫 메시지에만 전송되므로, 이후 메시지에서는 히스토리 없이도 충분
@@ -975,12 +1036,13 @@ export async function POST(request: NextRequest) {
     
     // 히스토리는 완전히 제거하여 토큰 절감 (대화 품질은 System Prompt로 유지)
 
+    // System Prompt 포함: 날짜 정보와 함께 전송
     const messages = [
-      {
+      ...(activeSystemPrompt ? [{
         role: "system",
         content: activeSystemPrompt,
-      },
-      ...optimizedHistory, // 히스토리 완전 제거 (토큰 절감, System Prompt로 맥락 유지)
+      }] : []), // System Prompt가 있으면 포함
+      ...optimizedHistory, // 히스토리 완전 제거
       {
         role: "user",
         content: userMessageContent,
@@ -1011,10 +1073,16 @@ export async function POST(request: NextRequest) {
 
     const result = await callClovaChat(messages, {
       temperature: 0.3,
-      maxTokens: 60, // 30자 이내 답변 (100→60으로 축소하여 토큰 절감)
+      maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
     });
 
-    const cleanedAnswer = removeEmojiLikeExpressions(result.content);
+    let cleanedAnswer = removeEmojiLikeExpressions(result.content || '').trim();
+
+    // 응답이 비어있거나 너무 짧을 때 기본 메시지 제공
+    if (!cleanedAnswer || cleanedAnswer.length < 5) {
+      cleanedAnswer = '안녕하세요! 코엑스에서 무엇을 도와드릴까요?';
+      console.warn(`[WARNING] AI 응답이 비어있거나 너무 짧습니다. 기본 메시지 사용: "${cleanedAnswer}"`);
+    }
 
     // 실시간 로깅: AI 답변 수신 시 즉시 저장 (비동기, 에러 무시)
     saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer).catch((error) => {

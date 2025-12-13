@@ -924,21 +924,22 @@ const SegmentedMessageComponent: React.FC<{
       highlightedText +
       (remainderText ? `\n\n${remainderText}` : '') +
       (remainingText ? `\n\n${remainingText}` : '');
-    let textWithoutLastSentence = removeLastSentence(fullText);
-
-    // 마지막 정리: 마침표만 있거나 공백+마침표만 있는 줄 제거
-    // 예: "\n\n." 또는 "\n\n . " 같은 경우
-    const lines = textWithoutLastSentence.split('\n\n');
-    const cleanedLines = lines.filter(line => {
-      const trimmed = line.trim();
-      // 마침표만 있거나 공백+마침표만 있는 줄 제거
-      return trimmed.length > 0 && !/^\s*[.!?]\s*$/.test(trimmed);
-    });
-    textWithoutLastSentence = cleanedLines.join('\n\n');
+    
+    // 첫 번째 문단만 표시 (문장이 끊어지지 않도록)
+    const paragraphs = fullText.split('\n\n');
+    let firstParagraph = paragraphs[0] || '';
+    
+    // 첫 번째 문단이 비어있으면 전체 텍스트 사용
+    if (!firstParagraph || firstParagraph.trim().length < 5) {
+      firstParagraph = fullText.trim();
+    }
+    
+    // 첫 번째 문단만 사용 (문장이 끊어지지 않도록)
+    const displayText = firstParagraph.trim();
 
     return {
       firstSegmentHighlight: highlightedText,
-      displayText: textWithoutLastSentence || '',
+      displayText: displayText || '',
     };
   }, [segments, message.content]);
 
@@ -1284,27 +1285,34 @@ const SingleMessageComponent: React.FC<{
 
   const { assistantText, assistantHighlight } = useMemo(() => {
     if (message.role !== 'assistant') {
+      const content = message.content || '';
       return {
-        assistantText: message.content || '',
+        assistantText: content || '',
         assistantHighlight: '',
       };
     }
 
-    let textWithoutLastSentence = removeLastSentence(message.content || '');
+    // 첫 번째 문단만 표시 (문장이 끊어지지 않도록)
+    const fullText = message.content || '';
+    const paragraphs = fullText.split('\n\n');
+    let firstParagraph = paragraphs[0] || '';
+    
+    // 첫 번째 문단이 비어있으면 전체 텍스트 사용
+    if (!firstParagraph || firstParagraph.trim().length < 5) {
+      firstParagraph = fullText.trim();
+    }
+    
+    // 첫 번째 문단만 사용 (문장이 끊어지지 않도록)
+    const displayText = firstParagraph.trim();
 
-    // 마지막 정리: 마침표만 있거나 공백+마침표만 있는 줄 제거
-    // 예: "\n\n." 또는 "\n\n . " 같은 경우
-    const lines = textWithoutLastSentence.split('\n\n');
-    const cleanedLines = lines.filter(line => {
-      const trimmed = line.trim();
-      // 마침표만 있거나 공백+마침표만 있는 줄 제거
-      return trimmed.length > 0 && !/^\s*[.!?]\s*$/.test(trimmed);
-    });
-    textWithoutLastSentence = cleanedLines.join('\n\n');
+    // 응답이 비어있거나 너무 짧을 때 기본 메시지 제공
+    const finalText = !displayText || displayText.length < 5
+      ? '안녕하세요! 코엑스에서 무엇을 도와드릴까요?'
+      : displayText;
 
-    const highlight = getHighlightedTextParts(textWithoutLastSentence).highlightedText;
+    const highlight = getHighlightedTextParts(finalText).highlightedText;
     return {
-      assistantText: textWithoutLastSentence,
+      assistantText: finalText,
       assistantHighlight: highlight,
     };
   }, [message.content, message.role]);
