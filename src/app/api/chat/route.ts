@@ -194,26 +194,13 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     throw new Error("CLOVA_API_KEY environment variable is not set");
   }
   
-  // URL 구성: CLOVA_BASE 확인 및 정규화
-  let baseUrl = CLOVA_BASE;
+  // URL 구성: extract-keywords와 동일한 간단한 방식
+  // CLOVA_BASE는 이미 /testapp 또는 /serviceapp을 포함하고 있음
+  const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
   
-  // 끝의 슬래시 제거
-  baseUrl = baseUrl.replace(/\/+$/, '');
-  
-  // CLOVA_BASE에 /testapp 또는 /serviceapp이 없으면 추가
-  if (!/\/(testapp|serviceapp)(\/|$)/.test(baseUrl)) {
-    baseUrl = baseUrl + "/" + APP_ID;
-  }
-  
-  // v3 경로 추가
-  const url = `${baseUrl}/v3/chat-completions/${CLOVA_MODEL}`;
-  
-  // 디버깅: URL 로깅 (항상 출력하여 문제 파악)
-  console.log(`🔗 [CLOVA] Final API URL: ${url}`);
-  console.log(`🔗 [CLOVA] CLOVA_BASE (original): ${CLOVA_BASE}`);
-  console.log(`🔗 [CLOVA] CLOVA_BASE (normalized): ${baseUrl}`);
-  console.log(`🔗 [CLOVA] MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
-  console.log(`🔗 [CLOVA] CLOVA_KEY exists: ${!!CLOVA_KEY}`);
+  // 디버깅: URL 로깅
+  console.log(`🔗 [CLOVA] API URL: ${url}`);
+  console.log(`🔗 [CLOVA] CLOVA_BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
@@ -231,11 +218,6 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     stop: [],
   };
 
-  // CLOVA Chat 요청
-
-  console.log(`🔗 [CLOVA] Making request to: ${url}`);
-  console.log(`🔗 [CLOVA] Request body (first 200 chars): ${JSON.stringify(body).substring(0, 200)}...`);
-  
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -247,28 +229,10 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     body: JSON.stringify(body),
   });
   
-  console.log(`🔗 [CLOVA] Response status: ${res.status} ${res.statusText}`);
-  
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
     console.error(`❌ [CLOVA] API Error ${res.status}: ${errorText}`);
     console.error(`❌ [CLOVA] Request URL: ${url}`);
-    console.error(`❌ [CLOVA] Request headers:`, {
-      Authorization: `Bearer ${CLOVA_KEY ? '***' : 'MISSING'}`,
-      "Content-Type": "application/json; charset=utf-8",
-      "X-NCP-CLOVASTUDIO-REQUEST-ID": `req-${Date.now()}`,
-    });
-    console.error(`❌ [CLOVA] Response headers:`, Object.fromEntries(res.headers.entries()));
-    
-    // 404 에러인 경우 URL 구성 문제일 가능성이 높음
-    if (res.status === 404) {
-      console.error(`❌ [CLOVA] 404 Error - URL 구성 문제 가능성:`);
-      console.error(`   - CLOVA_API_BASE env: ${process.env.CLOVA_API_BASE || 'NOT SET'}`);
-      console.error(`   - CLOVA_BASE (after processing): ${CLOVA_BASE}`);
-      console.error(`   - Final URL: ${url}`);
-      console.error(`   - Expected format: https://clovastudio.apigw.ntruss.com/{APP_ID}/v3/chat-completions/{MODEL}`);
-    }
-    
     throw new Error(
       `CLOVA chat failed ${res.status}: ${errorText}`
     );
