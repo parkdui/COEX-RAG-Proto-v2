@@ -771,6 +771,8 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
     }
     
     // P column = index 15 (0-based)
+    console.log(`[Google Sheets] Updating token total cell: ${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`);
+    
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
       range: `${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`,
@@ -779,8 +781,11 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
         values: [[tokenTotal]]
       },
     });
+    
+    console.log(`[Google Sheets] Token total updated successfully`);
   } catch (error) {
-    console.error("Error updating token total:", error);
+    console.error("[Google Sheets] Error updating token total:", error);
+    console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
   }
 }
 
