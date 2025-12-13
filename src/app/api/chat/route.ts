@@ -753,7 +753,18 @@ export async function POST(request: NextRequest) {
   TOKENS.classification_calls = 0;
   
   try {
+    console.log("[chat] Request received");
+    
+    // 환경 변수 확인
+    if (!CLOVA_KEY) {
+      throw new Error("CLOVA_API_KEY environment variable is not set");
+    }
+    if (!HLX_KEY) {
+      console.warn("[chat] HYPERCLOVAX_API_KEY is not set (embedding will fail)");
+    }
+    
     const body = await request.json();
+    console.log("[chat] Request body parsed");
     const question = (body?.question || "").trim();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
@@ -830,8 +841,11 @@ export async function POST(request: NextRequest) {
       console.error('[Chat Log] Failed to save user message in realtime:', error);
     });
 
+    console.log("[chat] System prompt loaded, length:", activeSystemPrompt.length);
+
     // 정보 요구 질문인지 판별
     const isInfoRequest = await isInfoRequestQuestion(question);
+    console.log("[chat] Question classification:", isInfoRequest ? "정보 요구" : "일반 대화");
 
     let context = "";
     let slimHits: any[] = [];
@@ -914,11 +928,14 @@ export async function POST(request: NextRequest) {
 
 
     // 메시지 처리
-
+    console.log("[chat] Calling CLOVA Chat API, messages count:", messages.length);
+    
     const result = await callClovaChat(messages, {
       temperature: 0.3,
       maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
     });
+    
+    console.log("[chat] CLOVA Chat API response received");
 
     let cleanedAnswer = removeEmojiLikeExpressions(result.content || '').trim();
 
@@ -970,22 +987,27 @@ export async function POST(request: NextRequest) {
       tokens: result.tokens,
     });
   } catch (e) {
-    console.error("[chat] Error:", e);
     const errorMessage = e instanceof Error ? e.message : String(e);
     const errorStack = e instanceof Error ? e.stack : undefined;
+    const errorName = e instanceof Error ? e.name : 'Unknown';
     
-    // 상세 에러 로깅
-    console.error("[chat] Error Details:", {
-      message: errorMessage,
-      stack: errorStack,
-      name: e instanceof Error ? e.name : 'Unknown',
-    });
+    // 상세 에러 로깅 (항상 출력)
+    console.error("=".repeat(80));
+    console.error("[chat] ❌ ERROR OCCURRED");
+    console.error("=".repeat(80));
+    console.error("[chat] Error Name:", errorName);
+    console.error("[chat] Error Message:", errorMessage);
+    if (errorStack) {
+      console.error("[chat] Error Stack:", errorStack);
+    }
+    console.error("[chat] Error Object:", e);
+    console.error("=".repeat(80));
     
+    // 클라이언트에 에러 반환 (프로덕션에서도 메시지 표시)
     return NextResponse.json({ 
       error: errorMessage,
-      details: process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'development' 
-        ? (errorStack || String(e)) 
-        : undefined
+      errorName: errorName,
+      details: errorStack || String(e)
     }, { status: 500 });
   }
 }
