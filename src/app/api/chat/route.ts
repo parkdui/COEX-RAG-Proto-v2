@@ -860,31 +860,41 @@ export async function POST(request: NextRequest) {
     const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
     
     // 이전 대화 히스토리에서 질문 번호 계산
-    const fullHistory = body?.history || [];
+    // body에서 직접 messageNumber를 받거나, history에서 계산
+    let messageNumber = body?.messageNumber;
     
-    let previousConversationCount = 0;
-    for (let i = 0; i < fullHistory.length; i++) {
-      const msg = fullHistory[i];
-      if (msg && msg.role === 'user') {
-        const aiMsg = fullHistory[i + 1];
-        if (aiMsg && aiMsg.role === 'assistant') {
-          previousConversationCount++;
+    if (!messageNumber || typeof messageNumber !== 'number') {
+      // messageNumber가 전달되지 않았으면 history에서 계산
+      const fullHistory = body?.history || [];
+      
+      let previousConversationCount = 0;
+      for (let i = 0; i < fullHistory.length; i++) {
+        const msg = fullHistory[i];
+        if (msg && msg.role === 'user') {
+          const aiMsg = fullHistory[i + 1];
+          if (aiMsg && aiMsg.role === 'assistant') {
+            previousConversationCount++;
+          }
         }
       }
+      messageNumber = previousConversationCount + 1; // 현재 질문 번호
     }
-    const messageNumber = previousConversationCount + 1; // 현재 질문 번호
     
     // 디버깅: messageNumber 확인
     console.log(`[Chat] ====== MESSAGE NUMBER CALCULATION ======`);
-    console.log(`[Chat] History length: ${fullHistory.length}`);
-    console.log(`[Chat] Previous conversation count: ${previousConversationCount}`);
-    console.log(`[Chat] Current message number: ${messageNumber}`);
-    console.log(`[Chat] History structure:`, fullHistory.map((m: any, idx: number) => ({
-      index: idx,
-      role: m.role,
-      contentLength: m.content?.length || 0,
-      contentPreview: m.content?.substring(0, 30) || ''
-    })));
+    console.log(`[Chat] Body messageNumber: ${body?.messageNumber}`);
+    console.log(`[Chat] History length: ${body?.history?.length || 0}`);
+    console.log(`[Chat] Calculated messageNumber: ${messageNumber}`);
+    if (body?.history && body.history.length > 0) {
+      console.log(`[Chat] History structure:`, body.history.map((m: any, idx: number) => ({
+        index: idx,
+        role: m.role,
+        contentLength: m.content?.length || 0,
+        contentPreview: m.content?.substring(0, 30) || ''
+      })));
+    } else {
+      console.log(`[Chat] History is empty or not provided`);
+    }
     console.log(`[Chat] ========================================`);
     
     // System Prompt 읽기 및 날짜 정보 추가
