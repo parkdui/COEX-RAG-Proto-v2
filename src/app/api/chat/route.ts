@@ -581,21 +581,17 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     
     console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
-    // 사용자 메시지가 저장된 row를 찾기 위해 재시도 로직 추가
+    // 세션 row 찾기: A column과 D column을 확인하여 정확한 row 찾기
+    // 첫 번째 사용자 메시지(D column)가 있는 row를 찾으면 됨
     let rowIndex = -1;
     const maxRetries = 5;
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
-      // 해당 messageNumber에 맞는 사용자 메시지 column 계산
-      // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7)...
-      const userMessageColumnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, ...
-      const columnLetter = String.fromCharCode(65 + userMessageColumnIndex); // D=68, F=70, H=72...
-      
-      // A~해당 사용자 메시지 column까지 가져오기
+      // A~D column까지 가져와서 세션 row 찾기
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:${columnLetter}`,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
       });
 
       if (existingData.data.values) {
@@ -603,9 +599,10 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
           if (row && row[0] === sessionId) {
-            // 해당 messageNumber에 맞는 사용자 메시지 column에 값이 있는지 확인
-            if (row[userMessageColumnIndex] && row[userMessageColumnIndex].trim() !== "") {
+            // D column (첫 번째 사용자 메시지)에 값이 있으면 이 세션의 row임
+            if (row[3] && row[3].trim() !== "") {
               rowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] Found session row at index: ${rowIndex} for AI message ${messageNumber}`);
               break;
             }
           }
