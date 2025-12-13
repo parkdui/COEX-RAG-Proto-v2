@@ -479,9 +479,10 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     return rowIndex;
   } else {
     // 두 번째 질문 이후는 기존 세션 row 찾기
+    // A column과 D column을 확인하여 정확한 row 찾기
     const existingData = await sheets.spreadsheets.values.get({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column까지 가져와서 확인
     });
 
     let existingRowIndex = -1;
@@ -489,9 +490,15 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       // 헤더 행(1행) 제외하고 검색
       // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
       for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-        if (existingData.data.values[i][0] === sessionId) {
-          existingRowIndex = i + 1; // 1-based index
-          break;
+        const row = existingData.data.values[i];
+        if (row && row[0] === sessionId) {
+          // D column (첫 번째 사용자 메시지)에 값이 있으면 이 세션의 row임
+          // D column이 비어있으면 이전 세션의 빈 row일 수 있으므로 계속 검색
+          if (row[3] && row[3].trim() !== "") {
+            existingRowIndex = i + 1; // 1-based index
+            console.log(`[Google Sheets] Found existing session row at index: ${existingRowIndex} for messageNumber: ${messageNumber}`);
+            break;
+          }
         }
       }
     }
@@ -499,7 +506,8 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     if (existingRowIndex > 0) {
       return existingRowIndex;
     } else {
-      // 기존 row가 없으면 새로 생성 (이론적으로는 발생하지 않아야 함)
+      // 기존 row를 찾지 못한 경우 (이론적으로는 발생하지 않아야 함)
+      console.warn(`[Google Sheets] Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber}. Creating new row.`);
       const newRow = [
         sessionId,
         timestamp,
@@ -523,7 +531,9 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
         range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
       });
       
-      return (updatedData.data.values?.length || 1);
+      const rowIndex = (updatedData.data.values?.length || 1);
+      console.log(`[Google Sheets] Created new row at index: ${rowIndex} for sessionId: ${sessionId}, messageNumber: ${messageNumber}`);
+      return rowIndex;
     }
   }
 }
