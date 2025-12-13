@@ -646,6 +646,8 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     const columnIndex = 4 + (messageNumber - 1) * 2; // E=4, G=6, I=8, ...
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
     
+    console.log(`[Google Sheets] Updating AI message cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
+    
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
       range: `${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`,
@@ -654,8 +656,11 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
         values: [[aiMessage.substring(0, 1000)]]
       },
     });
+    
+    console.log(`[Google Sheets] AI message saved successfully`);
   } catch (error) {
-    console.error("Error saving AI message in realtime:", error);
+    console.error("[Google Sheets] Error saving AI message in realtime:", error);
+    console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
   }
 }
 
@@ -720,6 +725,8 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
       return;
     }
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+    
+    console.log(`[Google Sheets] Updating token total: sessionId=${sessionId}, tokenTotal=${tokenTotal}`);
     
     // 세션 row 찾기 - 가장 최근 row부터 검색하고, D column에 사용자 메시지가 있는지 확인
     // 재시도 로직 추가 (사용자 메시지가 저장될 때까지 대기)
