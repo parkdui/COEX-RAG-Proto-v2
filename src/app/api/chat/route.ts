@@ -1267,18 +1267,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Token 합계 업데이트 (비동기, 에러 무시)
+    // savedRowIndex를 사용하여 정확한 row에 저장
     (async () => {
       try {
-        const existingTokenTotal = await getTokenTotal(sessionId);
-        // classification, embedding, chat 모두 포함
+        if (!savedRowIndex) {
+          console.warn('[Chat Log] savedRowIndex is null, cannot update token total');
+          return;
+        }
+        
+        // 기존 토큰 총합 가져오기 (savedRowIndex 사용)
+        const existingTokenTotal = await getTokenTotal(sessionId, savedRowIndex);
+        console.log(`[Chat Log] Existing token total from row ${savedRowIndex}: ${existingTokenTotal}`);
+        
+        // classification, embedding, chat 모두 포함 (현재 요청의 토큰)
         const currentTokenTotal = 
           TOKENS.classification_total + 
           TOKENS.embed_input + 
           TOKENS.chat_total;
+        console.log(`[Chat Log] Current request token total: ${currentTokenTotal}`);
+        console.log(`[Chat Log]   - Classification: ${TOKENS.classification_total}`);
+        console.log(`[Chat Log]   - Embedding: ${TOKENS.embed_input}`);
+        console.log(`[Chat Log]   - Chat: ${TOKENS.chat_total}`);
+        
+        // 누적: 기존 총합 + 현재 요청 토큰 = 새로운 총합
         const newTokenTotal = existingTokenTotal + currentTokenTotal;
-        await updateTokenTotal(sessionId, newTokenTotal);
+        console.log(`[Chat Log] Token update: existing=${existingTokenTotal} + current=${currentTokenTotal} = new=${newTokenTotal}`);
+        
+        // 새로운 총합 저장 (savedRowIndex 사용)
+        await updateTokenTotal(sessionId, newTokenTotal, savedRowIndex);
+        console.log(`[Chat Log] ✅ Token total updated successfully: ${newTokenTotal} tokens at row ${savedRowIndex}`);
       } catch (error) {
-        console.error('[Chat Log] Failed to update token total:', error);
+        console.error('[Chat Log] ❌ Failed to update token total:', error);
+        console.error('[Chat Log] Error details:', error instanceof Error ? error.stack : String(error));
       }
     })();
 
