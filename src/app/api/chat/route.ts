@@ -194,29 +194,14 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     throw new Error("CLOVA_API_KEY environment variable is not set");
   }
   
-  // URL 구성: CLOVA_BASE가 이미 /testapp 또는 /serviceapp을 포함하는지 확인
-  let apiUrl = CLOVA_BASE;
-  // 끝에 슬래시 제거 후 정리
-  apiUrl = apiUrl.replace(/\/+$/, '');
+  // URL 구성: 간단하고 명확한 방식 (다른 API 라우트와 동일)
+  // CLOVA_BASE는 이미 /testapp 또는 /serviceapp을 포함하고 있음
+  const baseUrl = CLOVA_BASE.replace(/\/+$/, ''); // 끝의 슬래시 제거
+  const url = `${baseUrl}/v3/chat-completions/${CLOVA_MODEL}`;
   
-  // v3 경로가 포함되어 있지 않으면 추가
-  if (!apiUrl.includes('/v3/')) {
-    apiUrl += '/v3/chat-completions/';
-  } else {
-    // 이미 v3가 있으면 끝에 슬래시만 확인
-    if (!apiUrl.endsWith('/')) {
-      apiUrl += '/';
-    }
-  }
-  apiUrl += CLOVA_MODEL;
-  
-  const url = apiUrl;
-  
-  // 디버깅: URL 로깅
-  if (process.env.LOG_TOKENS === "1" || process.env.NODE_ENV === 'development') {
-    console.log(`🔗 [CLOVA] API URL: ${url}`);
-    console.log(`🔗 [CLOVA] BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
-  }
+  // 디버깅: URL 로깅 (항상 출력하여 문제 파악)
+  console.log(`🔗 [CLOVA] API URL: ${url}`);
+  console.log(`🔗 [CLOVA] BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
