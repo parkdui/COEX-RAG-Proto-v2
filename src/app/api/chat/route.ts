@@ -480,8 +480,9 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
   } else {
     // 두 번째 질문 이후는 기존 세션 row 찾기
     // D column에 값이 있는 row를 찾는 것이 가장 확실함 (첫 번째 질문이 저장된 row)
+    // 사용자 메시지 저장이 동기적으로 처리되므로, 첫 번째 질문은 이미 저장되어 있어야 함
     let existingRowIndex = -1;
-    const maxRetries = 15; // 최대 15번 재시도 (3초 대기)
+    const maxRetries = 20; // 최대 20번 재시도 (4초 대기) - 동기 처리 후에도 안전하게
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
@@ -511,7 +512,8 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
         break; // row를 찾았으면 재시도 중단
       }
       
-      // row를 찾지 못했으면 잠시 대기 후 재시도 (첫 번째 질문이 아직 저장 중일 수 있음)
+      // row를 찾지 못했으면 잠시 대기 후 재시도
+      // 동기 처리 후에도 Google Sheets API 지연으로 인해 즉시 조회되지 않을 수 있음
       if (retry < maxRetries - 1) {
         console.log(`[Google Sheets] Session row not found for messageNumber ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -525,6 +527,7 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       // 하지만 발생한다면 첫 번째 질문이 저장되지 않았거나, sessionId가 다른 경우
       console.error(`[Google Sheets] ❌ CRITICAL: Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber} after ${maxRetries} retries.`);
       console.error(`[Google Sheets] ❌ This should not happen. First question should have created a row.`);
+      console.error(`[Google Sheets] ❌ SessionId: ${sessionId}, MessageNumber: ${messageNumber}`);
       throw new Error(`Session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber}. First question may not have been saved.`);
     }
   }
