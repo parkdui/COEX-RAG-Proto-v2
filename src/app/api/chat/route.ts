@@ -756,7 +756,8 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
 }
 
 // 기존 Token 합계 가져오기 (P column)
-async function getTokenTotal(sessionId: string): Promise<number> {
+// providedRowIndex를 사용하여 정확한 row에서 가져오기
+async function getTokenTotal(sessionId: string, providedRowIndex?: number | null): Promise<number> {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
@@ -764,30 +765,38 @@ async function getTokenTotal(sessionId: string): Promise<number> {
     }
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
-    // 세션 row 찾기 - 가장 최근 row부터 검색 (뒤에서부터)
-    const existingData = await sheets.spreadsheets.values.get({
-      spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
-    });
-
+    // rowIndex 찾기: providedRowIndex가 있으면 사용, 없으면 찾기
     let rowIndex = -1;
-    if (existingData.data.values) {
-      // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
-      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-        const row = existingData.data.values[i];
-        if (row && row[0] === sessionId) {
-          // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
-          // 값이 있으면 현재 진행 중인 대화 row
-          if (row[3] && row[3].toString().trim() !== "") {
-            rowIndex = i + 1; // 1-based index
-            break;
+    
+    if (providedRowIndex && providedRowIndex > 0) {
+      // 제공된 rowIndex 사용
+      rowIndex = providedRowIndex;
+      console.log(`[Google Sheets] Using provided rowIndex: ${rowIndex} for getTokenTotal`);
+    } else {
+      // rowIndex가 없으면 찾기 (하위 호환성)
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+      });
+
+      if (existingData.data.values) {
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
+          if (row && row[0] === sessionId) {
+            // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
+            // 값이 있으면 현재 진행 중인 대화 row
+            if (row[3] && row[3].toString().trim() !== "") {
+              rowIndex = i + 1; // 1-based index
+              break;
+            }
           }
         }
       }
-    }
-    
-    if (rowIndex === -1) {
-      return 0; // 세션이 없으면 0 반환
+      
+      if (rowIndex === -1) {
+        return 0; // 세션이 없으면 0 반환
+      }
     }
     
     // P column = index 15 (0-based)
@@ -808,7 +817,8 @@ async function getTokenTotal(sessionId: string): Promise<number> {
 }
 
 // Token 합계 업데이트 (P column)
-async function updateTokenTotal(sessionId: string, tokenTotal: number) {
+// providedRowIndex를 사용하여 정확한 row에 저장
+async function updateTokenTotal(sessionId: string, tokenTotal: number, providedRowIndex?: number | null) {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
@@ -819,44 +829,50 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
     
     console.log(`[Google Sheets] Updating token total: sessionId=${sessionId}, tokenTotal=${tokenTotal}`);
     
-    // 세션 row 찾기 - 가장 최근 row부터 검색하고, D column에 사용자 메시지가 있는지 확인
-    // 재시도 로직 추가 (사용자 메시지가 저장될 때까지 대기)
+    // rowIndex 찾기: providedRowIndex가 있으면 사용, 없으면 찾기
     let rowIndex = -1;
-    const maxRetries = 5;
-    const retryDelay = 200; // 200ms
     
-    for (let retry = 0; retry < maxRetries; retry++) {
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
-      });
+    if (providedRowIndex && providedRowIndex > 0) {
+      // 제공된 rowIndex 사용
+      rowIndex = providedRowIndex;
+      console.log(`[Google Sheets] Using provided rowIndex: ${rowIndex} for updateTokenTotal`);
+    } else {
+      // rowIndex가 없으면 찾기 (하위 호환성)
+      const maxRetries = 5;
+      const retryDelay = 200; // 200ms
+      
+      for (let retry = 0; retry < maxRetries; retry++) {
+        const existingData = await sheets.spreadsheets.values.get({
+          spreadsheetId: LOG_GOOGLE_SHEET_ID,
+          range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+        });
 
-      if (existingData.data.values) {
-        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
-        // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
-        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-          const row = existingData.data.values[i];
-          if (row && row[3] && row[3].toString().trim() !== "") {
-            // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
-            rowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for token update`);
-            console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
-            break;
+        if (existingData.data.values) {
+          // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+          // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
+          for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+            const row = existingData.data.values[i];
+            if (row && row[3] && row[3].toString().trim() !== "") {
+              // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
+              rowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for token update`);
+              console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
+              break;
+            }
           }
+        }
+        
+        if (rowIndex > 0) {
+          break; // row를 찾았으면 재시도 중단
+        }
+        
+        // row를 찾지 못했으면 잠시 대기 후 재시도
+        if (retry < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
       
-      if (rowIndex > 0) {
-        break; // row를 찾았으면 재시도 중단
-      }
-      
-      // row를 찾지 못했으면 잠시 대기 후 재시도
-      if (retry < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-    
-    if (rowIndex === -1) {
+      if (rowIndex === -1) {
       console.error(`[Chat Log] Row with data not found for token update after ${maxRetries} retries`);
       return;
     }
