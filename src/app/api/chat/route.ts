@@ -451,11 +451,42 @@ async function findLastMessageNumber(sessionId: string): Promise<number> {
 // 세션의 row index 찾기 또는 생성
 // body에서 rowIndex를 받으면 직접 사용, 없으면 찾거나 생성
 async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number, providedRowIndex?: number | null): Promise<number> {
-  // rowIndex가 제공되면 직접 사용 (동시 사용자 문제 해결)
-  if (providedRowIndex && providedRowIndex > 0) {
-    console.log(`[Google Sheets] Using provided rowIndex: ${providedRowIndex}`);
-    return providedRowIndex;
+  // messageNumber가 1이고 providedRowIndex가 없으면 새 row 생성
+  // messageNumber가 1보다 크고 providedRowIndex가 있으면 해당 row 사용
+  if (messageNumber === 1) {
+    // 첫 번째 질문: providedRowIndex가 있어도 무시하고 새 row 생성 (또는 기존 row 확인)
+    if (providedRowIndex && providedRowIndex > 0) {
+      // providedRowIndex가 있으면 해당 row가 비어있는지 확인
+      const client = await getGoogleSheetsClient();
+      if (client) {
+        const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+        try {
+          const rowData = await sheets.spreadsheets.values.get({
+            spreadsheetId: LOG_GOOGLE_SHEET_ID,
+            range: `${LOG_GOOGLE_SHEET_NAME}!A${providedRowIndex}:D${providedRowIndex}`,
+          });
+          if (rowData.data.values && rowData.data.values[0]) {
+            const row = rowData.data.values[0];
+            // D column이 비어있으면 해당 row 사용
+            if (!row[3] || row[3].trim() === "") {
+              console.log(`[Google Sheets] Using provided rowIndex ${providedRowIndex} (empty row)`);
+              return providedRowIndex;
+            }
+          }
+        } catch (error) {
+          console.error("[Google Sheets] Error checking provided rowIndex:", error);
+        }
+      }
+    }
+    // providedRowIndex가 없거나 해당 row가 사용 중이면 새 row 생성 로직으로 진행
+  } else {
+    // 두 번째 질문 이후: providedRowIndex가 있으면 직접 사용
+    if (providedRowIndex && providedRowIndex > 0) {
+      console.log(`[Google Sheets] Using provided rowIndex: ${providedRowIndex} for messageNumber: ${messageNumber}`);
+      return providedRowIndex;
+    }
   }
+  
   const client = await getGoogleSheetsClient();
   if (!client) {
     throw new Error("Google Sheets client not available");
