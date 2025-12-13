@@ -568,11 +568,12 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
     
     // D column부터 시작 (A=0, B=1, C=2, D=3)
     // 첫 번째 질문: D column (index 3), 두 번째 질문: F column (index 5), ...
-    // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7)...
-    const columnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, ...
+    // 사용자 메시지1 = D (3), 사용자 메시지2 = F (5), 사용자 메시지3 = H (7), 사용자 메시지4 = J (9), 사용자 메시지5 = L (11), 사용자 메시지6 = N (13)
+    const columnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, J=9, L=11, N=13
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
     
-    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
+    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex} for messageNumber=${messageNumber}`);
+    console.log(`[Google Sheets] Column calculation: 3 + (${messageNumber} - 1) * 2 = ${columnIndex} (${columnLetter})`);
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -647,9 +648,12 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     
     // E column부터 시작 (A=0, B=1, C=2, D=3, E=4)
     // 첫 번째 답변: E column (index 4), 두 번째 답변: G column (index 6), ...
-    // AI 메시지1 = E (4), AI 메시지2 = G (6), AI 메시지3 = I (8)...
-    const columnIndex = 4 + (messageNumber - 1) * 2; // E=4, G=6, I=8, ...
+    // AI 메시지1 = E (4), AI 메시지2 = G (6), AI 메시지3 = I (8), AI 메시지4 = K (10), AI 메시지5 = M (12), AI 메시지6 = O (14)
+    const columnIndex = 4 + (messageNumber - 1) * 2; // E=4, G=6, I=8, K=10, M=12, O=14
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
+    
+    console.log(`[Google Sheets] Updating AI message cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex} for messageNumber=${messageNumber}`);
+    console.log(`[Google Sheets] Column calculation: 4 + (${messageNumber} - 1) * 2 = ${columnIndex} (${columnLetter})`);
     
     console.log(`[Google Sheets] Updating AI message cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
     
