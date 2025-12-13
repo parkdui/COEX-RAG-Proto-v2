@@ -634,25 +634,29 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     
     console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
-    // 세션 row 찾기: sessionId로 가장 최근 row 찾기 (재시도 로직 포함)
+    // 세션 row 찾기: D column에 값이 있는 가장 최근 row 찾기 (sessionId 무시)
+    // sessionId가 매번 달라질 수 있으므로, 가장 최근에 생성된 row를 찾아서 사용
     let rowIndex = -1;
     const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
-      // A column만 확인하여 빠르게 검색
+      // A~D column까지 가져와서 D column에 값이 있는 가장 최근 row 찾기
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
       });
 
       if (existingData.data.values) {
         // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
-          if (row && row[0] === sessionId) {
+          if (row && row[3] && row[3].trim() !== "") {
+            // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
             rowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] Found session row at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
+            console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
+            console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
             break;
           }
         }
@@ -664,13 +668,13 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
       
       // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
       if (retry < maxRetries - 1) {
-        console.log(`[Google Sheets] Session row not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
+        console.log(`[Google Sheets] Row with data not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
     
     if (rowIndex === -1) {
-      console.error(`[Chat Log] ❌ Session ${sessionId} not found for AI message ${messageNumber} after ${maxRetries} retries`);
+      console.error(`[Chat Log] ❌ Row with data not found for AI message ${messageNumber} after ${maxRetries} retries`);
       return;
     }
     
@@ -782,15 +786,15 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
 
       if (existingData.data.values) {
         // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
-          if (row && row[0] === sessionId) {
-            // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
-            // 값이 있으면 현재 진행 중인 대화 row
-            if (row[3] && row[3].toString().trim() !== "") {
-              rowIndex = i + 1; // 1-based index
-              break;
-            }
+          if (row && row[3] && row[3].toString().trim() !== "") {
+            // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
+            rowIndex = i + 1; // 1-based index
+            console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for token update`);
+            console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
+            break;
           }
         }
       }
@@ -806,7 +810,7 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number) {
     }
     
     if (rowIndex === -1) {
-      console.error(`[Chat Log] Session ${sessionId} not found for token update after ${maxRetries} retries`);
+      console.error(`[Chat Log] Row with data not found for token update after ${maxRetries} retries`);
       return;
     }
     
