@@ -633,10 +633,13 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     const columnIndex = 4 + (messageNumber - 1) * 2; // E=4, G=6, I=8, K=10, M=12, O=14
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
     
-    console.log(`[Google Sheets] Updating AI message cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex} for messageNumber=${messageNumber}`);
+    console.log(`[Google Sheets] ====== SAVING AI MESSAGE ======`);
+    console.log(`[Google Sheets] sessionId: ${sessionId}`);
+    console.log(`[Google Sheets] messageNumber: ${messageNumber}`);
+    console.log(`[Google Sheets] rowIndex: ${rowIndex}`);
     console.log(`[Google Sheets] Column calculation: 4 + (${messageNumber} - 1) * 2 = ${columnIndex} (${columnLetter})`);
-    
-    console.log(`[Google Sheets] Updating AI message cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
+    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
+    console.log(`[Google Sheets] ==============================`);
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -850,6 +853,10 @@ export async function POST(request: NextRequest) {
     }
     const messageNumber = previousConversationCount + 1; // 현재 질문 번호
     
+    // 디버깅: messageNumber 확인
+    console.log(`[Chat] Message number calculation: history length=${fullHistory.length}, previousConversationCount=${previousConversationCount}, messageNumber=${messageNumber}`);
+    console.log(`[Chat] History:`, JSON.stringify(fullHistory.map((m: any) => ({ role: m.role, content: m.content?.substring(0, 50) }))));
+    
     // System Prompt 읽기 및 날짜 정보 추가
     let defaultSystemPrompt = "";
     try {
@@ -999,10 +1006,14 @@ export async function POST(request: NextRequest) {
       console.warn(`[WARNING] AI 응답이 비어있거나 너무 짧습니다. 기본 메시지 사용: "${cleanedAnswer}"`);
     }
 
-    // 실시간 로깅: AI 답변 수신 시 즉시 저장 (비동기, 에러 무시)
-    saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer).catch((error) => {
+    // 실시간 로깅: AI 답변 수신 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
+    try {
+      await saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer);
+      console.log(`[Chat Log] AI message ${messageNumber} saved successfully`);
+    } catch (error) {
       console.error('[Chat Log] Failed to save AI message in realtime:', error);
-    });
+      // 에러가 발생해도 메인 플로우는 계속 진행
+    }
 
     // Token 합계 업데이트 (비동기, 에러 무시)
     (async () => {
