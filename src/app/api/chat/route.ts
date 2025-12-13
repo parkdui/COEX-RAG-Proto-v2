@@ -556,8 +556,13 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
     const columnIndex = 3 + (messageNumber - 1) * 2; // D=3, F=5, H=7, J=9, L=11, N=13
     const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
     
-    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex} for messageNumber=${messageNumber}`);
+    console.log(`[Google Sheets] ====== SAVING USER MESSAGE ======`);
+    console.log(`[Google Sheets] sessionId: ${sessionId}`);
+    console.log(`[Google Sheets] messageNumber: ${messageNumber}`);
+    console.log(`[Google Sheets] rowIndex: ${rowIndex}`);
     console.log(`[Google Sheets] Column calculation: 3 + (${messageNumber} - 1) * 2 = ${columnIndex} (${columnLetter})`);
+    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
+    console.log(`[Google Sheets] =================================`);
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
