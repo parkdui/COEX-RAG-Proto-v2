@@ -190,7 +190,14 @@ async function isInfoRequestQuestion(question: string): Promise<boolean> {
 
 // ====== CLOVA Chat Completions v3 (non-stream) ======
 async function callClovaChat(messages: any[], opts: any = {}) {
+  console.log("[CLOVA] callClovaChat function called");
+  console.log("[CLOVA] CLOVA_KEY exists:", !!CLOVA_KEY);
+  console.log("[CLOVA] CLOVA_BASE:", CLOVA_BASE);
+  console.log("[CLOVA] CLOVA_MODEL:", CLOVA_MODEL);
+  console.log("[CLOVA] APP_ID:", APP_ID);
+  
   if (!CLOVA_KEY) {
+    console.error("[CLOVA] ❌ CLOVA_API_KEY is missing!");
     throw new Error("CLOVA_API_KEY environment variable is not set");
   }
   
@@ -198,9 +205,10 @@ async function callClovaChat(messages: any[], opts: any = {}) {
   // CLOVA_BASE는 이미 /testapp 또는 /serviceapp을 포함하고 있음
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
   
-  // 디버깅: URL 로깅
-  console.log(`🔗 [CLOVA] API URL: ${url}`);
-  console.log(`🔗 [CLOVA] CLOVA_BASE: ${CLOVA_BASE}, MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
+  // 디버깅: URL 로깅 (항상 출력)
+  console.log(`🔗 [CLOVA] Final API URL: ${url}`);
+  console.log(`🔗 [CLOVA] CLOVA_BASE: ${CLOVA_BASE}`);
+  console.log(`🔗 [CLOVA] MODEL: ${CLOVA_MODEL}, APP_ID: ${APP_ID}`);
 
   // 메시지 포맷 변환
   const wrappedMessages = messages.map((m) => ({
@@ -218,21 +226,36 @@ async function callClovaChat(messages: any[], opts: any = {}) {
     stop: [],
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${CLOVA_KEY}`,
-      "Content-Type": "application/json; charset=utf-8",
-      "X-NCP-CLOVASTUDIO-REQUEST-ID": `req-${Date.now()}`,
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  console.log("[CLOVA] Making fetch request...");
+  console.log("[CLOVA] Request URL:", url);
+  console.log("[CLOVA] Request method: POST");
+  console.log("[CLOVA] Messages count:", messages.length);
+  
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${CLOVA_KEY}`,
+        "Content-Type": "application/json; charset=utf-8",
+        "X-NCP-CLOVASTUDIO-REQUEST-ID": `req-${Date.now()}`,
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    console.log("[CLOVA] Fetch completed, status:", res.status, res.statusText);
+  } catch (fetchError) {
+    console.error("[CLOVA] ❌ Fetch error occurred:", fetchError);
+    console.error("[CLOVA] ❌ Fetch error details:", fetchError instanceof Error ? fetchError.message : String(fetchError));
+    console.error("[CLOVA] ❌ Fetch error stack:", fetchError instanceof Error ? fetchError.stack : "N/A");
+    throw new Error(`CLOVA fetch failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+  }
   
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
     console.error(`❌ [CLOVA] API Error ${res.status}: ${errorText}`);
     console.error(`❌ [CLOVA] Request URL: ${url}`);
+    console.error(`❌ [CLOVA] Response headers:`, Object.fromEntries(res.headers.entries()));
     throw new Error(
       `CLOVA chat failed ${res.status}: ${errorText}`
     );
