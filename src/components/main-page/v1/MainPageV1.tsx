@@ -21,6 +21,8 @@ const useChatState = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoButtonDisabled, setIsGoButtonDisabled] = useState(false);
+  const [rowIndex, setRowIndex] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const addMessage = useCallback((message: Message) => {
     setMessages(prev => [...prev, message]);
@@ -44,7 +46,11 @@ const useChatState = () => {
     isGoButtonDisabled,
     setIsGoButtonDisabled,
     addMessage,
-    addErrorMessage
+    addErrorMessage,
+    rowIndex,
+    setRowIndex,
+    sessionId,
+    setSessionId
   }), [
     messages,
     chatHistory,
@@ -53,7 +59,9 @@ const useChatState = () => {
     isLoading,
     isGoButtonDisabled,
     addMessage,
-    addErrorMessage
+    addErrorMessage,
+    rowIndex,
+    sessionId
   ]);
 };
 
@@ -79,11 +87,17 @@ const useVoiceRecording = () => {
  * API 요청 함수들
  */
 const apiRequests = {
-  async sendChatRequest(question: string, systemPrompt: string, history: Message[]) {
+  async sendChatRequest(question: string, systemPrompt: string, history: Message[], rowIndex?: number | null, sessionId?: string | null) {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, systemPrompt, history }),
+      body: JSON.stringify({ 
+        question, 
+        systemPrompt, 
+        history,
+        rowIndex: rowIndex || undefined,
+        sessionId: sessionId || undefined
+      }),
     });
     return response.json();
   },
@@ -402,11 +416,19 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         chatState.setIsLoading(true);
         try {
           const historyToSend = chatState.chatHistory.slice(-4); // 최근 2턴 (토큰 절감 + 맥락 유지)
-          const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend);
+          const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
 
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
           } else {
+            // rowIndex와 sessionId 저장 (다음 요청에 사용)
+            if (chatData.rowIndex) {
+              chatState.setRowIndex(chatData.rowIndex);
+            }
+            if (chatData.sessionId) {
+              chatState.setSessionId(chatData.sessionId);
+            }
+            
             await pushAssistantMessage({
               answer: chatData.answer,
               tokens: chatData.tokens,
@@ -554,11 +576,19 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
     try {
       const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
-      const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend);
+      const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
+        // rowIndex와 sessionId 저장 (다음 요청에 사용)
+        if (data.rowIndex) {
+          chatState.setRowIndex(data.rowIndex);
+        }
+        if (data.sessionId) {
+          chatState.setSessionId(data.sessionId);
+        }
+        
         await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
@@ -594,12 +624,22 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       const data = await apiRequests.sendChatRequest(
         "안녕하세요! 이솔이에요. 오늘 어떤 무드로 코엑스를 즐기고 싶으신가요?",
         chatState.systemPrompt,
-        []
+        [],
+        chatState.rowIndex,
+        chatState.sessionId
       );
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
+        // rowIndex와 sessionId 저장 (다음 요청에 사용)
+        if (data.rowIndex) {
+          chatState.setRowIndex(data.rowIndex);
+        }
+        if (data.sessionId) {
+          chatState.setSessionId(data.sessionId);
+        }
+        
         await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
@@ -798,11 +838,19 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
     try {
       const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
-      const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend);
+      const data = await apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
       } else {
+        // rowIndex와 sessionId 저장 (다음 요청에 사용)
+        if (data.rowIndex) {
+          chatState.setRowIndex(data.rowIndex);
+        }
+        if (data.sessionId) {
+          chatState.setSessionId(data.sessionId);
+        }
+        
         await pushAssistantMessage({
           answer: data.answer,
           tokens: data.tokens,
