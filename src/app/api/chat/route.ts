@@ -365,7 +365,9 @@ async function getGoogleSheetsClient() {
     process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
   
   if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Sheets API credentials are not set");
+    // 환경 변수가 없으면 null 반환 (로깅 스킵)
+    console.warn("[Google Sheets] Credentials not set, skipping logging");
+    return null;
   }
 
   // 개인 키 형식 처리
@@ -382,15 +384,23 @@ async function getGoogleSheetsClient() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
-  const sheets = google.sheets({ version: "v4", auth });
-  
-  return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
+  try {
+    const sheets = google.sheets({ version: "v4", auth });
+    return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
+  } catch (error) {
+    console.error("[Google Sheets] Failed to create client:", error);
+    return null;
+  }
 }
 
 // 헤더 확인 및 추가 함수
 async function ensureHeaders() {
   try {
-    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    const client = await getGoogleSheetsClient();
+    if (!client) {
+      return; // 클라이언트가 없으면 스킵
+    }
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     const headerResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -422,7 +432,11 @@ async function ensureHeaders() {
 
 // 세션의 row index 찾기 또는 생성
 async function findOrCreateSessionRow(sessionId: string, timestamp: string, systemPrompt: string, messageNumber: number): Promise<number> {
-  const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+  const client = await getGoogleSheetsClient();
+  if (!client) {
+    throw new Error("Google Sheets client not available");
+  }
+  const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
   
   // 헤더 확인
   await ensureHeaders();
@@ -534,7 +548,12 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
 // 실시간으로 사용자 메시지 저장 (D column부터 시작)
 async function saveUserMessageRealtime(sessionId: string, messageNumber: number, userMessage: string, timestamp: string, systemPrompt: string) {
   try {
-    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    const client = await getGoogleSheetsClient();
+    if (!client) {
+      console.warn("[Google Sheets] Client not available, skipping user message save");
+      return;
+    }
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     // 세션 row 찾기 또는 생성 (messageNumber 전달)
     const rowIndex = await findOrCreateSessionRow(sessionId, timestamp, systemPrompt, messageNumber);
@@ -561,7 +580,12 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
 // 실시간으로 AI 메시지 저장 (E column부터 시작)
 async function saveAIMessageRealtime(sessionId: string, messageNumber: number, aiMessage: string) {
   try {
-    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    const client = await getGoogleSheetsClient();
+    if (!client) {
+      console.warn("[Google Sheets] Client not available, skipping AI message save");
+      return;
+    }
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     // 사용자 메시지가 저장된 row를 찾기 위해 재시도 로직 추가
     let rowIndex = -1;
@@ -631,7 +655,11 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
 // 기존 Token 합계 가져오기 (P column)
 async function getTokenTotal(sessionId: string): Promise<number> {
   try {
-    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    const client = await getGoogleSheetsClient();
+    if (!client) {
+      return 0; // 클라이언트가 없으면 0 반환
+    }
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     // 세션 row 찾기 - 가장 최근 row부터 검색 (뒤에서부터)
     const existingData = await sheets.spreadsheets.values.get({
@@ -679,7 +707,12 @@ async function getTokenTotal(sessionId: string): Promise<number> {
 // Token 합계 업데이트 (P column)
 async function updateTokenTotal(sessionId: string, tokenTotal: number) {
   try {
-    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = await getGoogleSheetsClient();
+    const client = await getGoogleSheetsClient();
+    if (!client) {
+      console.warn("[Google Sheets] Client not available, skipping token total update");
+      return;
+    }
+    const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     // 세션 row 찾기 - 가장 최근 row부터 검색하고, D column에 사용자 메시지가 있는지 확인
     // 재시도 로직 추가 (사용자 메시지가 저장될 때까지 대기)
