@@ -479,15 +479,16 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     return rowIndex;
   } else {
     // 두 번째 질문 이후는 기존 세션 row 찾기
-    // sessionId로 가장 최근 row를 찾되, 재시도 로직 추가 (첫 번째 질문이 아직 저장되지 않았을 수 있음)
+    // D column에 값이 있는 row를 찾는 것이 가장 확실함 (첫 번째 질문이 저장된 row)
     let existingRowIndex = -1;
-    const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
+    const maxRetries = 15; // 최대 15번 재시도 (3초 대기)
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
+      // A~D column까지 가져와서 D column에 값이 있는 row 찾기
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`, // A column만 확인 (빠른 검색)
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column 확인
       });
 
       if (existingData.data.values) {
@@ -496,9 +497,12 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
           if (row && row[0] === sessionId) {
-            existingRowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] Found existing session row at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
-            break;
+            // D column (index 3)에 값이 있으면 첫 번째 질문이 저장된 row임
+            if (row[3] && row[3].trim() !== "") {
+              existingRowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] ✅ Found existing session row at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
+              break;
+            }
           }
         }
       }
@@ -509,7 +513,7 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       
       // row를 찾지 못했으면 잠시 대기 후 재시도 (첫 번째 질문이 아직 저장 중일 수 있음)
       if (retry < maxRetries - 1) {
-        console.log(`[Google Sheets] Session row not found, retrying... (${retry + 1}/${maxRetries})`);
+        console.log(`[Google Sheets] Session row not found for messageNumber ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
@@ -517,34 +521,11 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     if (existingRowIndex > 0) {
       return existingRowIndex;
     } else {
-      // 기존 row를 찾지 못한 경우 (이론적으로는 발생하지 않아야 함)
-      console.error(`[Google Sheets] ❌ Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber} after ${maxRetries} retries. Creating new row.`);
-      const newRow = [
-        sessionId,
-        timestamp,
-        systemPrompt.substring(0, 1000),
-      ];
-      for (let i = 0; i < 13; i++) {
-        newRow.push("");
-      }
-      
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [newRow]
-        },
-      });
-      
-      const updatedData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
-      });
-      
-      const rowIndex = (updatedData.data.values?.length || 1);
-      console.log(`[Google Sheets] Created new row at index: ${rowIndex} for sessionId: ${sessionId}, messageNumber: ${messageNumber}`);
-      return rowIndex;
+      // 기존 row를 찾지 못한 경우 - 절대 발생하지 않아야 함
+      // 하지만 발생한다면 첫 번째 질문이 저장되지 않았거나, sessionId가 다른 경우
+      console.error(`[Google Sheets] ❌ CRITICAL: Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber} after ${maxRetries} retries.`);
+      console.error(`[Google Sheets] ❌ This should not happen. First question should have created a row.`);
+      throw new Error(`Session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber}. First question may not have been saved.`);
     }
   }
 }
