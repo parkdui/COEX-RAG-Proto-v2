@@ -603,17 +603,16 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     
     console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
     
-    // 세션 row 찾기: A column과 D column을 확인하여 정확한 row 찾기
-    // 첫 번째 사용자 메시지(D column)가 있는 row를 찾으면 됨
+    // 세션 row 찾기: sessionId로 가장 최근 row 찾기 (재시도 로직 포함)
     let rowIndex = -1;
-    const maxRetries = 5;
+    const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
-      // A~D column까지 가져와서 세션 row 찾기
+      // A column만 확인하여 빠르게 검색
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
       });
 
       if (existingData.data.values) {
@@ -621,12 +620,9 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
           if (row && row[0] === sessionId) {
-            // D column (첫 번째 사용자 메시지)에 값이 있으면 이 세션의 row임
-            if (row[3] && row[3].trim() !== "") {
-              rowIndex = i + 1; // 1-based index
-              console.log(`[Google Sheets] Found session row at index: ${rowIndex} for AI message ${messageNumber}`);
-              break;
-            }
+            rowIndex = i + 1; // 1-based index
+            console.log(`[Google Sheets] Found session row at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
+            break;
           }
         }
       }
@@ -635,14 +631,15 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
         break; // row를 찾았으면 재시도 중단
       }
       
-      // row를 찾지 못했으면 잠시 대기 후 재시도
+      // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
       if (retry < maxRetries - 1) {
+        console.log(`[Google Sheets] Session row not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
     
     if (rowIndex === -1) {
-      console.error(`[Chat Log] Session ${sessionId} not found for AI message ${messageNumber} after ${maxRetries} retries`);
+      console.error(`[Chat Log] ❌ Session ${sessionId} not found for AI message ${messageNumber} after ${maxRetries} retries`);
       return;
     }
     
