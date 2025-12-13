@@ -482,8 +482,29 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
   } else {
     // 두 번째 질문 이후: providedRowIndex가 있으면 직접 사용
     if (providedRowIndex && providedRowIndex > 0) {
-      console.log(`[Google Sheets] Using provided rowIndex: ${providedRowIndex} for messageNumber: ${messageNumber}`);
-      return providedRowIndex;
+      console.log(`[Google Sheets] ✅ Using provided rowIndex: ${providedRowIndex} for messageNumber: ${messageNumber}`);
+      // providedRowIndex가 유효한지 확인 (row가 존재하는지)
+      const client = await getGoogleSheetsClient();
+      if (client) {
+        const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
+        try {
+          const rowData = await sheets.spreadsheets.values.get({
+            spreadsheetId: LOG_GOOGLE_SHEET_ID,
+            range: `${LOG_GOOGLE_SHEET_NAME}!A${providedRowIndex}:A${providedRowIndex}`,
+          });
+          if (rowData.data.values && rowData.data.values[0]) {
+            console.log(`[Google Sheets] ✅ Row ${providedRowIndex} exists, using it`);
+            return providedRowIndex;
+          } else {
+            console.warn(`[Google Sheets] ⚠️ Row ${providedRowIndex} does not exist, will search for row`);
+          }
+        } catch (error) {
+          console.error(`[Google Sheets] ❌ Error checking row ${providedRowIndex}:`, error);
+          console.warn(`[Google Sheets] ⚠️ Will search for row instead`);
+        }
+      }
+    } else {
+      console.warn(`[Google Sheets] ⚠️ No providedRowIndex for messageNumber ${messageNumber}, will search for row`);
     }
   }
   
@@ -1053,11 +1074,25 @@ export async function POST(request: NextRequest) {
     // 시스템 프롬프트의 첫 100자만 로그에 저장 (토큰 절감을 위해)
     const systemPromptForLog = activeSystemPrompt.substring(0, 100) + (activeSystemPrompt.length > 100 ? '...' : '');
     let savedRowIndex: number | null = null;
+    
+    // 디버깅: rowIndex와 messageNumber 확인
+    console.log(`[Chat Log] ====== SAVING USER MESSAGE ======`);
+    console.log(`[Chat Log] messageNumber: ${messageNumber}`);
+    console.log(`[Chat Log] rowIndex from body: ${rowIndex}`);
+    console.log(`[Chat Log] sessionId: ${sessionId}`);
+    console.log(`[Chat Log] question: ${question.substring(0, 50)}...`);
+    console.log(`[Chat Log] =================================`);
+    
     try {
       savedRowIndex = await saveUserMessageRealtime(sessionId, messageNumber, question, timestamp, systemPromptForLog, rowIndex);
-      console.log(`[Chat Log] User message ${messageNumber} saved successfully at row ${savedRowIndex}`);
+      if (savedRowIndex) {
+        console.log(`[Chat Log] ✅ User message ${messageNumber} saved successfully at row ${savedRowIndex}`);
+      } else {
+        console.error(`[Chat Log] ❌ User message ${messageNumber} save failed: savedRowIndex is null`);
+      }
     } catch (error) {
-      console.error('[Chat Log] Failed to save user message in realtime:', error);
+      console.error('[Chat Log] ❌ Failed to save user message in realtime:', error);
+      console.error('[Chat Log] Error details:', error instanceof Error ? error.stack : String(error));
       // 에러가 발생해도 메인 플로우는 계속 진행
     }
 
