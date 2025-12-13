@@ -479,27 +479,38 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     return rowIndex;
   } else {
     // 두 번째 질문 이후는 기존 세션 row 찾기
-    // A column과 D column을 확인하여 정확한 row 찾기
-    const existingData = await sheets.spreadsheets.values.get({
-      spreadsheetId: LOG_GOOGLE_SHEET_ID,
-      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column까지 가져와서 확인
-    });
-
+    // sessionId로 가장 최근 row를 찾되, 재시도 로직 추가 (첫 번째 질문이 아직 저장되지 않았을 수 있음)
     let existingRowIndex = -1;
-    if (existingData.data.values) {
-      // 헤더 행(1행) 제외하고 검색
-      // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
-      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-        const row = existingData.data.values[i];
-        if (row && row[0] === sessionId) {
-          // D column (첫 번째 사용자 메시지)에 값이 있으면 이 세션의 row임
-          // D column이 비어있으면 이전 세션의 빈 row일 수 있으므로 계속 검색
-          if (row[3] && row[3].trim() !== "") {
+    const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
+    const retryDelay = 200; // 200ms
+    
+    for (let retry = 0; retry < maxRetries; retry++) {
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`, // A column만 확인 (빠른 검색)
+      });
+
+      if (existingData.data.values) {
+        // 헤더 행(1행) 제외하고 검색
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
+          if (row && row[0] === sessionId) {
             existingRowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] Found existing session row at index: ${existingRowIndex} for messageNumber: ${messageNumber}`);
+            console.log(`[Google Sheets] Found existing session row at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
             break;
           }
         }
+      }
+      
+      if (existingRowIndex > 0) {
+        break; // row를 찾았으면 재시도 중단
+      }
+      
+      // row를 찾지 못했으면 잠시 대기 후 재시도 (첫 번째 질문이 아직 저장 중일 수 있음)
+      if (retry < maxRetries - 1) {
+        console.log(`[Google Sheets] Session row not found, retrying... (${retry + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
 
@@ -507,7 +518,7 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       return existingRowIndex;
     } else {
       // 기존 row를 찾지 못한 경우 (이론적으로는 발생하지 않아야 함)
-      console.warn(`[Google Sheets] Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber}. Creating new row.`);
+      console.error(`[Google Sheets] ❌ Existing session row not found for sessionId: ${sessionId}, messageNumber: ${messageNumber} after ${maxRetries} retries. Creating new row.`);
       const newRow = [
         sessionId,
         timestamp,
