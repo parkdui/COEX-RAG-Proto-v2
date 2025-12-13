@@ -437,9 +437,11 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
           // 값이 있으면 이미 사용 중인 row이므로 새로운 row 생성
           if (row[3] && row[3].trim() !== "") {
             // 기존 row가 사용 중이므로 새로운 row 생성
+            console.log(`[Google Sheets] Session ${sessionId} already has a row with data at index ${i + 1}, creating new row`);
             break;
           } else {
-            // D column이 비어있으면 기존 row 사용
+            // D column이 비어있으면 기존 row 사용 (이론적으로는 발생하지 않아야 함)
+            console.log(`[Google Sheets] Found empty row for session ${sessionId} at index ${i + 1}, reusing it`);
             return i + 1; // 1-based index
           }
         }
