@@ -800,9 +800,15 @@ export async function POST(request: NextRequest) {
     // System Prompt 읽기 및 날짜 정보 추가
     let defaultSystemPrompt = "";
     try {
-      defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
+      if (fs.existsSync(systemPromptPath)) {
+        defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
+      } else {
+        console.warn(`[System Prompt] File not found: ${systemPromptPath}`);
+      }
     } catch (e) {
-      console.warn("Could not read system prompt file:", e);
+      console.error("[System Prompt] Error reading file:", e);
+      console.error(`[System Prompt] Path: ${systemPromptPath}`);
+      console.error(`[System Prompt] CWD: ${process.cwd()}`);
     }
     
     // 현재 날짜 정보 추가 (한국 시간 기준)
@@ -966,9 +972,20 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     console.error("[chat] Error:", e);
     const errorMessage = e instanceof Error ? e.message : String(e);
+    const errorStack = e instanceof Error ? e.stack : undefined;
+    
+    // 상세 에러 로깅
+    console.error("[chat] Error Details:", {
+      message: errorMessage,
+      stack: errorStack,
+      name: e instanceof Error ? e.name : 'Unknown',
+    });
+    
     return NextResponse.json({ 
       error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? String(e) : undefined
+      details: process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'development' 
+        ? (errorStack || String(e)) 
+        : undefined
     }, { status: 500 });
   }
 }
