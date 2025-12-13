@@ -42,7 +42,7 @@ const CLOVA_KEY = getEnv("CLOVA_API_KEY");
 const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
 
 // 파일 경로
-const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
+  const VECTORS_JSON = path.join(process.cwd(), "data", "vectors.json");
 const systemPromptPath = path.join(process.cwd(), "public", "LLM", "system_prompt.txt");
 
 // ==== Token counters ====
@@ -272,10 +272,10 @@ async function callClovaChat(messages: any[], opts: any = {}) {
       );
     }
   } else {
-    TOKENS.chat_input += chatIn;
-    TOKENS.chat_output += chatOut;
-    TOKENS.chat_total += chatTotal;
-    TOKENS.chat_calls += 1;
+  TOKENS.chat_input += chatIn;
+  TOKENS.chat_output += chatOut;
+  TOKENS.chat_total += chatTotal;
+  TOKENS.chat_calls += 1;
 
     // 상세 로깅: API 응답 후 실제 토큰 사용량 출력
     if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
@@ -348,16 +348,16 @@ async function getGoogleSheetsClient() {
   }
 
   try {
-    // Google Auth 설정
-    const auth = new google.auth.JWT({
-      email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: LOG_GOOGLE_PRIVATE_KEY,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+  // Google Auth 설정
+  const auth = new google.auth.JWT({
+    email: LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: LOG_GOOGLE_PRIVATE_KEY,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
 
-    const sheets = google.sheets({ version: "v4", auth });
+  const sheets = google.sheets({ version: "v4", auth });
     console.log("[Google Sheets] Client created successfully");
-    return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
+  return { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME };
   } catch (error) {
     console.error("[Google Sheets] Failed to create client:", error);
     console.error("[Google Sheets] Error details:", error instanceof Error ? error.message : String(error));
@@ -584,25 +584,25 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     
     for (let retry = 0; retry < maxRetries; retry++) {
       // A~D column까지 가져와서 row 찾기
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column 확인
-      });
+    });
 
-      if (existingData.data.values) {
+    if (existingData.data.values) {
         // 헤더 행(1행) 제외하고 가장 최근 row부터 검색 (뒤에서부터)
         // 1순위: sessionId가 일치하고 D column에 값이 있는 row
         // 2순위: sessionId와 관계없이 D column에 값이 있는 가장 최근 row (fallback)
-        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
           if (row && row[3] && row[3].trim() !== "") {
             // D column에 값이 있으면 첫 번째 질문이 저장된 row
             if (row[0] === sessionId) {
               // sessionId가 일치하면 이 row 사용
-              existingRowIndex = i + 1; // 1-based index
+          existingRowIndex = i + 1; // 1-based index
               console.log(`[Google Sheets] ✅ Found row with matching sessionId at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
               console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
-              break;
+          break;
             } else if (existingRowIndex === -1) {
               // sessionId가 일치하지 않아도 가장 최근 row를 저장 (fallback)
               existingRowIndex = i + 1; // 1-based index
@@ -610,11 +610,11 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
               console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
               // break하지 않고 계속 검색 (더 정확한 match를 찾을 수 있음)
             }
-          }
         }
       }
-      
-      if (existingRowIndex > 0) {
+    }
+
+    if (existingRowIndex > 0) {
         break; // row를 찾았으면 재시도 중단
       }
       
@@ -744,44 +744,44 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     } else {
       // rowIndex가 없으면 찾기 (하위 호환성)
       const maxRetries = 10; // 최대 10번 재시도 (2초 대기)
-      const retryDelay = 200; // 200ms
-      
-      for (let retry = 0; retry < maxRetries; retry++) {
+    const retryDelay = 200; // 200ms
+    
+    for (let retry = 0; retry < maxRetries; retry++) {
         // A~D column까지 가져와서 D column에 값이 있는 가장 최근 row 찾기
-        const existingData = await sheets.spreadsheets.values.get({
-          spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
           range: `${LOG_GOOGLE_SHEET_NAME}!A:D`,
-        });
+      });
 
-        if (existingData.data.values) {
-          // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+      if (existingData.data.values) {
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
           // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
-          for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-            const row = existingData.data.values[i];
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
             if (row && row[3] && row[3].trim() !== "") {
               // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
               rowIndex = i + 1; // 1-based index
               console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for AI message ${messageNumber} (retry: ${retry + 1})`);
               console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
               break;
-            }
           }
-        }
-        
-        if (rowIndex > 0) {
-          break; // row를 찾았으면 재시도 중단
-        }
-        
-        // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
-        if (retry < maxRetries - 1) {
-          console.log(`[Google Sheets] Row with data not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
       
-      if (rowIndex === -1) {
+      if (rowIndex > 0) {
+        break; // row를 찾았으면 재시도 중단
+      }
+      
+        // row를 찾지 못했으면 잠시 대기 후 재시도 (사용자 메시지가 아직 저장 중일 수 있음)
+      if (retry < maxRetries - 1) {
+          console.log(`[Google Sheets] Row with data not found for AI message ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+    
+    if (rowIndex === -1) {
         console.error(`[Chat Log] ❌ Row with data not found for AI message ${messageNumber} after ${maxRetries} retries`);
-        return;
+      return;
       }
     }
     
@@ -834,41 +834,45 @@ async function getTokenTotal(sessionId: string, providedRowIndex?: number | null
       console.log(`[Google Sheets] Using provided rowIndex: ${rowIndex} for getTokenTotal`);
     } else {
       // rowIndex가 없으면 찾기 (하위 호환성)
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: LOG_GOOGLE_SHEET_ID,
-        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
-      });
+    const existingData = await sheets.spreadsheets.values.get({
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+    });
 
-      if (existingData.data.values) {
-        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
-        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-          const row = existingData.data.values[i];
-          if (row && row[0] === sessionId) {
-            // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
-            // 값이 있으면 현재 진행 중인 대화 row
-            if (row[3] && row[3].toString().trim() !== "") {
-              rowIndex = i + 1; // 1-based index
-              break;
-            }
+    if (existingData.data.values) {
+      // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+      for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+        const row = existingData.data.values[i];
+        if (row && row[0] === sessionId) {
+          // D column (첫 번째 사용자 메시지)에 값이 있는지 확인
+          // 값이 있으면 현재 진행 중인 대화 row
+          if (row[3] && row[3].toString().trim() !== "") {
+            rowIndex = i + 1; // 1-based index
+            break;
           }
         }
       }
-      
-      if (rowIndex === -1) {
-        return 0; // 세션이 없으면 0 반환
+    }
+    
+    if (rowIndex === -1) {
+      return 0; // 세션이 없으면 0 반환
       }
     }
     
     // P column = index 15 (0-based)
+    console.log(`[Google Sheets] Getting token total from row ${rowIndex}, column P`);
     const tokenData = await sheets.spreadsheets.values.get({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
       range: `${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`,
     });
     
     if (tokenData.data.values && tokenData.data.values[0] && tokenData.data.values[0][0]) {
-      return Number(tokenData.data.values[0][0]) || 0;
+      const tokenTotal = Number(tokenData.data.values[0][0]) || 0;
+      console.log(`[Google Sheets] ✅ Found existing token total: ${tokenTotal} at row ${rowIndex}`);
+      return tokenTotal;
     }
     
+    console.log(`[Google Sheets] ⚠️ No existing token total found at row ${rowIndex}, returning 0`);
     return 0;
   } catch (error) {
     console.error("Error getting token total:", error);
@@ -898,48 +902,53 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number, providedR
       console.log(`[Google Sheets] Using provided rowIndex: ${rowIndex} for updateTokenTotal`);
     } else {
       // rowIndex가 없으면 찾기 (하위 호환성)
-      const maxRetries = 5;
-      const retryDelay = 200; // 200ms
-      
-      for (let retry = 0; retry < maxRetries; retry++) {
-        const existingData = await sheets.spreadsheets.values.get({
-          spreadsheetId: LOG_GOOGLE_SHEET_ID,
-          range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
-        });
+    const maxRetries = 5;
+    const retryDelay = 200; // 200ms
+    
+    for (let retry = 0; retry < maxRetries; retry++) {
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // D column까지 가져와서 사용자 메시지 확인
+      });
 
-        if (existingData.data.values) {
-          // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
+      if (existingData.data.values) {
+        // 가장 최근에 생성된 row부터 검색 (뒤에서부터)
           // sessionId와 관계없이 D column에 값이 있는 가장 최근 row를 찾음
-          for (let i = existingData.data.values.length - 1; i >= 1; i--) {
-            const row = existingData.data.values[i];
+        for (let i = existingData.data.values.length - 1; i >= 1; i--) {
+          const row = existingData.data.values[i];
             if (row && row[3] && row[3].toString().trim() !== "") {
               // D column (첫 번째 사용자 메시지)에 값이 있으면 현재 진행 중인 대화 row
               rowIndex = i + 1; // 1-based index
               console.log(`[Google Sheets] Found most recent row with data at index: ${rowIndex} for token update`);
               console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
               break;
-            }
           }
-        }
-        
-        if (rowIndex > 0) {
-          break; // row를 찾았으면 재시도 중단
-        }
-        
-        // row를 찾지 못했으면 잠시 대기 후 재시도
-        if (retry < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
       
-      if (rowIndex === -1) {
+      if (rowIndex > 0) {
+        break; // row를 찾았으면 재시도 중단
+      }
+      
+      // row를 찾지 못했으면 잠시 대기 후 재시도
+      if (retry < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+    
+    if (rowIndex === -1) {
         console.error(`[Chat Log] Row with data not found for token update after ${maxRetries} retries`);
-        return;
+      return;
       }
     }
     
     // P column = index 15 (0-based)
-    console.log(`[Google Sheets] Updating token total cell: ${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`);
+    console.log(`[Google Sheets] ====== UPDATING TOKEN TOTAL ======`);
+    console.log(`[Google Sheets] Row: ${rowIndex}`);
+    console.log(`[Google Sheets] Column: P (index 15)`);
+    console.log(`[Google Sheets] New token total: ${tokenTotal}`);
+    console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!P${rowIndex}`);
+    console.log(`[Google Sheets] ===================================`);
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
@@ -950,7 +959,7 @@ async function updateTokenTotal(sessionId: string, tokenTotal: number, providedR
       },
     });
     
-    console.log(`[Google Sheets] Token total updated successfully`);
+    console.log(`[Google Sheets] ✅ Token total updated successfully: ${tokenTotal} tokens at row ${rowIndex}, column P`);
   } catch (error) {
     console.error("[Google Sheets] Error updating token total:", error);
     console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
@@ -1041,7 +1050,7 @@ export async function POST(request: NextRequest) {
           const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
           try {
             const rowData = await sheets.spreadsheets.values.get({
-              spreadsheetId: LOG_GOOGLE_SHEET_ID,
+      spreadsheetId: LOG_GOOGLE_SHEET_ID,
               range: `${LOG_GOOGLE_SHEET_NAME}!A${rowIndex}:N${rowIndex}`,
             });
             if (rowData.data.values && rowData.data.values[0]) {
@@ -1052,15 +1061,15 @@ export async function POST(request: NextRequest) {
                 const columnIndex = 3 + (msgNum - 1) * 2;
                 if (row[columnIndex] && row[columnIndex].trim() !== "") {
                   lastMsgNum = msgNum;
-                  break;
-                }
-              }
+          break;
+        }
+      }
               messageNumber = lastMsgNum + 1;
               console.log(`[Chat] Found last message number ${lastMsgNum} in row ${rowIndex}, using messageNumber ${messageNumber}`);
-            } else {
+    } else {
               messageNumber = 1; // row가 비어있으면 첫 번째 질문
             }
-          } catch (error) {
+  } catch (error) {
             console.error("[Chat] Error reading row data:", error);
             messageNumber = 1; // 에러 발생 시 첫 번째 질문으로 간주
           }
@@ -1087,7 +1096,7 @@ export async function POST(request: NextRequest) {
     let defaultSystemPrompt = "";
     try {
       if (fs.existsSync(systemPromptPath)) {
-        defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
+      defaultSystemPrompt = fs.readFileSync(systemPromptPath, "utf8");
       } else {
         console.warn(`[System Prompt] File not found: ${systemPromptPath}`);
       }
@@ -1096,7 +1105,7 @@ export async function POST(request: NextRequest) {
       console.error(`[System Prompt] Path: ${systemPromptPath}`);
       console.error(`[System Prompt] CWD: ${process.cwd()}`);
     }
-    
+
     // 현재 날짜 정보 추가 (한국 시간 기준)
     const currentDate = new Date(koreanTime);
     const year = currentDate.getFullYear();
@@ -1153,28 +1162,28 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      const qEmb = await embedText(question);
+    const qEmb = await embedText(question);
 
-      const scored = vectors
-        .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
-        .sort((a, b) => b.score - a.score);
+    const scored = vectors
+      .map((v: any) => ({ v, score: cosineSim(qEmb, v.embedding) }))
+      .sort((a, b) => b.score - a.score);
 
       // TOP_K를 환경변수에서 읽거나 기본값 1 사용 (토큰 절감 극대화)
       const OPTIMIZED_TOP_K = TOP_K; // 환경변수 TOP_K 사용 (기본값 1)
       const ranked = scored.slice(0, OPTIMIZED_TOP_K);
       slimHits = ranked.map(({ v, score }) => ({
-        id: v.id,
-        meta: v.meta,
-        text: v.text,
-        score: Number(score.toFixed(4)),
-      }));
+      id: v.id,
+      meta: v.meta,
+      text: v.text,
+      score: Number(score.toFixed(4)),
+    }));
 
       // RAG Context 극대 압축: 텍스트 10자로 제한, 제목만 (최대 5자)
       const MAX_CONTEXT_TEXT_LENGTH = 10; // 각 이벤트 텍스트 최대 길이 (15→10로 축소)
       const MAX_TITLE_LENGTH = 5; // 제목 최대 길이
       context = slimHits
         .map((h) => {
-          const m = h.meta || {};
+        const m = h.meta || {};
           // 제목 길이 제한 (5자)
           const title = (m.title || "").length > MAX_TITLE_LENGTH
             ? (m.title || "").substring(0, MAX_TITLE_LENGTH)
@@ -1224,11 +1233,11 @@ export async function POST(request: NextRequest) {
     // 메시지 처리
     console.log("[chat] Calling CLOVA Chat API, messages count:", messages.length);
     console.log("[chat] Messages:", JSON.stringify(messages, null, 2));
-    
+
     let result;
     try {
       result = await callClovaChat(messages, {
-        temperature: 0.3,
+      temperature: 0.3,
         maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
       });
       console.log("[chat] CLOVA Chat API response received");
