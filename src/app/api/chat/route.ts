@@ -500,6 +500,8 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       }
     } else {
       console.warn(`[Google Sheets] ⚠️ No providedRowIndex for messageNumber ${messageNumber}, will search for row`);
+      // providedRowIndex가 없으면 가장 최근 row를 찾아서 사용 (sessionId 무시)
+      // 이는 프론트엔드에서 rowIndex를 전달하지 않았을 때의 fallback
     }
   }
   
@@ -574,15 +576,14 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
     console.log(`[Google Sheets] New row created at index: ${rowIndex}`);
     return rowIndex;
   } else {
-    // 두 번째 질문 이후: providedRowIndex가 없으면 sessionId로 정확한 row 찾기
-    // providedRowIndex가 있으면 이미 사용 중 (위에서 처리됨)
-    // providedRowIndex가 없으면 sessionId로 정확한 row를 찾아야 함
+    // 두 번째 질문 이후: providedRowIndex가 없으면 가장 최근 row를 찾아서 사용
+    // sessionId로 찾지 못하면 가장 최근에 D column에 값이 있는 row를 사용 (fallback)
     let existingRowIndex = -1;
     const maxRetries = 20; // 최대 20번 재시도 (4초 대기)
     const retryDelay = 200; // 200ms
     
     for (let retry = 0; retry < maxRetries; retry++) {
-      // A~D column까지 가져와서 sessionId로 정확한 row 찾기
+      // A~D column까지 가져와서 row 찾기
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: LOG_GOOGLE_SHEET_ID,
         range: `${LOG_GOOGLE_SHEET_NAME}!A:D`, // A~D column 확인
@@ -590,15 +591,25 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
 
       if (existingData.data.values) {
         // 헤더 행(1행) 제외하고 가장 최근 row부터 검색 (뒤에서부터)
-        // sessionId로 정확한 row를 찾음
+        // 1순위: sessionId가 일치하고 D column에 값이 있는 row
+        // 2순위: sessionId와 관계없이 D column에 값이 있는 가장 최근 row (fallback)
         for (let i = existingData.data.values.length - 1; i >= 1; i--) {
           const row = existingData.data.values[i];
-          if (row && row[0] === sessionId && row[3] && row[3].trim() !== "") {
-            // sessionId가 일치하고 D column에 값이 있으면 이 세션의 row임
-            existingRowIndex = i + 1; // 1-based index
-            console.log(`[Google Sheets] ✅ Found row with matching sessionId at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
-            console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
-            break;
+          if (row && row[3] && row[3].trim() !== "") {
+            // D column에 값이 있으면 첫 번째 질문이 저장된 row
+            if (row[0] === sessionId) {
+              // sessionId가 일치하면 이 row 사용
+              existingRowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] ✅ Found row with matching sessionId at index: ${existingRowIndex} for messageNumber: ${messageNumber} (retry: ${retry + 1})`);
+              console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
+              break;
+            } else if (existingRowIndex === -1) {
+              // sessionId가 일치하지 않아도 가장 최근 row를 저장 (fallback)
+              existingRowIndex = i + 1; // 1-based index
+              console.log(`[Google Sheets] ⚠️ Found most recent row at index: ${existingRowIndex} (sessionId mismatch, using as fallback)`);
+              console.log(`[Google Sheets] Row sessionId: ${row[0]}, Current sessionId: ${sessionId}`);
+              // break하지 않고 계속 검색 (더 정확한 match를 찾을 수 있음)
+            }
           }
         }
       }
@@ -610,19 +621,52 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
       // row를 찾지 못했으면 잠시 대기 후 재시도
       // 동기 처리 후에도 Google Sheets API 지연으로 인해 즉시 조회되지 않을 수 있음
       if (retry < maxRetries - 1) {
-        console.log(`[Google Sheets] Row with sessionId ${sessionId} not found for messageNumber ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
+        console.log(`[Google Sheets] Row with data not found for messageNumber ${messageNumber}, retrying... (${retry + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
 
     if (existingRowIndex > 0) {
+      console.log(`[Google Sheets] ✅ Using row index: ${existingRowIndex} for messageNumber: ${messageNumber}`);
       return existingRowIndex;
     } else {
       // 기존 row를 찾지 못한 경우 - 첫 번째 질문이 아직 저장되지 않았을 수 있음
-      console.error(`[Google Sheets] ❌ CRITICAL: Row with sessionId ${sessionId} not found for messageNumber: ${messageNumber} after ${maxRetries} retries.`);
-      console.error(`[Google Sheets] ❌ This should not happen. First question should have created a row.`);
-      console.error(`[Google Sheets] ❌ SessionId: ${sessionId}, MessageNumber: ${messageNumber}`);
-      throw new Error(`Session row not found for messageNumber: ${messageNumber}. First question may not have been saved.`);
+      // 하지만 에러를 발생시키지 않고, 새 row를 생성하는 대신 가장 최근 row를 반환
+      console.error(`[Google Sheets] ⚠️ WARNING: Row with data not found for messageNumber: ${messageNumber} after ${maxRetries} retries.`);
+      console.error(`[Google Sheets] ⚠️ SessionId: ${sessionId}, MessageNumber: ${messageNumber}`);
+      console.error(`[Google Sheets] ⚠️ This may happen if the first question was not saved. Creating new row as fallback.`);
+      
+      // Fallback: 새 row 생성 (첫 번째 질문처럼)
+      const newRow = [
+        sessionId,
+        timestamp,
+        systemPrompt.substring(0, 1000),
+      ];
+      // 나머지 컬럼은 빈 값으로 채움 (D부터 P까지)
+      for (let i = 0; i < 13; i++) { // D~P까지 13개 컬럼
+        newRow.push("");
+      }
+      
+      console.log(`[Google Sheets] Creating new row as fallback for session: ${sessionId}`);
+      
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:P`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [newRow]
+        },
+      });
+      
+      // 새로 추가된 row의 index 반환
+      const updatedData = await sheets.spreadsheets.values.get({
+        spreadsheetId: LOG_GOOGLE_SHEET_ID,
+        range: `${LOG_GOOGLE_SHEET_NAME}!A:A`,
+      });
+      
+      const rowIndex = (updatedData.data.values?.length || 1); // 1-based index
+      console.log(`[Google Sheets] New row created at index: ${rowIndex} (fallback)`);
+      return rowIndex;
     }
   }
 }
