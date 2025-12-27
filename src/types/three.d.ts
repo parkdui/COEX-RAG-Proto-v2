@@ -1,8 +1,6 @@
-declare module 'three';
-
-
-
-
+declare module 'three' {
+  export * from 'three';
+}
 
 
 

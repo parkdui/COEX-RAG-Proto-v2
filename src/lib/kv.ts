@@ -5,7 +5,23 @@ function getKVClient() {
   const kvUrl = getEnv('KV_REST_API_URL');
   const kvToken = getEnv('KV_REST_API_TOKEN');
   
+  // 환경 변수가 없거나 플레이스홀더 값인 경우 null 반환
   if (!kvUrl || !kvToken) {
+    return null;
+  }
+  
+  // 플레이스홀더 값 체크
+  if (
+    kvUrl.includes('your_kv_rest_api_url_here') ||
+    kvUrl.includes('placeholder') ||
+    kvToken.includes('your_kv_rest_api_token_here') ||
+    kvToken.includes('placeholder')
+  ) {
+    return null;
+  }
+  
+  // URL이 유효한 형식인지 확인 (https로 시작해야 함)
+  if (!kvUrl.startsWith('https://')) {
     return null;
   }
   
