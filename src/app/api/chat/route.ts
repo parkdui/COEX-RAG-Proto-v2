@@ -1114,9 +1114,14 @@ export async function POST(request: NextRequest) {
     const dateString = `${year}년 ${month}월 ${day}일`;
     
     // System Prompt에 날짜 정보 추가
-    const activeSystemPrompt = defaultSystemPrompt 
+    let activeSystemPrompt = defaultSystemPrompt 
       ? `${defaultSystemPrompt}\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`
-      : `너는 '이솔(SORI)'이라는 이름의 젊은 여성 AI 마스코트다. 코엑스를 방문한 사람과 자연스럽게 대화하며 즐거움, 영감, 새로운 시선을 선사하는 동행자다.\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`;
+      : `너는 '이솔(SORI)'이라는 이름의 젊은 여성 AI 마스코트입니다. 코엑스를 방문한 사람과 자연스럽게 대화하며 즐거움, 영감, 새로운 시선을 선사하는 동행자입니다.\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`;
+    
+    // 6번째 API call일 때만 특별한 프롬프트 추가
+    if (messageNumber === 6) {
+      activeSystemPrompt += `\n\n[중요] 이번 요청은 사용자가 '오늘 이솔과의 대화는 어땠나요?' 또는 '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.' 라는 질문에 대한 대답일 수 있습니다. 이에 걸맞은 따뜻하고 자연스러운 답변을 생성하세요.`;
+    }
     
     // 실시간 로깅: 질문 입력 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
     // 시스템 프롬프트의 첫 100자만 로그에 저장 (토큰 절감을 위해)
@@ -1254,6 +1259,17 @@ export async function POST(request: NextRequest) {
     if (!cleanedAnswer || cleanedAnswer.length < 5) {
       cleanedAnswer = '안녕하세요! 코엑스에서 무엇을 도와드릴까요?';
       console.warn(`[WARNING] AI 응답이 비어있거나 너무 짧습니다. 기본 메시지 사용: "${cleanedAnswer}"`);
+    }
+
+    // 5번째 답변일 때 본문 하단에 질문 문장 추가
+    if (messageNumber === 5) {
+      const questionOptions = [
+        '오늘 이솔과의 대화는 어땠나요?',
+        '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.'
+      ];
+      // 랜덤으로 하나 선택
+      const selectedQuestion = questionOptions[Math.floor(Math.random() * questionOptions.length)];
+      cleanedAnswer = `${cleanedAnswer}\n\n${selectedQuestion}`;
     }
 
     // 실시간 로깅: AI 답변 수신 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
