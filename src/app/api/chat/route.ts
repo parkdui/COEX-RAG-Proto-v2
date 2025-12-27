@@ -324,21 +324,37 @@ interface ChatLog {
 
 // Google Sheets 인증 및 클라이언트 생성 헬퍼 함수
 async function getGoogleSheetsClient() {
-  const LOG_GOOGLE_SHEET_ID = process.env.LOG_GOOGLE_SHEET_ID;
-  const LOG_GOOGLE_SHEET_NAME = process.env.LOG_GOOGLE_SHEET_NAME || "Sheet2";
+  // getEnv 함수 사용 (다른 환경 변수와 일관성 유지)
+  const LOG_GOOGLE_SHEET_ID = getEnv("LOG_GOOGLE_SHEET_ID");
+  const LOG_GOOGLE_SHEET_NAME = getEnv("LOG_GOOGLE_SHEET_NAME", "Sheet2");
   const LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL =
-    process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    getEnv("LOG_GOOGLE_SHEET_ACCOUNT_EMAIL") || getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL");
   let LOG_GOOGLE_PRIVATE_KEY =
-    process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY;
+    getEnv("LOG_GOOGLE_SHEET_PRIVATE_KEY") || getEnv("GOOGLE_PRIVATE_KEY");
+  
+  // 디버깅: 환경 변수 상태 로깅 (항상 출력)
+  console.log("[Google Sheets] ====== Environment Variables Check ======");
+  console.log(`[Google Sheets] Using getEnv():`);
+  console.log(`[Google Sheets] LOG_GOOGLE_SHEET_ID: ${LOG_GOOGLE_SHEET_ID ? `set (length: ${LOG_GOOGLE_SHEET_ID.length})` : 'NOT SET'}`);
+  console.log(`[Google Sheets] LOG_GOOGLE_SHEET_NAME: ${LOG_GOOGLE_SHEET_NAME}`);
+  console.log(`[Google Sheets] LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? `set (${LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL.substring(0, 30)}...)` : 'NOT SET'}`);
+  console.log(`[Google Sheets] LOG_GOOGLE_PRIVATE_KEY: ${LOG_GOOGLE_PRIVATE_KEY ? `set (length: ${LOG_GOOGLE_PRIVATE_KEY.length})` : 'NOT SET'}`);
+  console.log(`[Google Sheets] Also checking process.env directly:`);
+  console.log(`[Google Sheets] process.env.LOG_GOOGLE_SHEET_ID: ${process.env.LOG_GOOGLE_SHEET_ID ? `set (length: ${process.env.LOG_GOOGLE_SHEET_ID.length})` : 'NOT SET'}`);
+  console.log(`[Google Sheets] process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL: ${process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL ? `set (${process.env.LOG_GOOGLE_SHEET_ACCOUNT_EMAIL.substring(0, 30)}...)` : 'NOT SET'}`);
+  console.log(`[Google Sheets] process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? `set (${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL.substring(0, 30)}...)` : 'NOT SET'}`);
+  console.log(`[Google Sheets] process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY: ${process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY ? `set (length: ${process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY.length}, starts with: ${process.env.LOG_GOOGLE_SHEET_PRIVATE_KEY.substring(0, 30)}...)` : 'NOT SET'}`);
+  console.log(`[Google Sheets] process.env.GOOGLE_PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? `set (length: ${process.env.GOOGLE_PRIVATE_KEY.length}, starts with: ${process.env.GOOGLE_PRIVATE_KEY.substring(0, 30)}...)` : 'NOT SET'}`);
+  console.log("[Google Sheets] ==========================================");
   
   if (!LOG_GOOGLE_SHEET_ID || !LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL || !LOG_GOOGLE_PRIVATE_KEY) {
     // 환경 변수가 없으면 null 반환 (로깅 스킵)
-    console.warn("[Google Sheets] Credentials not set, skipping logging");
-    console.warn(`[Google Sheets] LOG_GOOGLE_SHEET_ID: ${LOG_GOOGLE_SHEET_ID ? 'set' : 'NOT SET'}`);
-    console.warn(`[Google Sheets] LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'set' : 'NOT SET'}`);
-    console.warn(`[Google Sheets] LOG_GOOGLE_PRIVATE_KEY: ${LOG_GOOGLE_PRIVATE_KEY ? 'set' : 'NOT SET'}`);
+    console.warn("[Google Sheets] ⚠️ Credentials not set, skipping logging");
+    console.warn(`[Google Sheets] Missing: ${!LOG_GOOGLE_SHEET_ID ? 'LOG_GOOGLE_SHEET_ID ' : ''}${!LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ? 'LOG_GOOGLE_SERVICE_ACCOUNT_EMAIL ' : ''}${!LOG_GOOGLE_PRIVATE_KEY ? 'LOG_GOOGLE_PRIVATE_KEY' : ''}`);
     return null;
   }
+  
+  console.log("[Google Sheets] ✅ All credentials are set, proceeding with client creation");
 
   // 개인 키 형식 처리
   if (LOG_GOOGLE_PRIVATE_KEY) {
@@ -674,12 +690,15 @@ async function findOrCreateSessionRow(sessionId: string, timestamp: string, syst
 // 실시간으로 사용자 메시지 저장 (D column부터 시작)
 // rowIndex를 반환하여 클라이언트에 전달할 수 있도록 함
 async function saveUserMessageRealtime(sessionId: string, messageNumber: number, userMessage: string, timestamp: string, systemPrompt: string, providedRowIndex?: number | null): Promise<number | null> {
+  console.log(`[Google Sheets] saveUserMessageRealtime called: messageNumber=${messageNumber}, sessionId=${sessionId}`);
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
-      console.warn("[Google Sheets] Client not available, skipping user message save");
+      console.warn("[Google Sheets] ❌ Client not available, skipping user message save");
+      console.warn("[Google Sheets] This means getGoogleSheetsClient() returned null");
       return null;
     }
+    console.log("[Google Sheets] ✅ Client created successfully, proceeding with user message save");
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     console.log(`[Google Sheets] Saving user message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
@@ -724,12 +743,15 @@ async function saveUserMessageRealtime(sessionId: string, messageNumber: number,
 // 실시간으로 AI 메시지 저장 (E column부터 시작)
 // providedRowIndex를 사용하여 정확한 row에 저장 (동시 사용자 문제 해결)
 async function saveAIMessageRealtime(sessionId: string, messageNumber: number, aiMessage: string, providedRowIndex?: number | null) {
+  console.log(`[Google Sheets] saveAIMessageRealtime called: messageNumber=${messageNumber}, sessionId=${sessionId}, providedRowIndex=${providedRowIndex}`);
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
-      console.warn("[Google Sheets] Client not available, skipping AI message save");
+      console.warn("[Google Sheets] ❌ Client not available, skipping AI message save");
+      console.warn("[Google Sheets] This means getGoogleSheetsClient() returned null");
       return;
     }
+    console.log("[Google Sheets] ✅ Client created successfully, proceeding with AI message save");
     const { sheets, LOG_GOOGLE_SHEET_ID, LOG_GOOGLE_SHEET_NAME } = client;
     
     console.log(`[Google Sheets] Saving AI message: sessionId=${sessionId}, messageNumber=${messageNumber}`);
@@ -799,19 +821,24 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
     console.log(`[Google Sheets] Updating cell: ${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`);
     console.log(`[Google Sheets] ==============================`);
     
+    // AI 메시지 저장 (최대 1000자로 제한)
+    const messageToSave = aiMessage.substring(0, 1000);
     await sheets.spreadsheets.values.update({
       spreadsheetId: LOG_GOOGLE_SHEET_ID,
       range: `${LOG_GOOGLE_SHEET_NAME}!${columnLetter}${rowIndex}`,
       valueInputOption: "RAW",
       requestBody: {
-        values: [[aiMessage.substring(0, 1000)]]
+        values: [[messageToSave]]
       },
     });
     
-    console.log(`[Google Sheets] AI message saved successfully`);
+    console.log(`[Google Sheets] ✅ AI message ${messageNumber} saved successfully at row ${rowIndex}, column ${columnLetter}`);
+    console.log(`[Google Sheets] Message length: ${aiMessage.length} chars (saved: ${messageToSave.length} chars)`);
   } catch (error) {
-    console.error("[Google Sheets] Error saving AI message in realtime:", error);
+    console.error("[Google Sheets] ❌ Error saving AI message in realtime:", error);
     console.error("[Google Sheets] Error details:", error instanceof Error ? error.stack : String(error));
+    console.error(`[Google Sheets] Failed at messageNumber: ${messageNumber}`);
+    // 에러를 다시 throw하지 않고 조용히 실패 (메인 플로우는 계속 진행)
   }
 }
 
@@ -982,7 +1009,8 @@ export async function POST(request: NextRequest) {
   TOKENS.classification_calls = 0;
   
   try {
-    console.log("[chat] Request received");
+    console.log("[chat] ====== POST Request received ======");
+    console.log("[chat] Request URL:", request.url);
     
     // 환경 변수 확인
     if (!CLOVA_KEY) {
@@ -1141,7 +1169,7 @@ export async function POST(request: NextRequest) {
       if (savedRowIndex) {
         console.log(`[Chat Log] ✅ User message ${messageNumber} saved successfully at row ${savedRowIndex}`);
       } else {
-        console.error(`[Chat Log] ❌ User message ${messageNumber} save failed: savedRowIndex is null`);
+        console.warn(`[Chat Log] ⚠️ User message ${messageNumber} save returned null (Google Sheets client not available or credentials not set)`);
       }
     } catch (error) {
       console.error('[Chat Log] ❌ Failed to save user message in realtime:', error);
@@ -1263,22 +1291,35 @@ export async function POST(request: NextRequest) {
 
     // 5번째 답변일 때 본문 하단에 질문 문장 추가
     if (messageNumber === 5) {
+      console.log(`[Chat] ⭐ 5th response detected! Adding feedback question.`);
       const questionOptions = [
         '오늘 이솔과의 대화는 어땠나요?',
         '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.'
       ];
       // 랜덤으로 하나 선택
       const selectedQuestion = questionOptions[Math.floor(Math.random() * questionOptions.length)];
+      const originalAnswer = cleanedAnswer;
       cleanedAnswer = `${cleanedAnswer}\n\n${selectedQuestion}`;
+      console.log(`[Chat] ✅ Feedback question added. Original length: ${originalAnswer.length}, New length: ${cleanedAnswer.length}`);
+      console.log(`[Chat] Selected question: "${selectedQuestion}"`);
     }
 
     // 실시간 로깅: AI 답변 수신 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
     // savedRowIndex를 사용하여 정확한 row에 저장
     try {
+      console.log(`[Chat Log] Attempting to save AI message ${messageNumber}...`);
+      console.log(`[Chat Log] savedRowIndex: ${savedRowIndex}`);
+      console.log(`[Chat Log] cleanedAnswer length: ${cleanedAnswer.length}`);
+      if (messageNumber === 5) {
+        console.log(`[Chat Log] ⭐ This is the 5th message - checking if question was added`);
+        console.log(`[Chat Log] cleanedAnswer preview: ${cleanedAnswer.substring(0, 200)}...`);
+      }
       await saveAIMessageRealtime(sessionId, messageNumber, cleanedAnswer, savedRowIndex);
-      console.log(`[Chat Log] AI message ${messageNumber} saved successfully`);
+      console.log(`[Chat Log] ✅ saveAIMessageRealtime completed for message ${messageNumber}`);
     } catch (error) {
-      console.error('[Chat Log] Failed to save AI message in realtime:', error);
+      console.error('[Chat Log] ❌ Failed to save AI message in realtime:', error);
+      console.error('[Chat Log] Error details:', error instanceof Error ? error.stack : String(error));
+      console.error('[Chat Log] Error name:', error instanceof Error ? error.name : 'Unknown');
       // 에러가 발생해도 메인 플로우는 계속 진행
     }
 

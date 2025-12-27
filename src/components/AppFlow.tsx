@@ -25,11 +25,6 @@ export default function AppFlow() {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const leaveHandlerRef = useRef<(() => void) | null>(null);
 
-  // 디버깅: 상태 변경 로그
-  useEffect(() => {
-    console.log('[AppFlow] 상태 변경:', { currentPage, isCheckingAccess, accessStatus });
-  }, [currentPage, isCheckingAccess, accessStatus]);
-
   const handleNext = () => {
     setIsTransitioning(true);
     setCurrentPage('main');
@@ -57,7 +52,6 @@ export default function AppFlow() {
       try {
         if (!isMounted) return;
         setIsCheckingAccess(true);
-        console.log('[AppFlow] 접속 체크 시작...');
         
         // 타임아웃 설정 (3초로 단축 - 더 빠른 fallback)
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -78,22 +72,19 @@ export default function AppFlow() {
         }
         
         const data: EnterResponse = await response.json();
-        console.log('[AppFlow] 접속 체크 응답:', data);
         
         if (!isMounted) return;
         
         setAccessStatus(data);
         
         if (!data.allowed) {
-          console.log('[AppFlow] 접속 차단됨:', data.reason);
           setCurrentPage('blocked');
           setIsCheckingAccess(false);
           return;
         }
         
-        console.log('[AppFlow] 접속 허용됨, LandingPage 표시');
         setIsCheckingAccess(false);
-        setCurrentPage('landing'); // 명시적으로 landing 페이지로 설정
+        setCurrentPage('landing');
       } catch (error) {
         console.error('[AppFlow] 접속 체크 실패:', error);
         
@@ -107,15 +98,13 @@ export default function AppFlow() {
           message: undefined
         });
         setIsCheckingAccess(false);
-        setCurrentPage('landing'); // 명시적으로 landing 페이지로 설정
-        console.log('[AppFlow] 기본 허용 모드로 LandingPage 표시');
+        setCurrentPage('landing');
       }
     };
 
     // 안전장치: 5초 후에도 로딩 중이면 강제로 LandingPage 표시
     safetyTimeout = setTimeout(() => {
       if (isMounted) {
-        console.warn('[AppFlow] 안전장치: 5초 타임아웃, 강제로 LandingPage 표시');
         setIsCheckingAccess(false);
         setCurrentPage('landing');
         setAccessStatus({
@@ -139,15 +128,45 @@ export default function AppFlow() {
   // MainPage로 전환 시 heartbeat 시작
   useEffect(() => {
     if (currentPage === 'main') {
+      // 쿠키에서 session_id 확인하는 헬퍼 함수
+      const getCookie = (name: string): string | null => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+        return null;
+      };
+
       // 즉시 한 번 heartbeat 전송
       const sendHeartbeat = async () => {
         try {
-          await fetch('/api/heartbeat', { method: 'POST' });
+          // session_id 쿠키가 있는지 확인
+          const sessionId = getCookie('session_id');
+          if (!sessionId) {
+            // 쿠키가 없으면 조용히 실패 (에러 로그 없음)
+            return;
+          }
+
+          const response = await fetch('/api/heartbeat', { method: 'POST' });
+          
+          // 400 에러는 session_id가 없는 경우이므로 조용히 처리
+          if (!response.ok && response.status === 400) {
+            // 조용히 실패 (에러 로그 없음)
+            return;
+          }
+          
+          if (!response.ok) {
+            console.warn('Heartbeat failed with status:', response.status);
+          }
         } catch (error) {
-          console.error('Heartbeat failed:', error);
+          // 네트워크 에러 등만 로그 출력
+          console.error('Heartbeat network error:', error);
         }
       };
-      sendHeartbeat();
+      
+      // 약간의 지연 후 heartbeat 전송 (쿠키 설정 시간 확보)
+      setTimeout(() => {
+        sendHeartbeat();
+      }, 500);
 
       // 30초마다 heartbeat 전송
       heartbeatIntervalRef.current = setInterval(() => {
@@ -165,10 +184,7 @@ export default function AppFlow() {
 
       // visibilitychange 이벤트로 탭 전환 감지
       const handleVisibilityChange = () => {
-        if (document.hidden) {
-          // 탭이 숨겨지면 heartbeat 중단 (선택사항)
-        } else {
-          // 탭이 다시 보이면 heartbeat 재개
+        if (!document.hidden) {
           sendHeartbeat();
         }
       };
@@ -298,7 +314,6 @@ export default function AppFlow() {
 
   return (
     <div className="min-h-screen relative" style={{ background: 'transparent' }}>
-      {/* AppFlow 레벨에서 BlobBackground를 관리하여 상태 유지 */}
       {showBlobBackground && (
         <div 
           style={{ 
@@ -315,7 +330,6 @@ export default function AppFlow() {
           />
         </div>
       )}
-      {/* 페이지 컨텐츠 - z-index로 확실히 위에 표시 */}
       <div 
         className="relative" 
         style={{ 

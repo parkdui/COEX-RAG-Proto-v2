@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText, Typewriter, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
+import AnimatedOutlineStroke from '@/components/ui/AnimatedOutlineStroke';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
 type GlassStyleVariant = 'v1' | 'v2';
@@ -925,17 +926,8 @@ const SegmentedMessageComponent: React.FC<{
       (remainderText ? `\n\n${remainderText}` : '') +
       (remainingText ? `\n\n${remainingText}` : '');
     
-    // 첫 번째 문단만 표시 (문장이 끊어지지 않도록)
-    const paragraphs = fullText.split('\n\n');
-    let firstParagraph = paragraphs[0] || '';
-    
-    // 첫 번째 문단이 비어있으면 전체 텍스트 사용
-    if (!firstParagraph || firstParagraph.trim().length < 5) {
-      firstParagraph = fullText.trim();
-    }
-    
-    // 첫 번째 문단만 사용 (문장이 끊어지지 않도록)
-    const displayText = firstParagraph.trim();
+    // 전체 텍스트 사용 (5번째 답변에 질문이 포함될 수 있으므로)
+    const displayText = fullText.trim();
 
     return {
       firstSegmentHighlight: highlightedText,
@@ -1292,18 +1284,11 @@ const SingleMessageComponent: React.FC<{
       };
     }
 
-    // 첫 번째 문단만 표시 (문장이 끊어지지 않도록)
+    // 전체 텍스트 사용 (5번째 답변에 질문이 포함될 수 있으므로)
     const fullText = message.content || '';
-    const paragraphs = fullText.split('\n\n');
-    let firstParagraph = paragraphs[0] || '';
     
-    // 첫 번째 문단이 비어있으면 전체 텍스트 사용
-    if (!firstParagraph || firstParagraph.trim().length < 5) {
-      firstParagraph = fullText.trim();
-    }
-    
-    // 첫 번째 문단만 사용 (문장이 끊어지지 않도록)
-    const displayText = firstParagraph.trim();
+    // 전체 텍스트 사용
+    const displayText = fullText.trim();
 
     // 응답이 비어있거나 너무 짧을 때 기본 메시지 제공
     const finalText = !displayText || displayText.length < 5
@@ -1529,6 +1514,7 @@ const SingleMessageComponent: React.FC<{
             </span>
           ) : (
             <>
+          <AnimatedOutlineStroke borderRadius={getAssistantGlassContentStyle(glassStyleVariant).borderRadius as string}>
           <div 
             className={`assistant-glass-content ${isThinking ? 'animate-radial-gradient' : ''}`}
             style={{
@@ -1645,6 +1631,7 @@ const SingleMessageComponent: React.FC<{
                 )}
               </div>
             </div>
+          </AnimatedOutlineStroke>
           </>
           )}
           </div>

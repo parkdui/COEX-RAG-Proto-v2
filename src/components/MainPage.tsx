@@ -9,6 +9,3 @@ interface MainPageProps {
 export default function MainPage({ showBlob = true }: MainPageProps) {
   return <MainPageV1 showBlob={showBlob} />;
 }
-
-
-

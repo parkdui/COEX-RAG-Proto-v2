@@ -3,7 +3,7 @@ export const getEnv = (k: string, d = "") => {
   const v = process.env[k];
   if (!v) return d;
   // private key의 \n을 실제 개행 문자로 변환
-  if (k === "GOOGLE_PRIVATE_KEY") {
+  if (k === "GOOGLE_PRIVATE_KEY" || k === "LOG_GOOGLE_SHEET_PRIVATE_KEY") {
     return v.replace(/\\n/g, "\n");
   }
   return String(v).split("#")[0].trim();
@@ -43,6 +43,8 @@ export function removeEmojiLikeExpressions(text: string) {
     text
       // 이모지 제거 (유니코드 속성 사용)
       .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+      // 별표(*) 문자 제거
+      .replace(/\*/g, "")
       // ㅎㅎ, ㅋㅋ, ㅠㅠ, ^^, ^^;;, ;; 등 반복 감정 표현 제거
       .replace(/([ㅎㅋㅠ]+|[\^]+|;{2,})/g, "")
       // 여러 번 반복된 공백을 하나로 정리

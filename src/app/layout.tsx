@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,13 +15,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "COEX 이벤트 안내 AI",
   description: "COEX 이벤트 정보를 제공하는 RAG 시스템",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  themeColor: "#1f2937",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "COEX 이벤트 안내 AI",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#1f2937",
 };
 
 export default function RootLayout({
