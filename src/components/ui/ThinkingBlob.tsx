@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import type { Mesh, Group } from 'three';
 
 const Canvas = dynamic(() => import('@react-three/fiber').then((mod) => mod.Canvas), {
   ssr: false,
@@ -142,7 +143,7 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
       }
     `,
   transparent: true,
-  extensions: { derivatives: true },
+  extensions: { derivatives: true } as any,
 });
 
 const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
@@ -302,7 +303,7 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
       }
     `,
   transparent: true,
-  extensions: { derivatives: true },
+  extensions: { derivatives: true } as any,
 });
 
 const AgenticBubble = ({
@@ -336,7 +337,7 @@ const AgenticBubble = ({
     return variant === 'water' ? createWaterShaderMaterial() : createDefaultShaderMaterial();
   }, [variant]);
 
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<Mesh>(null);
   const boostValueRef = useRef(0);
   const opacityRef = useRef(opacityTarget);
   const scaleRef = useRef(scaleTarget);
@@ -404,7 +405,7 @@ const Scene = ({ phase, centered = false, waving = false, waveLevel = 0 }: {
   const topScaleTarget = phase === 'idle' ? 1.18 : 1;
   const variant = waveLevel > 0.005 ? 'water' : 'default';
 
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   useEffect(() => {
     if (groupRef.current) {
       groupRef.current.position.set(0, 0.8, 1);
