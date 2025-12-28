@@ -184,6 +184,21 @@ const assistantHeadlineTextStyle: React.CSSProperties = {
   maxWidth: '100%',
 } as const;
 
+const assistantHeadlineTextStyleV2: React.CSSProperties = {
+  color: '#000',
+  textAlign: 'center',
+  fontFamily: 'Pretendard Variable',
+  fontSize: '18px',
+  fontStyle: 'normal',
+  fontWeight: 400,
+  lineHeight: '130%',
+  letterSpacing: '-0.72px',
+  wordBreak: 'break-word',
+  overflowWrap: 'break-word',
+  whiteSpace: 'pre-wrap',
+  maxWidth: '100%',
+} as const;
+
 const quotedSpanStyle: React.CSSProperties = {
   fontWeight: 600,
   borderRadius: '5px',
@@ -999,7 +1014,7 @@ const SegmentedMessageComponent: React.FC<{
         <div>
           {displayedHighlight && (
             <div className="flex justify-center mb-3" style={{ width: '100%' }}>
-              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
                   <span
@@ -1117,7 +1132,7 @@ const SegmentedMessageComponent: React.FC<{
                       <>
                         {firstSegmentHighlight && (
                           <div className="flex justify-center mb-3" style={{ width: '100%' }}>
-                            <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+                            <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                               <SplitText text={firstSegmentHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
                             </div>
                           </div>
@@ -1384,7 +1399,7 @@ const SingleMessageComponent: React.FC<{
         <div>
           {displayedHighlight && (
             <div className="flex justify-center mb-3" style={{ width: '100%' }}>
-              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+              <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
                   <span
@@ -1546,7 +1561,7 @@ const SingleMessageComponent: React.FC<{
                           <>
                             {assistantHighlight && (
                               <div className="flex justify-center mb-3" style={{ width: '100%' }}>
-                                <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyle, width: '100%' }}>
+                                <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                                   <SplitText text={assistantHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
                                 </div>
                               </div>

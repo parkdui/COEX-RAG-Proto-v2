@@ -96,6 +96,44 @@ const prepareSnippetSource = (text: string, useSnippet: boolean) => {
   return buildSnippet(text);
 };
 
+/**
+ * TTS용 텍스트 재작성 API 호출
+ */
+const rewriteTextForTTS = async (
+  originalText: string,
+  sessionId?: string | null,
+  rowIndex?: number | null
+): Promise<string> => {
+  try {
+    const response = await fetch('/api/tts-rewrite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        text: originalText,
+        sessionId: sessionId || null,
+        rowIndex: rowIndex || null,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('TTS rewrite API failed, using original text');
+      return originalText;
+    }
+
+    const data = await response.json();
+    if (data.success && data.rewrittenText) {
+      return data.rewrittenText;
+    }
+
+    return originalText;
+  } catch (error) {
+    console.error('TTS rewrite error:', error);
+    return originalText; // 실패 시 원본 텍스트 사용
+  }
+};
+
 export default function useCoexTTS() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioManager = useMemo(() => new AudioManager(audioRef), []);
@@ -109,15 +147,26 @@ export default function useCoexTTS() {
   }, [audioManager]);
 
   const preparePlayback = useCallback(
-    async (text: string, useSnippet: boolean): Promise<PlaybackStarter | null> => {
+    async (
+      text: string, 
+      useSnippet: boolean,
+      sessionId?: string | null,
+      rowIndex?: number | null
+    ): Promise<PlaybackStarter | null> => {
       const sourceText = prepareSnippetSource(text, useSnippet);
       if (!sourceText) {
         return null;
       }
 
       try {
+        // useSnippet이 true일 때 (자동 재생) TTS 전용 텍스트 재작성
+        let finalText = sourceText;
+        if (useSnippet) {
+          finalText = await rewriteTextForTTS(sourceText, sessionId, rowIndex);
+        }
+
         const audioBlob = await withTimeout(
-          (signal) => requestTTS(sourceText, { signal }),
+          (signal) => requestTTS(finalText, { signal }),
           TTS_TIMEOUT_MS,
         );
 
@@ -143,7 +192,8 @@ export default function useCoexTTS() {
   );
 
   const prepareAuto = useCallback(
-    async (text: string) => preparePlayback(text, true),
+    async (text: string, sessionId?: string | null, rowIndex?: number | null) => 
+      preparePlayback(text, true, sessionId, rowIndex),
     [preparePlayback],
   );
 

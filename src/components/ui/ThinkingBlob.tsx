@@ -522,54 +522,90 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
       return;
     }
 
-    const t0 = setTimeout(() => {
-      setWaving(true);
-      tweenWave(0.25, 400, 'easeIn');
-    }, 1000);
+    let isCancelled = false;
+    const timeouts: NodeJS.Timeout[] = [];
     
-    const t1 = setTimeout(() => {
-      tweenWave(0.85, 280, 'easeOut');
-    }, 1000 + 400);
-    
-    const t2 = setTimeout(() => {
-      tweenWave(0.55, 600, 'easeOutCubic');
-    }, 1000 + 400 + 280 + 500);
-    
-    const t3 = setTimeout(() => {
-      tweenWave(0.32, 850, 'easeOutQuart');
-    }, 1000 + 400 + 280 + 500 + 600);
-    
-    const t4 = setTimeout(() => {
-      tweenWave(0.15, 1200, 'easeOutQuart');
-    }, 1000 + 400 + 280 + 500 + 600 + 850);
-    
-    const t4_5 = setTimeout(() => {
-      tweenWave(0.08, 1400, 'easeOutQuint');
-    }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200);
-    
-    const t5 = setTimeout(() => {
-      tweenWave(0.03, 1800, 'easeOutQuint');
-    }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400);
-    
-    const t6 = setTimeout(() => {
-      tweenWave(0.0, 2400, 'easeInOutSine');
-    }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800);
-    
-    const t7 = setTimeout(() => {
-      setWaving(false);
-    }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800 + 2400 + 500);
+    const runAnimationCycle = () => {
+      if (isCancelled || !isActive) return;
+      
+      const t0 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        setWaving(true);
+        // 1단계: 천천히 시작 (0 → 0.25)
+        tweenWave(0.25, 400, 'easeIn');
+      }, 1000);
+      timeouts.push(t0);
+      
+      const t1 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 2단계: 빠르게 상승 (0.25 → 0.85) - 더 격렬한 웨이브
+        tweenWave(0.85, 280, 'easeOut');
+      }, 1000 + 400);
+      timeouts.push(t1);
+      
+      const t2 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 3단계: 처음 빠르게 감소 (0.85 → 0.55) - 빠르게 시작
+        tweenWave(0.55, 600, 'easeOutCubic');
+      }, 1000 + 400 + 280 + 500);
+      timeouts.push(t2);
+      
+      const t3 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 4단계: 중간 속도로 감소 (0.55 → 0.32) - 점진적 감속
+        tweenWave(0.32, 850, 'easeOutQuart');
+      }, 1000 + 400 + 280 + 500 + 600);
+      timeouts.push(t3);
+      
+      const t4 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 5단계: 천천히 감소 (0.32 → 0.15) - 더 부드럽게
+        tweenWave(0.15, 1200, 'easeOutQuart');
+      }, 1000 + 400 + 280 + 500 + 600 + 850);
+      timeouts.push(t4);
+      
+      const t4_5 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 5.5단계: 더 천천히 감소 (0.15 → 0.08)
+        tweenWave(0.08, 1400, 'easeOutQuint');
+      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200);
+      timeouts.push(t4_5);
+      
+      const t5 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 6단계: 매우 천천히 감소 (0.08 → 0.03)
+        tweenWave(0.03, 1800, 'easeOutQuint');
+      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400);
+      timeouts.push(t5);
+      
+      const t6 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // 7단계: 완전히 멈춤 (0.03 → 0.0) - 가장 부드럽게
+        tweenWave(0.0, 2400, 'easeInOutSine');
+      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800);
+      timeouts.push(t6);
+      
+      const t7 = setTimeout(() => {
+        if (isCancelled || !isActive) return;
+        // waveLevel이 거의 0이 될 때 setWaving(false) - variant 전환 후 호출
+        setWaving(false);
+        // ver9/3.js처럼 반복 실행 - isActive가 true인 동안 계속 반복
+        if (isActive && !isCancelled) {
+          runAnimationCycle();
+        }
+      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800 + 2400 + 500);
+      timeouts.push(t7);
+    };
+
+    runAnimationCycle();
     
     return () => {
-      clearTimeout(t0);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      clearTimeout(t4_5);
-      clearTimeout(t5);
-      clearTimeout(t6);
-      clearTimeout(t7);
-      if (tweenRef.current) cancelAnimationFrame(tweenRef.current);
+      isCancelled = true;
+      timeouts.forEach(timeout => clearTimeout(timeout));
+      if (tweenRef.current) {
+        cancelAnimationFrame(tweenRef.current);
+        tweenRef.current = null;
+      }
     };
   }, [isActive]);
 

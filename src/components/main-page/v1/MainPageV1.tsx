@@ -10,6 +10,8 @@ import AnimatedLogo from '@/components/ui/AnimatedLogo';
 import TextPressure from '@/components/ui/TextPressure';
 import LetterColorAnimation from '@/components/ui/LetterColorAnimation';
 import ThinkingBlob from '@/components/ui/ThinkingBlob';
+import AudioWaveVisualizer from '@/components/ui/AudioWaveVisualizer';
+import { CanvasBackground } from '@/components/ui/BlobBackgroundV2Canvas';
 import useCoexTTS from '@/hooks/useCoexTTS';
 
 const useChatState = () => {
@@ -71,6 +73,7 @@ const useVoiceRecording = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
   return {
     isRecording,
@@ -78,7 +81,9 @@ const useVoiceRecording = () => {
     isProcessingVoice,
     setIsProcessingVoice,
     isRequestingPermission,
-    setIsRequestingPermission
+    setIsRequestingPermission,
+    audioStream,
+    setAudioStream
   };
 };
 
@@ -94,6 +99,23 @@ const apiRequests = {
         rowIndex: rowIndex || undefined,
         sessionId: sessionId || undefined,
         messageNumber: messageNumber || undefined
+      }),
+    });
+    return response.json();
+  },
+
+  async logMessage(sessionId: string, messageNumber: number, userMessage: string, aiMessage: string, rowIndex?: number | null, timestamp?: string, systemPrompt?: string) {
+    const response = await fetch('/api/log-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        messageNumber,
+        userMessage,
+        aiMessage,
+        rowIndex: rowIndex || undefined,
+        timestamp: timestamp || new Date().toISOString(),
+        systemPrompt: systemPrompt || ''
       }),
     });
     return response.json();
@@ -341,7 +363,12 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const pushAssistantMessage = useCallback(
     async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string }) => {
       const answerText = response.answer || response.defaultAnswer || '(응답 없음)';
-      const playbackStarter = await prepareAuto(answerText);
+      // TTS 재작성 시 토큰 추적을 위해 sessionId와 rowIndex 전달
+      const playbackStarter = await prepareAuto(
+        answerText,
+        chatState.sessionId,
+        chatState.rowIndex
+      );
 
       const assistantMessage = createAssistantMessage({
         answer: answerText,
@@ -358,7 +385,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         });
       }
     },
-    [chatState.addMessage, prepareAuto],
+    [chatState.addMessage, chatState.sessionId, chatState.rowIndex, prepareAuto],
   );
 
   // 스크롤을 맨 아래로 이동
@@ -512,6 +539,10 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       if (!checkBrowserSupport()) return;
 
       const stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints());
+      
+      // AudioWaveVisualizer를 위한 stream 저장
+      voiceState.setAudioStream(stream);
+      
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioContext = new AudioContextClass({
         sampleRate: 16000,
@@ -540,6 +571,9 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         source.disconnect();
         audioContext.close();
         stream.getTracks().forEach(track => track.stop());
+        
+        // stream 정리
+        voiceState.setAudioStream(null);
         
         const totalLength = audioData.reduce((sum, chunk) => sum + chunk.length, 0);
         const combinedAudio = new Float32Array(totalLength);
@@ -605,7 +639,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     e.preventDefault();
     if (!chatState.inputValue.trim() || chatState.isLoading || isConversationEnded) return;
 
-    const userMessage = createUserMessage(chatState.inputValue);
+    const question = chatState.inputValue.trim(); // inputValue를 변수에 저장 (setInputValue 전에)
+    const userMessage = createUserMessage(question);
     chatState.addMessage(userMessage);
     chatState.setInputValue('');
     chatState.setIsLoading(true);
@@ -613,7 +648,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     try {
       const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
       const nextMessageNumber = chatState.messageNumber + 1;
-      const data = await apiRequests.sendChatRequest(chatState.inputValue, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
+      const data = await apiRequests.sendChatRequest(question, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
@@ -871,6 +906,35 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       const randomAnswer = matchedQA.answers[Math.floor(Math.random() * matchedQA.answers.length)];
       
       const nextMessageNumber = chatState.messageNumber + 1;
+      
+      // 고정 답변 사용 시에도 로그 저장
+      try {
+        const now = new Date();
+        const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+        const timestamp = koreanTime.toISOString().replace('T', ' ').substring(0, 19) + ' (KST)';
+        const systemPromptForLog = (chatState.systemPrompt || '').substring(0, 100) + ((chatState.systemPrompt || '').length > 100 ? '...' : '');
+        
+        const logResult = await apiRequests.logMessage(
+          chatState.sessionId || `session-${Date.now()}`,
+          nextMessageNumber,
+          recommendation,
+          randomAnswer,
+          chatState.rowIndex,
+          timestamp,
+          systemPromptForLog
+        );
+        
+        if (logResult.rowIndex) {
+          chatState.setRowIndex(logResult.rowIndex);
+        }
+        if (logResult.sessionId) {
+          chatState.setSessionId(logResult.sessionId);
+        }
+      } catch (error) {
+        console.error('Failed to log fixed answer message:', error);
+        // 로그 저장 실패해도 메인 플로우는 계속 진행
+      }
+      
       chatState.setMessageNumber(nextMessageNumber);
       
       // 최소 대기 시간과 함께 답변 표시
@@ -1073,10 +1137,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const isThinking = chatState.isLoading || voiceState.isProcessingVoice;
 
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative" style={{ background: 'transparent' }}>
+    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative v10-main-page">
+      {showBlob && !showSummary && (
+        <CanvasBackground boosted={false} phase="completed" popActive={true} />
+      )}
+      
       {showBlob && !showSummary && isThinking && (
         <ThinkingBlob isActive={isThinking} />
       )}
+      
+      <AudioWaveVisualizer stream={voiceState.audioStream} isActive={voiceState.isRecording} />
       
       <AnimatedLogo />
 
@@ -1113,7 +1183,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                     fontFamily: 'Pretendard Variable', 
                     fontSize: '22px', 
                     fontStyle: 'normal', 
-                    fontWeight: 500, 
+                    fontWeight: 400, 
                     lineHeight: '110%', 
                     letterSpacing: '-0.88px' 
                   }}
@@ -1470,8 +1540,8 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                       style={{
                         fontFamily: 'Pretendard Variable',
                         fontSize: '22px',
-                        fontWeight: 600,
-                        color: '#4E5363',
+                        fontWeight: 400,
+                        color: '#000',
                         textAlign: 'center',
                         lineHeight: '140%',
                         letterSpacing: '-0.88px',
@@ -1577,18 +1647,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
       {!showSummary && !showEndMessage && (
       <>
-        {!isConversationEnded && (chatState.messages.length === 0 || assistantMessages.length > 0) && (
-          <div 
-            className="fixed left-0 right-0 z-20"
-            style={{
-              width: '100%',
-              bottom: '0', // 입력창 높이(56px) + padding bottom(16px) + chips marginBottom(16px) + 18px (추천 chips 상단에서 18px 위)
-              height: '288px', // h-72 (18rem = 288px)
-              background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 30%, rgba(255,255,255,0.95) 60%, rgb(255,255,255) 100%)',
-              pointerEvents: 'none',
-            }}
-          />
-        )}
         {isConversationEnded ? (
           <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
             <div className="px-6 pb-8 pt-4">
@@ -1679,6 +1737,31 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         )}
       </>
       )}
+      <style jsx>{`
+        .v10-main-page {
+          background: transparent;
+        }
+        
+        /* ver10/1.js 스타일: 하단 어두운 그라디언트 (더 부드럽게) */
+        .v10-main-page::before {
+          content: '';
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 2;
+          background: linear-gradient(
+            180deg,
+            transparent 0%,
+            transparent 60%,
+            rgba(0, 0, 0, 0.02) 80%,
+            rgba(0, 0, 0, 0.05) 100%
+          );
+        }
+        
+        .v10-main-page > :global(.coex-v2-canvas-wrapper) {
+          z-index: 1;
+        }
+      `}</style>
     </div>
   );
 }

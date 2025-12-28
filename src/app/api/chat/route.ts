@@ -57,6 +57,10 @@ const TOKENS = {
   classification_output: 0,
   classification_total: 0,
   classification_calls: 0,
+  tts_rewrite_input: 0,
+  tts_rewrite_output: 0,
+  tts_rewrite_total: 0,
+  tts_rewrite_calls: 0,
 };
 
 // ====== HyperCLOVAX Embedding API ======
@@ -306,8 +310,8 @@ function logTokenSummary(tag = "") {
       `🧮 [TOKENS${tag ? " " + tag : ""}] ` +
         `EMB in=${TOKENS.embed_input} (calls=${TOKENS.embed_calls}) | ` +
         `CLASSIFY in=${TOKENS.classification_input} out=${TOKENS.classification_output} total=${TOKENS.classification_total} (calls=${TOKENS.classification_calls}) | ` +
-        `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} ` +
-        `(calls=${TOKENS.chat_calls})`
+        `CHAT in=${TOKENS.chat_input} out=${TOKENS.chat_output} total=${TOKENS.chat_total} (calls=${TOKENS.chat_calls}) | ` +
+        `TTS_REWRITE in=${TOKENS.tts_rewrite_input} out=${TOKENS.tts_rewrite_output} total=${TOKENS.tts_rewrite_total} (calls=${TOKENS.tts_rewrite_calls})`
     );
   }
 }
@@ -323,7 +327,7 @@ interface ChatLog {
 }
 
 // Google Sheets 인증 및 클라이언트 생성 헬퍼 함수
-async function getGoogleSheetsClient() {
+export async function getGoogleSheetsClient() {
   // getEnv 함수 사용 (다른 환경 변수와 일관성 유지)
   const LOG_GOOGLE_SHEET_ID = getEnv("LOG_GOOGLE_SHEET_ID");
   const LOG_GOOGLE_SHEET_NAME = getEnv("LOG_GOOGLE_SHEET_NAME", "Sheet2");
@@ -844,7 +848,7 @@ async function saveAIMessageRealtime(sessionId: string, messageNumber: number, a
 
 // 기존 Token 합계 가져오기 (P column)
 // providedRowIndex를 사용하여 정확한 row에서 가져오기
-async function getTokenTotal(sessionId: string, providedRowIndex?: number | null): Promise<number> {
+export async function getTokenTotal(sessionId: string, providedRowIndex?: number | null): Promise<number> {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
@@ -909,7 +913,7 @@ async function getTokenTotal(sessionId: string, providedRowIndex?: number | null
 
 // Token 합계 업데이트 (P column)
 // providedRowIndex를 사용하여 정확한 row에 저장
-async function updateTokenTotal(sessionId: string, tokenTotal: number, providedRowIndex?: number | null) {
+export async function updateTokenTotal(sessionId: string, tokenTotal: number, providedRowIndex?: number | null) {
   try {
     const client = await getGoogleSheetsClient();
     if (!client) {
@@ -1336,15 +1340,17 @@ export async function POST(request: NextRequest) {
         const existingTokenTotal = await getTokenTotal(sessionId, savedRowIndex);
         console.log(`[Chat Log] Existing token total from row ${savedRowIndex}: ${existingTokenTotal}`);
         
-        // classification, embedding, chat 모두 포함 (현재 요청의 토큰)
+        // classification, embedding, chat, tts_rewrite 모두 포함 (현재 요청의 토큰)
         const currentTokenTotal = 
           TOKENS.classification_total + 
           TOKENS.embed_input + 
-          TOKENS.chat_total;
+          TOKENS.chat_total +
+          TOKENS.tts_rewrite_total;
         console.log(`[Chat Log] Current request token total: ${currentTokenTotal}`);
         console.log(`[Chat Log]   - Classification: ${TOKENS.classification_total}`);
         console.log(`[Chat Log]   - Embedding: ${TOKENS.embed_input}`);
         console.log(`[Chat Log]   - Chat: ${TOKENS.chat_total}`);
+        console.log(`[Chat Log]   - TTS Rewrite: ${TOKENS.tts_rewrite_total}`);
         
         // 누적: 기존 총합 + 현재 요청 토큰 = 새로운 총합
         const newTokenTotal = existingTokenTotal + currentTokenTotal;
@@ -1363,13 +1369,14 @@ export async function POST(request: NextRequest) {
 
     // 최종 토큰 사용량 요약 로그
     if (process.env.LOG_TOKENS === "1" || process.env.LOG_API_INPUT === "1") {
-      const totalTokens = TOKENS.classification_total + TOKENS.embed_input + TOKENS.chat_total;
+      const totalTokens = TOKENS.classification_total + TOKENS.embed_input + TOKENS.chat_total + TOKENS.tts_rewrite_total;
       console.log("\n" + "=".repeat(80));
       console.log("📊 [TOKEN SUMMARY] 이번 요청 토큰 사용량");
       console.log("=".repeat(80));
       console.log(`🔍 Classification: ${TOKENS.classification_total} tokens (${TOKENS.classification_calls} calls)`);
       console.log(`📦 Embedding: ${TOKENS.embed_input} tokens (${TOKENS.embed_calls} calls)`);
       console.log(`💬 Chat: ${TOKENS.chat_total} tokens (${TOKENS.chat_calls} calls)`);
+      console.log(`🎤 TTS Rewrite: ${TOKENS.tts_rewrite_total} tokens (${TOKENS.tts_rewrite_calls} calls)`);
       console.log(`📊 총합: ${totalTokens} tokens`);
       console.log("=".repeat(80) + "\n");
     }

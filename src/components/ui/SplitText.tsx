@@ -11,7 +11,7 @@ interface SplitTextProps {
 
 // 색상 정의
 const LIGHT_BLUE = '#7dd3fc'; // 라이트 블루
-const DARK_NAVY = '#1e3a8a'; // 다크 네이비
+const DARK_NAVY = '#000'; // ver2: 검은색
 
 export const SplitText: React.FC<SplitTextProps> = ({
   text,
