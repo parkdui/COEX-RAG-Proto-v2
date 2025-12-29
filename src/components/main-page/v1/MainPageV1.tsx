@@ -230,6 +230,17 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     return () => clearInterval(intervalId);
   }, [chatState.isLoading, scrollToCenter]);
 
+  // AI 답변이 처음 나타날 때 중앙으로 스크롤
+  useEffect(() => {
+    const hasAssistantMessage = chatState.messages.some(msg => msg.role === 'assistant');
+    if (hasAssistantMessage && chatRef.current) {
+      // AI 답변이 나타날 때 중앙으로 스크롤
+      setTimeout(() => {
+        scrollToCenter();
+      }, 150);
+    }
+  }, [chatState.messages.filter(msg => msg.role === 'assistant').length, scrollToCenter]);
+
   // 초기 로드 시 center로 스크롤
   useEffect(() => {
     if (chatRef.current && chatState.messages.length > 0) {
@@ -914,7 +925,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-20" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
-          <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '200vh' }}>
+          <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '100vh' }}>
             {chatState.messages.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-full text-center">
                 <div 

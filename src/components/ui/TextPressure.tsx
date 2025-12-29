@@ -86,23 +86,27 @@ const TextPressure: React.FC<TextPressureProps> = ({
   const getAnimationStyle = (index: number) => {
     const baseDelay = index * 0.08;
     const animationDuration = duration;
+    // style prop에서 fontWeight를 가져오거나 기본값 사용
+    const baseFontWeight = style?.fontWeight;
+    const targetFontWeight = typeof baseFontWeight === 'number' ? baseFontWeight : (loop ? 700 : 700);
+    const initialFontWeight = typeof baseFontWeight === 'number' ? baseFontWeight : 500;
     
     if (loop && startLoop) {
       // 반복 애니메이션: CSS 애니메이션 사용
-      // font-weight가 700 -> 300 -> 700으로 반복되며, scale도 함께 변화
+      // style prop의 fontWeight가 있으면 사용, 없으면 기본 700
+      const loopFontWeight = typeof baseFontWeight === 'number' ? baseFontWeight : 700;
       return {
         opacity: 1,
-        fontWeight: 700,
+        fontWeight: loopFontWeight,
         transform: 'translateY(0)',
         animation: `textPressureLoop ${animationDuration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${baseDelay}s infinite`,
       };
     } else {
       // 원래 동작: 한 번만 실행 (초기 진입 애니메이션 포함)
-      // loop가 활성화된 경우 초기 애니메이션도 700으로 끝나도록
-      const targetWeight = loop ? 700 : 700;
+      // style prop의 fontWeight를 우선시, 없으면 기본값 사용
       return {
         opacity: mounted ? 1 : 0,
-        fontWeight: mounted ? targetWeight : 500,
+        fontWeight: mounted ? targetFontWeight : initialFontWeight,
         transform: mounted ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
         transition: `opacity 0.3s ${index * 0.02}s, font-weight ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s, transform ${duration}s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.08}s`
       };

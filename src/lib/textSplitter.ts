@@ -18,6 +18,15 @@ export function splitTextIntoSegments(text: string): TextSegment[] {
     return [];
   }
 
+  // \n이 포함된 경우 줄바꿈을 보존하기 위해 세그먼트 분할을 하지 않음
+  if (text.includes('\n')) {
+    return [{
+      text: text, // \n을 보존
+      type: determineSegmentType(text, 0, 1),
+      index: 0
+    }];
+  }
+
   // 1. 특수 구분자로 먼저 분할 시도
   const specialDelimiters = ['|||', '---', '***', '///'];
   let segments: string[] = [];

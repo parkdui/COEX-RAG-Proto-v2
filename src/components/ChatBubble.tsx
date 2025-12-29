@@ -722,7 +722,14 @@ const QuotedTextRendererComponent: React.FC<{ text: string; enableKeywordLineBre
       segments.forEach((segment, index) => {
         const nodeKey = `${keyPrefix}-${index}`;
         if (segment.isQuoted) {
-          nodes.push(renderQuotedSpan(segment.text, `${nodeKey}-quoted`));
+          // 따옴표로 감싼 텍스트도 \n 처리
+          const lines = segment.text.split('\n');
+          lines.forEach((line, lineIdx) => {
+            nodes.push(renderQuotedSpan(line, `${nodeKey}-quoted-${lineIdx}`));
+            if (lineIdx < lines.length - 1) {
+              nodes.push(<br key={`${nodeKey}-quoted-br-${lineIdx}`} />);
+            }
+          });
         } else if (segment.text) {
           const lines = segment.text.split('\n');
           lines.forEach((line, lineIdx) => {

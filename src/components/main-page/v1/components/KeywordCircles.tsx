@@ -15,37 +15,14 @@ export const KeywordCircles: React.FC<KeywordCirclesProps> = ({
   circleAnimationOffsets,
   isKeywordsAnimatingOut,
 }) => {
-  // 초기 random offset 값 생성 (컴포넌트 마운트 시 한 번만 생성)
-  const randomOffsetsRef = React.useRef<Map<number, number>>(new Map());
-  
-  React.useEffect(() => {
-    // 각 circle에 대해 random offset 생성 (왼쪽: +10~+30, 오른쪽: -30~-10)
-    keywords.forEach((_, idx) => {
-      if (!randomOffsetsRef.current.has(idx)) {
-        const row = Math.floor(idx / 2);
-        const col = idx % 2;
-        const isEvenRow = row % 2 === 0;
-        const isRightColumn = isEvenRow ? col === 1 : col === 0;
-        
-        if (isRightColumn) {
-          // 오른쪽 column: -30 ~ -10
-          randomOffsetsRef.current.set(idx, -(10 + Math.random() * 20));
-        } else {
-          // 왼쪽 column: +10 ~ +30
-          randomOffsetsRef.current.set(idx, 10 + Math.random() * 20);
-        }
-      }
-    });
-  }, [keywords]);
-
   const getZigZagPosition = (idx: number) => {
     const row = Math.floor(idx / 2);
     const col = idx % 2;
     
-    const startTop = 15;
-    const startLeft = 25;
-    const rightLeft = 75;
-    const verticalSpacing = 18;
+    const startTop = 20;
+    const startLeft = 35;
+    const rightLeft = 65;
+    const verticalSpacing = 20;
     
     const isEvenRow = row % 2 === 0;
     const leftPercent = isEvenRow 
@@ -57,12 +34,13 @@ export const KeywordCircles: React.FC<KeywordCirclesProps> = ({
       : col === 0;
     const rightColumnOffset = isRightColumn ? 9 : 0;
     
-    // random offset 적용
-    const randomOffset = randomOffsetsRef.current.get(idx) || 0;
+    // 고정 offset 적용 (퍼센트 단위)
+    // left column: -2%, right column: +2%
+    const fixedOffset = isRightColumn ? 2 : -2;
     
     return {
       topPercent: startTop + (row * verticalSpacing) + rightColumnOffset,
-      leftPercent: leftPercent + randomOffset,
+      leftPercent: leftPercent + fixedOffset,
     };
   };
 
