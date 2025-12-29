@@ -248,8 +248,40 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   const [showFifthAnswerWarning, setShowFifthAnswerWarning] = useState(false);
   const [typewriterVariant, setTypewriterVariant] = useState<TypewriterVariant>('v1');
   const [showRecommendationChips, setShowRecommendationChips] = useState(false);
+  const [circleAnimationOffsets, setCircleAnimationOffsets] = useState<number[]>([]);
 
   const GreetingTypewriter = typewriterComponentMap[typewriterVariant];
+  
+  // Circle 진자 운동 애니메이션
+  useEffect(() => {
+    if (!showSummary || extractedKeywords.length === 0 || isKeywordsAnimatingOut) {
+      setCircleAnimationOffsets([]);
+      return;
+    }
+    
+    let animationFrameId: number;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const offsets = extractedKeywords.map((_, index) => {
+        const speed = 0.5 + (index * 0.15); // 0.5 ~ 1.25
+        const phase = index * 0.5; // 위상 차이
+        const maxOffset = 4 + (index % 3) * 1.5; // 4px ~ 8px (최대 8px)
+        const elapsed = (Date.now() - startTime) / 1000;
+        return Math.sin(elapsed * speed + phase) * maxOffset;
+      });
+      setCircleAnimationOffsets(offsets);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    
+    animationFrameId = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [showSummary, extractedKeywords.length, isKeywordsAnimatingOut]);
 
   const createTypewriterProps = useCallback(
     (text: string, delay = 0) => {
@@ -558,9 +590,45 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
       const audioData: Float32Array[] = [];
       
+      // 자동 중지 로직을 위한 변수들
+      let silenceStartTime: number | null = null;
+      const SILENCE_THRESHOLD = 0.01; // 음성 레벨 임계값
+      const SILENCE_DURATION = 2000; // 2초 동안 조용하면 자동 중지
+      let lastSoundTime = Date.now();
+      let recordingStartTime = Date.now();
+      
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);
         audioData.push(new Float32Array(inputData));
+        
+        // 음성 레벨 계산
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += Math.abs(inputData[i]);
+        }
+        const average = sum / inputData.length;
+        const level = average;
+        
+        // 음성이 감지되면
+        if (level > SILENCE_THRESHOLD) {
+          lastSoundTime = Date.now();
+          silenceStartTime = null;
+        } else {
+          // 조용한 상태
+          const now = Date.now();
+          if (silenceStartTime === null) {
+            silenceStartTime = now;
+          } else {
+            // 조용한 시간이 임계값을 넘으면 자동 중지
+            const silenceDuration = now - silenceStartTime;
+            const recordingDuration = now - recordingStartTime;
+            
+            // 최소 1초 이상 녹음되었고, 2초 이상 조용하면 자동 중지
+            if (silenceDuration >= SILENCE_DURATION && recordingDuration >= 1000 && (window as any).stopRecording) {
+              (window as any).stopRecording();
+            }
+          }
+        }
       };
       
       source.connect(processor);
@@ -596,7 +664,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       console.error('마이크 접근 오류:', error);
       handleMicrophoneError(error);
     }
-  }, [processAudio, voiceState.setIsRecording]);
+  }, [processAudio, voiceState.setIsRecording, voiceState.setAudioStream]);
 
   const stopRecording = useCallback(() => {
     if (voiceState.isRecording && (window as any).stopRecording) {
@@ -1151,12 +1219,13 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       <AnimatedLogo />
 
       {showFifthAnswerWarning && !showEndMessage && !showSummary && (
-        <div className="fixed top-24 left-0 right-0 z-30 flex justify-center">
+        <div className="fixed top-4 left-0 right-0 z-30 flex justify-center">
           <div
+            className="fifth-answer-warning"
             style={{
               fontFamily: 'Pretendard Variable',
-              fontSize: '16px',
-              fontWeight: 500,
+              fontSize: '15px',
+              fontWeight: 400,
               color: '#4E5363',
               textAlign: 'center',
               padding: '12px 24px',
@@ -1203,7 +1272,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                 {showSummary ? (
                   showFinalMessage ? (
                     <div 
-                      className="fixed inset-0 flex flex-col justify-start pt-20 px-6"
+                      className="fixed inset-0 flex flex-col justify-end pb-20 px-6"
                       style={{
                         background: '#D0ECE6',
                         zIndex: 10,
@@ -1215,15 +1284,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#1f2937',
+                            color: '#000',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '40pt',
+                            fontSize: '32pt',
                             fontStyle: 'normal',
-                            fontWeight: 700,
-                            lineHeight: '90%',
+                            fontWeight: 600,
+                            lineHeight: '140%',
                             letterSpacing: '-1.8px',
                             display: 'block',
-                            marginBottom: '0.2em',
+                            marginBottom: '0',
                           }}
                         />
                         <TextPressure
@@ -1231,15 +1300,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#1f2937',
+                            color: '#000',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '40pt',
+                            fontSize: '32pt',
                             fontStyle: 'normal',
-                            fontWeight: 700,
-                            lineHeight: '90%',
+                            fontWeight: 600,
+                            lineHeight: '140%',
                             letterSpacing: '-1.8px',
                             display: 'block',
-                            marginBottom: '0.2em',
+                            marginBottom: '0',
                           }}
                         />
                         <TextPressure
@@ -1247,14 +1316,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           trigger="auto"
                           duration={1.2}
                           style={{
-                            color: '#1f2937',
+                            color: '#000',
                             fontFamily: 'Pretendard Variable',
-                            fontSize: '40pt',
+                            fontSize: '32pt',
                             fontStyle: 'normal',
-                            fontWeight: 700,
-                            lineHeight: '90%',
+                            fontWeight: 600,
+                            lineHeight: '140%',
                             letterSpacing: '-1.8px',
                             display: 'block',
+                            marginBottom: '0',
                           }}
                         />
                       </div>
@@ -1351,106 +1421,57 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                         }}
                       >
                         {extractedKeywords.map((keyword, index) => {
-                        const keywordLength = keyword.length;
+                        // 쉼표가 있으면 쉼표 이전 텍스트만 사용
+                        const displayKeyword = keyword.includes(',') 
+                          ? keyword.split(',')[0].trim() 
+                          : keyword;
+                        
+                        // 컨테이너 너비 추정
+                        const estimatedWidth = typeof window !== 'undefined' ? window.innerWidth : 375;
+                        
+                        // width가 좁을 때 circle 크기 조정 (최소 0.7배까지)
+                        const widthScale = estimatedWidth < 400 
+                          ? Math.max(0.7, estimatedWidth / 400) 
+                          : 1;
+                        
+                        // 모든 circle 크기 동일
                         const baseSize = 120;
-                        const sizeMultiplier = Math.max(0.7, Math.min(1.8, keywordLength / 6));
-                        const ellipseSize = baseSize * sizeMultiplier * 1.2;
+                        const ellipseSize = baseSize * 1.2 * widthScale;
                         const padding = Math.max(8, ellipseSize * 0.25);
                         
-                        const getPosition = (idx: number, keywordLen: number, ellipseSize: number) => {
-                          const minTop = 20;
-                          const maxTop = 80;
-                          const estimatedScreenWidth = 375;
-                          const ellipseRadiusPercent = (ellipseSize / 2 / estimatedScreenWidth) * 100;
-                          const minLeft = Math.max(10, 10 + ellipseRadiusPercent);
-                          const maxLeft = Math.min(90, 90 - ellipseRadiusPercent);
+                        // Zig zag 위치 계산 (좌측 상단부터)
+                        const getZigZagPosition = (idx: number) => {
+                          // Zig zag 형식 배치 (좌측 상단부터)
+                          // 2열 그리드: 짝수 인덱스는 왼쪽, 홀수 인덱스는 오른쪽
+                          const row = Math.floor(idx / 2);
+                          const col = idx % 2;
                           
-                          const existingPositions: Array<{top: number, left: number, size: number}> = [];
-                          for (let i = 0; i < idx; i++) {
-                            const existingKeywordLength = extractedKeywords[i].length;
-                            const existingSize = baseSize * Math.max(0.7, Math.min(1.8, existingKeywordLength / 6)) * 1.2;
-                            const existingEllipseRadiusPercent = (existingSize / 2 / estimatedScreenWidth) * 100;
-                            const existingMinLeft = Math.max(10, 10 + existingEllipseRadiusPercent);
-                            const existingMaxLeft = Math.min(90, 90 - existingEllipseRadiusPercent);
-                            
-                            const row = Math.floor(i / 3);
-                            const col = i % 3;
-                            const existingTop = minTop + (row * 18) + ((i % 2) * 5);
-                            const existingGridLeft = 10 + (col * 40);
-                            const existingLeft = Math.max(existingMinLeft, Math.min(existingMaxLeft, existingGridLeft));
-                            existingPositions.push({
-                              top: existingTop,
-                              left: existingLeft,
-                              size: existingSize
-                            });
-                          }
+                          // 좌측 상단부터 시작
+                          const startTop = 15; // vh 단위
+                          const startLeft = 25; // % 단위 (20 -> 25로 조정: 왼쪽을 오른쪽으로)
+                          const rightLeft = 75; // % 단위 (80 -> 75로 조정: 오른쪽을 왼쪽으로)
+                          const verticalSpacing = 18; // vh 단위
                           
-                          const row = Math.floor(idx / 3);
-                          const col = idx % 3;
-                          let topPercent = minTop + (row * 18) + ((idx % 2) * 5);
-                          const gridLeftPercent = 10 + (col * 40);
-                          let leftPercent = Math.max(minLeft, Math.min(maxLeft, gridLeftPercent));
+                          // Zig zag: 짝수 row는 왼쪽->오른쪽, 홀수 row는 오른쪽->왼쪽
+                          const isEvenRow = row % 2 === 0;
+                          const leftPercent = isEvenRow 
+                            ? (col === 0 ? startLeft : rightLeft)
+                            : (col === 0 ? rightLeft : startLeft);
                           
-                          let attempts = 0;
-                          const maxAttempts = 50;
+                          // 오른쪽 column (홀수 인덱스 또는 짝수 row의 오른쪽)에 추가 offset
+                          const isRightColumn = isEvenRow 
+                            ? col === 1 
+                            : col === 0;
+                          const rightColumnOffset = isRightColumn ? 9 : 0; // 오른쪽 column을 더 아래로
                           
-                          while (attempts < maxAttempts) {
-                            let hasOverlap = false;
-                            
-                            for (const existing of existingPositions) {
-                              const topDiff = Math.abs(topPercent - existing.top);
-                              const leftDiff = Math.abs(leftPercent - existing.left);
-                              const distance = Math.sqrt(topDiff * topDiff + leftDiff * leftDiff);
-                              
-                              const ellipseSizePercent = (ellipseSize / 800) * 100;
-                              const existingSizePercent = (existing.size / 800) * 100;
-                              const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.2;
-                              
-                              if (distance < minDistance) {
-                                hasOverlap = true;
-                                const angle = Math.atan2(topPercent - existing.top, leftPercent - existing.left);
-                                const moveDistance = minDistance - distance + 2;
-                                topPercent += Math.sin(angle) * moveDistance;
-                                leftPercent += Math.cos(angle) * moveDistance;
-                                break;
-                              }
-                            }
-                            
-                            if (!hasOverlap) break;
-                            attempts++;
-                            
-                            if (attempts > 20) {
-                              topPercent = minTop + Math.random() * (maxTop - minTop);
-                              leftPercent = minLeft + Math.random() * (maxLeft - minLeft);
-                            }
-                          }
-                          
-                          for (const existing of existingPositions) {
-                            const topDiff = Math.abs(topPercent - existing.top);
-                            const leftDiff = Math.abs(leftPercent - existing.left);
-                            const distance = Math.sqrt(topDiff * topDiff + leftDiff * leftDiff);
-                            const ellipseSizePercent = (ellipseSize / 800) * 100;
-                            const existingSizePercent = (existing.size / 800) * 100;
-                            const minDistance = ((ellipseSizePercent / 2) + (existingSizePercent / 2)) * 1.2;
-                            
-                            if (distance < minDistance) {
-                              const angle = Math.atan2(topPercent - existing.top, leftPercent - existing.left);
-                              const moveDistance = minDistance - distance + 3;
-                              topPercent += Math.sin(angle) * moveDistance;
-                              leftPercent += Math.cos(angle) * moveDistance;
-                            }
-                          }
-                          
-                          topPercent = Math.max(minTop, Math.min(maxTop, topPercent));
-                          
-                          const currentMinLeft = Math.max(10, 10 + ellipseRadiusPercent);
-                          const currentMaxLeft = Math.min(90, 90 - ellipseRadiusPercent);
-                          leftPercent = Math.max(currentMinLeft, Math.min(currentMaxLeft, leftPercent));
-                          
-                          return { topPercent, leftPercent };
+                          return {
+                            topPercent: startTop + (row * verticalSpacing) + rightColumnOffset,
+                            leftPercent,
+                          };
                         };
                         
-                        const { topPercent, leftPercent } = getPosition(index, keywordLength, ellipseSize);
+                        const { topPercent, leftPercent } = getZigZagPosition(index);
+                        const animationOffset = circleAnimationOffsets[index] || 0;
                         
                         return (
                           <div
@@ -1458,7 +1479,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             className="absolute cursor-pointer"
                             onClick={() => handleKeywordClick(keyword)}
                             style={{
-                              top: `${topPercent}%`,
+                              top: `${topPercent}vh`,
                               left: `${leftPercent}%`,
                               width: `${ellipseSize}px`,
                               height: `${ellipseSize}px`,
@@ -1472,28 +1493,29 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                               position: 'absolute',
                               transform: isKeywordsAnimatingOut 
                                 ? `translate(-50%, calc(-50% - ${topPercent + 50}vh))` 
-                                : 'translate(-50%, -50%)',
+                                : `translate(-50%, calc(-50% + ${animationOffset}px))`,
                               transition: isKeywordsAnimatingOut 
                                 ? `transform 0.8s ease-out ${index * 0.1}s, opacity 0.8s ease-out ${index * 0.1}s` 
-                                : 'transform 0.2s ease-out',
+                                : 'none', // 애니메이션은 requestAnimationFrame으로 처리
                             }}
                             onMouseEnter={(e) => {
                               if (!isKeywordsAnimatingOut) {
-                                e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1.05)';
+                                e.currentTarget.style.transform = `translate(-50%, calc(-50% + ${animationOffset}px)) scale(1.05)`;
                               }
                             }}
                             onMouseLeave={(e) => {
                               if (!isKeywordsAnimatingOut) {
-                                e.currentTarget.style.transform = 'translate(-50%, -50%) scale(1)';
+                                e.currentTarget.style.transform = `translate(-50%, calc(-50% + ${animationOffset}px)) scale(1)`;
                               }
                             }}
                           >
                             <span
                               style={{
                                 fontFamily: 'Pretendard Variable',
-                                fontSize: `${Math.max(14, Math.min(18, ellipseSize / 8))}px`,
+                                fontSize: '15px',
                                 fontWeight: 500,
-                                color: '#1f2937',
+                                letterSpacing: '-0.36px',
+                                color: '#000',
                                 textAlign: 'center',
                                 lineHeight: '1.4',
                                 padding: `${padding}px`,
@@ -1501,7 +1523,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                                 pointerEvents: 'none',
                               }}
                             >
-                              {keyword}
+                              {displayKeyword}
                             </span>
                           </div>
                         );
@@ -1528,7 +1550,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             letterSpacing: '-0.64px',
                           }}
                         >
-                          End
+                          마치기
                         </button>
                       </div>
                     )}
@@ -1585,7 +1607,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             textAlign: 'center',
                             fontFamily: 'Pretendard Variable',
                             fontSize: '16px',
-                            fontWeight: 700,
+                            fontWeight: 600,
                             lineHeight: '110%',
                             letterSpacing: '-0.64px',
                           }}
@@ -1663,7 +1685,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                   textAlign: 'center',
                   fontFamily: 'Pretendard Variable',
                   fontSize: '16px',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   lineHeight: '110%',
                   letterSpacing: '-0.64px',
                 }}
@@ -1673,67 +1695,69 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
             </div>
           </div>
         ) : (
-          <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
-            <form onSubmit={handleSubmit} className="w-full">
-          {(chatState.messages.length === 0 || assistantMessages.length > 0) && (
-            <div style={{ marginBottom: '16px' }}>
-              {renderRecommendationChips(0, true, assistantMessages.length > 0)}
-            </div>
-          )}
-          <div 
-            className="flex items-center"
-            style={{
-              borderRadius: '22px',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.18) 100%)',
-              border: '1px solid rgba(255,255,255,0.65)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.78), 0 16px 34px rgba(60,34,88,0.16)',
-              backdropFilter: 'blur(28px) saturate(1.6)',
-              WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
-            }}
-          >
-            <input
-              type="text"
-              value={chatState.inputValue}
-              onChange={(e) => chatState.setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="메시지 보내기..."
-              disabled={chatState.isLoading || voiceState.isProcessingVoice}
+          !voiceState.isRecording && (
+            <div className="fixed bottom-0 left-0 right-0 z-30 p-4 safe-bottom">
+              <form onSubmit={handleSubmit} className="w-full">
+            {(chatState.messages.length === 0 || assistantMessages.length > 0) && (
+              <div style={{ marginBottom: '16px' }}>
+                {renderRecommendationChips(0, true, assistantMessages.length > 0)}
+              </div>
+            )}
+            <div 
+              className="flex items-center"
               style={{
-                color: '#878181',
-                fontFamily: 'Pretendard Variable',
-                fontSize: '14px',
-                fontStyle: 'normal',
-                fontWeight: 400,
-                lineHeight: '150%',
-                caretColor: '#FFF',
+                borderRadius: '22px',
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.18) 100%)',
+                border: '1px solid rgba(255,255,255,0.65)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.78), 0 16px 34px rgba(60,34,88,0.16)',
+                backdropFilter: 'blur(28px) saturate(1.6)',
+                WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
               }}
-              className="flex-1 px-4 py-3 bg-transparent focus:outline-none placeholder-[#878181]"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-            />
-            <button
-              type="button"
-              onClick={handleMicClick}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-              disabled={chatState.isLoading || voiceState.isProcessingVoice || voiceState.isRequestingPermission}
-              className="px-4 py-3 touch-manipulation disabled:opacity-50"
-              title={voiceState.isRecording ? '녹음 중지' : voiceState.isRequestingPermission ? '권한 요청 중...' : '음성 입력'}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              {voiceState.isRecording ? (
-                <img src="/pause.svg" alt="녹음 중지" className="w-5 h-5" />
-              ) : (
-                <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                </svg>
-              )}
-            </button>
-          </div>
-            </form>
-          </div>
+              <input
+                type="text"
+                value={chatState.inputValue}
+                onChange={(e) => chatState.setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="메시지 보내기..."
+                disabled={chatState.isLoading || voiceState.isProcessingVoice}
+                style={{
+                  color: '#878181',
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '14px',
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  lineHeight: '150%',
+                  caretColor: '#FFF',
+                }}
+                className="flex-1 px-4 py-3 bg-transparent focus:outline-none placeholder-[#878181]"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+              />
+              <button
+                type="button"
+                onClick={handleMicClick}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                disabled={chatState.isLoading || voiceState.isProcessingVoice || voiceState.isRequestingPermission}
+                className="px-4 py-3 touch-manipulation disabled:opacity-50"
+                title={voiceState.isRecording ? '녹음 중지' : voiceState.isRequestingPermission ? '권한 요청 중...' : '음성 입력'}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                {voiceState.isRecording ? (
+                  <img src="/pause.svg" alt="녹음 중지" className="w-5 h-5" />
+                ) : (
+                  <svg className="w-5 h-5 text-[#878181]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            </div>
+              </form>
+            </div>
+          )
         )}
       </>
       )}
@@ -1760,6 +1784,30 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         
         .v10-main-page > :global(.coex-v2-canvas-wrapper) {
           z-index: 1;
+        }
+        
+        /* 5번째 답변 경고 애니메이션 */
+        @keyframes slideInFadeInOut {
+          0% {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          12.5% {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          87.5% {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+        }
+        
+        .fifth-answer-warning {
+          animation: slideInFadeInOut 4s ease-in-out forwards;
         }
       `}</style>
     </div>

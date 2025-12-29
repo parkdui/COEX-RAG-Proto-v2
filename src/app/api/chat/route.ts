@@ -1213,6 +1213,7 @@ export async function POST(request: NextRequest) {
       meta: v.meta,
       text: v.text,
       score: Number(score.toFixed(4)),
+      thumbnail: v.meta?.thumbnail || null, // 썸네일 이미지 URL 추가
     }));
 
       // RAG Context 극대 압축: 텍스트 10자로 제한, 제목만 (최대 5자)
