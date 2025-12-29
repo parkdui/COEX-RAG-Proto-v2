@@ -595,7 +595,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       const SILENCE_THRESHOLD = 0.01; // 음성 레벨 임계값
       const SILENCE_DURATION = 2000; // 2초 동안 조용하면 자동 중지
       let lastSoundTime = Date.now();
-      let recordingStartTime = Date.now();
+      const recordingStartTime = Date.now();
       
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);
