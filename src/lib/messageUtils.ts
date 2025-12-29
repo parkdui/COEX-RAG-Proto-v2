@@ -13,6 +13,7 @@ export function createAssistantMessage(data: {
   tokens?: any;
   hits?: any[];
   defaultAnswer?: string;
+  thumbnailUrl?: string; // 직접 thumbnailUrl을 전달할 수 있도록 추가
 }): Message {
   const answerText = data.answer || data.defaultAnswer || '(응답 없음)';
   const segments = splitTextIntoSegments(answerText);
@@ -56,7 +57,8 @@ export function createAssistantMessage(data: {
   };
 
   const primaryHit = (data.hits || [])[0];
-  const thumbnailUrl = extractThumbnail(primaryHit);
+  // 직접 전달된 thumbnailUrl이 있으면 우선 사용, 없으면 hits에서 추출
+  const thumbnailUrl = data.thumbnailUrl || extractThumbnail(primaryHit);
   let siteUrl = extractSite(primaryHit);
 
   if (siteUrl) {

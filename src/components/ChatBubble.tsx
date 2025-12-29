@@ -1036,7 +1036,15 @@ const SegmentedMessageComponent: React.FC<{
           )}
           <div className="flex flex-col gap-2">
             {shouldShowImage && (
-              <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+              <div 
+                className="flex justify-center" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '100%',
+                  marginTop: '16px',
+                  marginBottom: '0',
+                }}
+              >
                 <div
                   style={{
                     width: '100%',
@@ -1147,12 +1155,20 @@ const SegmentedMessageComponent: React.FC<{
                   })()}
                   <div className="flex flex-col gap-2">
                     {shouldShowImage && (
-                      <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+                      <div 
+                        className="flex justify-center" 
+                        style={{ 
+                          width: '100%', 
+                          maxWidth: '100%',
+                          marginTop: '16px',
+                          marginBottom: '0',
+                        }}
+                      >
                         <div
                           style={{
                             width: '100%',
                             aspectRatio: '1 / 1',
-                            borderRadius: '16px',
+                            borderRadius: '24px',
                             overflow: 'hidden',
                             position: 'relative',
                             background: '#f3f4f6',
@@ -1421,7 +1437,15 @@ const SingleMessageComponent: React.FC<{
           )}
           <div className="flex flex-col gap-2">
             {shouldShowImage && (
-              <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
+              <div 
+                className="flex justify-center" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '100%',
+                  marginTop: '16px',
+                  marginBottom: '0',
+                }}
+              >
                 <div
                   style={{
                     width: '100%',
@@ -1574,31 +1598,39 @@ const SingleMessageComponent: React.FC<{
                           </>
                         );
                       })()}
-                      <div className="flex flex-col gap-2">
-                        {shouldShowImage && (
-                          <div className="mb-3 flex justify-center" style={{ width: '100%', maxWidth: '100%' }}>
-                            <div
-                              style={{
-                                width: '100%',
-                                aspectRatio: '1 / 1',
-                                borderRadius: '16px',
-                                overflow: 'hidden',
-                                position: 'relative',
-                                background: '#f3f4f6',
-                              }}
-                            >
-                              <img
-                                src={imageUrl}
-                                alt="이벤트 썸네일"
-                                style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
+                  <div className="flex flex-col gap-2">
+                    {shouldShowImage && (
+                      <div 
+                        className="flex justify-center" 
+                        style={{ 
+                          width: '100%', 
+                          maxWidth: '100%',
+                          marginTop: '16px',
+                          marginBottom: '0',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1 / 1',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            background: '#f3f4f6',
+                          }}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt="이벤트 썸네일"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                       </div>
                     </div>
                     <div

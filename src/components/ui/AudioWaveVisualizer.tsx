@@ -8,102 +8,66 @@ interface AudioWaveVisualizerProps {
 }
 
 export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisualizerProps) {
-  const [amplitudes, setAmplitudes] = useState<number[]>([0, 0, 0, 0]);
+  const [heights, setHeights] = useState<number[]>([8, 8, 8, 8]);
   const animationFrameRef = useRef<number | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!stream || !isActive) {
-      setAmplitudes([0, 0, 0, 0]);
+    if (!isActive) {
+      setHeights([8, 8, 8, 8]);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
-      analyserRef.current = null;
       return;
     }
 
-    try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const audioContext = new AudioContextClass({
-        sampleRate: 16000,
-        latencyHint: 'interactive'
-      });
-      
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
+    startTimeRef.current = Date.now();
+
+    const animate = () => {
+      if (!isActive) {
+        return;
       }
 
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 32; // 작은 값으로 빠른 반응
-      analyser.smoothingTimeConstant = 0.3; // 부드러운 애니메이션
+      const elapsed = (Date.now() - startTimeRef.current) / 1000;
       
-      source.connect(analyser);
+      // 각 stroke가 차례대로 늘어났다 줄어드는 애니메이션
+      // 각각 다른 위상(phase)을 가짐
+      const newHeights = [0, 1, 2, 3].map((index) => {
+        const phase = index * 0.3; // 각 stroke마다 0.3초씩 차이
+        const cycle = (elapsed + phase) % 1.2; // 1.2초 주기
+        const normalizedCycle = cycle / 1.2; // 0-1로 정규화
+        
+        // 0-0.5: 늘어남, 0.5-1: 줄어듦
+        let height;
+        if (normalizedCycle < 0.5) {
+          // 0 -> 1 (늘어남)
+          height = normalizedCycle * 2;
+        } else {
+          // 1 -> 0 (줄어듦)
+          height = 1 - (normalizedCycle - 0.5) * 2;
+        }
+        
+        // 최소 8px, 최대 40px
+        return 8 + height * 32;
+      });
       
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
+      setHeights(newHeights);
+      
+      if (isActive) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
+    };
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      const updateAmplitudes = () => {
-        if (!analyserRef.current || !isActive) {
-          return;
-        }
-
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        // 4개의 line을 위한 amplitude 값 계산
-        // 전체 주파수 대역을 4개로 나누어 각 line의 amplitude 계산
-        const newAmplitudes: number[] = [];
-        const chunkSize = Math.floor(dataArray.length / 4);
-        
-        for (let i = 0; i < 4; i++) {
-          const start = i * chunkSize;
-          const end = start + chunkSize;
-          let sum = 0;
-          let count = 0;
-          
-          for (let j = start; j < end && j < dataArray.length; j++) {
-            sum += dataArray[j];
-            count++;
-          }
-          
-          const avg = count > 0 ? sum / count : 0;
-          // 0-255 범위를 0-1로 정규화하고, 최소 높이를 보장
-          const normalized = Math.max(0.1, avg / 255);
-          newAmplitudes.push(normalized);
-        }
-        
-        setAmplitudes(newAmplitudes);
-        
-        if (isActive) {
-          animationFrameRef.current = requestAnimationFrame(updateAmplitudes);
-        }
-      };
-
-      updateAmplitudes();
-    } catch (error) {
-      console.error('Audio visualization error:', error);
-    }
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
-      analyserRef.current = null;
     };
-  }, [stream, isActive]);
+  }, [isActive]);
 
   if (!isActive) {
     return null;
@@ -123,15 +87,15 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
         borderRadius: '24px',
       }}
     >
-      {amplitudes.map((amplitude, index) => (
+      {heights.map((height, index) => (
         <div
           key={index}
           style={{
             width: '4px',
-            height: `${Math.max(8, amplitude * 40)}px`, // 최소 8px, 최대 40px
+            height: `${height}px`,
             background: 'linear-gradient(180deg, rgba(118, 212, 255, 0.8) 0%, rgba(77, 255, 138, 0.8) 100%)',
             borderRadius: '2px',
-            transition: 'height 0.1s ease-out',
+            transition: 'none', // 애니메이션은 requestAnimationFrame으로 처리
             minHeight: '8px',
           }}
         />

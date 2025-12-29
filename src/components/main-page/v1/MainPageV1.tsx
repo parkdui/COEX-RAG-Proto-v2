@@ -3,221 +3,22 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChatBubble } from '@/components/ChatBubble';
 import { Message } from '@/types';
-import { createAssistantMessage, createErrorMessage, createUserMessage } from '@/lib/messageUtils';
+import { createAssistantMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
-import { SplitWords, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3, SplitText } from '@/components/ui';
+import { ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3, SplitText } from '@/components/ui';
 import AnimatedLogo from '@/components/ui/AnimatedLogo';
-import TextPressure from '@/components/ui/TextPressure';
-import LetterColorAnimation from '@/components/ui/LetterColorAnimation';
 import ThinkingBlob from '@/components/ui/ThinkingBlob';
 import AudioWaveVisualizer from '@/components/ui/AudioWaveVisualizer';
 import { CanvasBackground } from '@/components/ui/BlobBackgroundV2Canvas';
 import useCoexTTS from '@/hooks/useCoexTTS';
-
-const useChatState = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [chatHistory, setChatHistory] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoButtonDisabled, setIsGoButtonDisabled] = useState(false);
-  const [rowIndex, setRowIndex] = useState<number | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messageNumber, setMessageNumber] = useState<number>(0);
-
-  const addMessage = useCallback((message: Message) => {
-    setMessages(prev => [...prev, message]);
-    setChatHistory(prev => [...prev, message]);
-  }, []);
-
-  const addErrorMessage = useCallback((error: string) => {
-    const errorMessage = createErrorMessage(error);
-    addMessage(errorMessage);
-  }, [addMessage]);
-
-  return useMemo(() => ({
-    messages,
-    chatHistory,
-    inputValue,
-    setInputValue,
-    systemPrompt,
-    setSystemPrompt,
-    isLoading,
-    setIsLoading,
-    isGoButtonDisabled,
-    setIsGoButtonDisabled,
-    addMessage,
-    addErrorMessage,
-    rowIndex,
-    setRowIndex,
-    sessionId,
-    setSessionId,
-    messageNumber,
-    setMessageNumber
-  }), [
-    messages,
-    chatHistory,
-    inputValue,
-    systemPrompt,
-    isLoading,
-    isGoButtonDisabled,
-    addMessage,
-    addErrorMessage,
-    rowIndex,
-    sessionId,
-    messageNumber
-  ]);
-};
-
-const useVoiceRecording = () => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
-  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
-
-  return {
-    isRecording,
-    setIsRecording,
-    isProcessingVoice,
-    setIsProcessingVoice,
-    isRequestingPermission,
-    setIsRequestingPermission,
-    audioStream,
-    setAudioStream
-  };
-};
-
-const apiRequests = {
-  async sendChatRequest(question: string, systemPrompt: string, history: Message[], rowIndex?: number | null, sessionId?: string | null, messageNumber?: number) {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        question, 
-        systemPrompt, 
-        history,
-        rowIndex: rowIndex || undefined,
-        sessionId: sessionId || undefined,
-        messageNumber: messageNumber || undefined
-      }),
-    });
-    return response.json();
-  },
-
-  async logMessage(sessionId: string, messageNumber: number, userMessage: string, aiMessage: string, rowIndex?: number | null, timestamp?: string, systemPrompt?: string) {
-    const response = await fetch('/api/log-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        messageNumber,
-        userMessage,
-        aiMessage,
-        rowIndex: rowIndex || undefined,
-        timestamp: timestamp || new Date().toISOString(),
-        systemPrompt: systemPrompt || ''
-      }),
-    });
-    return response.json();
-  },
-
-  async sendSTTRequest(audioBlob: Blob) {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.wav');
-    
-    const response = await fetch('/api/stt', {
-      method: 'POST',
-      body: formData,
-    });
-    return response.json();
-  }
-};
-
-const recommendationMessages = [
-  "친구와 함께 먹기 좋은 식당을 추천해줘",
-  "컨퍼런스를 관람하며 쉬기 좋은 곳을 추천해줘",
-  "KPOP 관련 구경거리를 추천해줘",
-  "데이트하기 좋은 행사 추천해줘",
-  "홀로 방문하기 좋은 곳 추천해줘",
-  "쇼핑하기 좋은 곳을 찾고 있어",
-  "조용히 작업할 수 있는 카페를 찾고 있어",
-  "즐길 거리가 많은 핫플레이스를 알려줘",
-  "문화적인 경험을 할 수 있는 곳을 추천해줘",
-  "트렌디한 음식점을 찾고 있어"
-];
-
-const fixedQAData = [
-  {
-    "question": "친구와 함께 먹기 좋은 식당을 추천해줘",
-    "answers": [
-      "친구들과 여럿이 방문한다면 '피에프창(P.F. Chang's)'을 추천해요. 넓은 좌석과 화려한 비주얼의 퓨전 아시안 요리가 있어 모임 장소로 제격입니다.",
-      "가볍고 트렌디한 분위기를 원한다면 '카페마마스'는 어떠신가요? 리코타 치즈 샐러드와 청포도 주스로 유명해 친구들과 브런치를 즐기기에 딱 좋습니다."
-    ]
-  },
-  {
-    "question": "컨퍼런스를 관람하며 쉬기 좋은 곳을 추천해줘",
-    "answers": [
-      "코엑스의 랜드마크인 '별마당 도서관'을 방문해 보세요. 탁 트인 개방감 속에서 책을 읽으며 컨퍼런스 도중 머리를 식히기에 가장 좋습니다.",
-      "조금 더 정적인 휴식을 원하신다면 코엑스 아쿠아리움 내 카페나 전시장 인근의 '라이브 플라자' 계단형 휴게 공간에서 잠시 앉아 쉬어가는 것을 추천합니다."
-    ]
-  },
-  {
-    "question": "KPOP 관련 구경거리를 추천해줘",
-    "answers": [
-      "코엑스 동측 광장에 있는 '강남스타일 말춤 동상'과 외벽의 초대형 커브드 LED 전광판을 확인해 보세요. 압도적인 스케일의 K-콘텐츠 영상을 감상할 수 있습니다.",
-      "메가박스 인근이나 몰 내부에 위치한 '플레이인더박스' 같은 굿즈 샵을 추천합니다. 아이돌 팝업스토어나 포토부스가 상시 운영되어 팬들에게 인기가 많습니다."
-    ]
-  },
-  {
-    "question": "데이트하기 좋은 행사 추천해줘",
-    "answers": [
-      "실내 데이트의 정석인 '코엑스 아쿠아리움'을 추천합니다. 신비로운 수중 터널을 걸으며 날씨에 상관없이 로맨틱한 시간을 보낼 수 있습니다.",
-      "예술적인 감성을 채우고 싶다면 매년 열리는 'KIAF(키아프) & 프리즈 서울' 같은 대형 아트 페어나 감각적인 디자인 전시회를 함께 관람해 보세요."
-    ]
-  },
-  {
-    "question": "홀로 방문하기 좋은 곳 추천해줘",
-    "answers": [
-      "혼자만의 시간이 필요할 땐 '메가박스 코엑스'를 추천합니다. 돌비 시네마 등 최첨단 시설을 갖추고 있어 오롯이 영화에만 몰입하기 최적의 장소입니다.",
-      "혼밥하기 편한 비건 레스토랑 '플랜튜드(Plantude)'를 추천드려요. 깔끔한 1인석 분위기 덕분에 혼자서도 부담 없이 건강한 식사를 즐길 수 있습니다."
-    ]
-  },
-  {
-    "question": "쇼핑하기 좋은 곳을 찾고 있어",
-    "answers": [
-      "최신 트렌드를 원한다면 스타필드 코엑스몰의 '패션 거리'를 걸어보세요. 글로벌 SPA 브랜드부터 힙한 스트리트 브랜드까지 한곳에 모여 있습니다.",
-      "아기자기한 소품을 좋아하신다면 '버터(BUTTER)'나 '자주(JAJU)'를 방문해 보세요. 아이디어 상품이 가득해 구경하는 재미가 쏠쏠합니다."
-    ]
-  },
-  {
-    "question": "조용히 작업할 수 있는 카페를 찾고 있어",
-    "answers": [
-      "차분하고 고풍스러운 인테리어의 '가배도'를 추천합니다. 다른 카페에 비해 비교적 조용한 분위기여서 노트북 작업을 하거나 독서하기에 좋습니다.",
-      "세련된 분위기의 '피어커피(Peer Coffee)'를 추천드려요. 좌석 배치가 여유롭고 커피 맛이 훌륭해 혼자 방문해 집중하기 좋은 환경입니다."
-    ]
-  },
-  {
-    "question": "즐길 거리가 많은 핫플레이스를 알려줘",
-    "answers": [
-      "언제나 활기찬 '별마당 도서관'은 필수 코스입니다. 주기적으로 바뀌는 대형 조형물과 무료 강연, 공연이 열려 볼거리가 매우 풍성합니다.",
-      "이색 체험을 원한다면 '건담베이스'나 '레고 스토어'를 방문해 보세요. 한정판 피규어 전시와 체험존이 있어 키덜트와 가족 단위 방문객 모두에게 인기가 많습니다."
-    ]
-  },
-  {
-    "question": "문화적인 경험을 할 수 있는 곳을 추천해줘",
-    "answers": [
-      "코엑스 전시장(A~D홀)에서 매주 열리는 박람회를 확인해 보세요. 도서전, 디자인 페어 등 다양한 주제의 전시가 열려 새로운 문화를 경험하기 좋습니다.",
-      "코엑스 바로 맞은편의 '봉은사'에 들러보세요. 현대적인 빌딩숲 사이에서 한국 전통 사찰의 고요함과 정취를 느낄 수 있는 특별한 문화 명소입니다."
-    ]
-  },
-  {
-    "question": "트렌디한 음식점을 찾고 있어",
-    "answers": [
-      "고메스트리트에 위치한 중식당 '무탄'을 추천합니다. 트러플 짜장면처럼 SNS에서 화제가 된 독특하고 고급스러운 메뉴를 맛볼 수 있습니다.",
-      "세련된 유러피안 그릴 요리를 선보이는 '이비티(ebt)'를 추천드려요. 감각적인 플레이팅과 인테리어 덕분에 트렌디한 미식 경험이 가능합니다."
-    ]
-  }
-];
+import { useChatState } from './hooks/useChatState';
+import { useVoiceRecording } from './hooks/useVoiceRecording';
+import { apiRequests } from './utils/apiRequests';
+import { fixedQAData } from './constants/fixedQAData';
+import { RecommendationChips } from './components/RecommendationChips';
+import { KeywordCircles } from './components/KeywordCircles';
+import { EndMessageScreen, FinalMessageScreen, KeywordDetailScreen } from './components/EndScreens';
+import { isInfoRequestQuestion, getFallbackSummary } from './utils/questionUtils';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
 
@@ -304,46 +105,15 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   );
 
   const getRandomRecommendations = useCallback(() => {
-    const shuffled = [...recommendationMessages].sort(() => Math.random() - 0.5);
+    // fixedQAData의 question들을 사용
+    const questions = fixedQAData.map(qa => qa.question);
+    const shuffled = [...questions].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 3);
   }, []);
 
   // 사용자 메시지 요약 상태
   const [userMessageSummaries, setUserMessageSummaries] = useState<Record<string, string>>({});
 
-  // Fallback 요약 함수 (CLOVA API 실패 시 사용)
-  const getFallbackSummary = useCallback((text: string): string => {
-    // 패턴 기반 요약
-    const patterns = [
-      { pattern: /문화.*?경험.*?곳|문화.*?경험.*?장소/i, replacement: '문화적인 경험 장소 추천' },
-      { pattern: /가족.*?놀/i, replacement: '가족과 놀거리 추천' },
-      { pattern: /친구.*?먹/i, replacement: '친구와 먹거리 추천' },
-      { pattern: /데이트.*?좋/i, replacement: '데이트하기 좋은 곳' },
-      { pattern: /컨퍼런스.*?쉬/i, replacement: '컨퍼런스 중 쉬기 좋은 곳' },
-      { pattern: /홀로.*?방문/i, replacement: '홀로 방문하기 좋은 곳' },
-      { pattern: /조용.*?작업/i, replacement: '조용히 작업할 카페' },
-      { pattern: /핫플레이스/i, replacement: '핫플레이스 추천' },
-      { pattern: /문화.*?체험/i, replacement: '문화 체험 장소' },
-      { pattern: /쇼핑.*?좋/i, replacement: '쇼핑하기 좋은 곳' },
-      { pattern: /추천.*?해|추천.*?해줘/i, replacement: '장소 추천'       },
-    ];
-    
-    for (const { pattern, replacement } of patterns) {
-      if (pattern.test(text)) {
-        return replacement.length > 20 ? replacement.substring(0, 20) : replacement;
-      }
-    }
-    
-    const keywords = ['문화', '경험', '가족', '친구', '혼자', '데이트', '컨퍼런스', '식당', '카페', '쇼핑', '장소', '곳'];
-    const foundKeywords = keywords.filter(kw => text.includes(kw));
-    
-    if (foundKeywords.length > 0) {
-      const summary = foundKeywords.slice(0, 3).join(' ') + ' 추천';
-      return summary.length > 20 ? summary.substring(0, 20) : summary;
-    }
-    
-    return text.length > 20 ? text.substring(0, 20) : text;
-  }, []);
 
   const summarizeUserMessage = useCallback(async (text: string, messageId?: string) => {
     if (!text || !text.trim()) return text;
@@ -393,7 +163,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   );
 
   const pushAssistantMessage = useCallback(
-    async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string }) => {
+    async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string; thumbnailUrl?: string }) => {
       const answerText = response.answer || response.defaultAnswer || '(응답 없음)';
       // TTS 재작성 시 토큰 추적을 위해 sessionId와 rowIndex 전달
       const playbackStarter = await prepareAuto(
@@ -407,6 +177,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         tokens: response.tokens,
         hits: response.hits,
         defaultAnswer: response.defaultAnswer,
+        thumbnailUrl: response.thumbnailUrl, // 이미지 경로 전달
       });
 
       chatState.addMessage(assistantMessage);
@@ -421,6 +192,16 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   );
 
   // 스크롤을 맨 아래로 이동
+  const scrollToCenter = useCallback(() => {
+    if (chatRef.current) {
+      const container = chatRef.current;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+      // center로 스크롤
+      container.scrollTop = (scrollHeight - clientHeight) / 2;
+    }
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     if (chatRef.current) {
       chatRef.current.scroll({
@@ -431,18 +212,40 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [chatState.messages, scrollToBottom]);
+    // 메시지가 추가될 때 center로 스크롤
+    if (chatState.messages.length > 0) {
+      setTimeout(() => {
+        scrollToCenter();
+      }, 100);
+    }
+  }, [chatState.messages, scrollToCenter]);
 
   useEffect(() => {
     if (!chatState.isLoading) return;
 
     const intervalId = setInterval(() => {
-      scrollToBottom();
+      scrollToCenter();
     }, 500);
 
     return () => clearInterval(intervalId);
-  }, [chatState.isLoading, scrollToBottom]);
+  }, [chatState.isLoading, scrollToCenter]);
+
+  // 초기 로드 시 center로 스크롤
+  useEffect(() => {
+    if (chatRef.current && chatState.messages.length > 0) {
+      setTimeout(() => {
+        scrollToCenter();
+      }, 300);
+    }
+  }, []);
+
+  // AI 답변이 완료되면 input value 비우기
+  useEffect(() => {
+    if (!chatState.isLoading && !voiceState.isProcessingVoice && chatState.inputValue.trim()) {
+      // AI 답변이 완료되면 input을 비워서 placeholder가 보이도록 함
+      chatState.setInputValue('');
+    }
+  }, [chatState.isLoading, voiceState.isProcessingVoice, chatState.setInputValue]);
 
   useEffect(() => {
     if (!chatState.isLoading && assistantMessages.length > 0) {
@@ -816,15 +619,6 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     }
   }, [handleSubmit]);
 
-  const isInfoRequestQuestion = useCallback((question: string) => {
-    const infoRequestPatterns = [
-      /추천|알려|정보|위치|어디|어떤|어때|어떠|있어|찾아|보여|가르쳐|안내|소개|추천해|알려줘|알려줄|가르쳐줘/i,
-      /카페|식당|레스토랑|맛집|음식|장소|공간|장소|이벤트|전시|체험|활동|프로그램/i,
-      /어디서|어디에|어디로|어디가|어디서|어디에|어디로|어디가/i,
-    ];
-    
-    return infoRequestPatterns.some(pattern => pattern.test(question));
-  }, []);
 
   const extractInfoKeywords = useCallback(async () => {
     const keywords: Array<{ keyword: string; turnIndex: number }> = [];
@@ -971,7 +765,14 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     const matchedQA = fixedQAData.find(qa => qa.question === recommendation);
     
     if (matchedQA && matchedQA.answers.length > 0) {
-      const randomAnswer = matchedQA.answers[Math.floor(Math.random() * matchedQA.answers.length)];
+      const randomAnswerObj = matchedQA.answers[Math.floor(Math.random() * matchedQA.answers.length)];
+      // answer가 객체 형태인 경우 text와 image 추출, 문자열인 경우 하위 호환성 유지
+      const randomAnswerText = typeof randomAnswerObj === 'string' 
+        ? randomAnswerObj 
+        : randomAnswerObj.text;
+      const randomAnswerImage = typeof randomAnswerObj === 'string' 
+        ? undefined 
+        : randomAnswerObj.image;
       
       const nextMessageNumber = chatState.messageNumber + 1;
       
@@ -986,7 +787,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
           chatState.sessionId || `session-${Date.now()}`,
           nextMessageNumber,
           recommendation,
-          randomAnswer,
+          randomAnswerText,
           chatState.rowIndex,
           timestamp,
           systemPromptForLog
@@ -1009,10 +810,11 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       await minWaitTime;
       
       await pushAssistantMessage({
-        answer: randomAnswer,
+        answer: randomAnswerText,
         tokens: undefined,
         hits: undefined,
-        defaultAnswer: randomAnswer,
+        defaultAnswer: randomAnswerText,
+        thumbnailUrl: randomAnswerImage, // 이미지 경로 전달
       });
       
       chatState.setIsLoading(false);
@@ -1056,151 +858,21 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     }
   }, [chatState, isConversationEnded, pushAssistantMessage]);
 
-  const importantKeywords = [
-    '핫플레이스',
-    '쉬기 좋은 곳',
-    '카페',
-    '식당',
-    '데이트',
-    '문화적인 경험',
-    '경험',
-    '장소',
-    '행사',
-    '이벤트',
-    '쇼핑',
-    '음식점',
-    '구경거리',
-    '레스토랑',
-    '맛집',
-    '전시',
-    '체험',
-    '활동',
-    '프로그램',
-  ];
-
-  const renderTextWithAnimation = useCallback((text: string) => {
-    const parts: Array<{ text: string; isImportant: boolean }> = [];
-    let lastIndex = 0;
-
-    const matches: Array<{ start: number; end: number; keyword: string }> = [];
-    
-    for (const keyword of importantKeywords) {
-      let searchIndex = 0;
-      while (true) {
-        const index = text.indexOf(keyword, searchIndex);
-        if (index === -1) break;
-        matches.push({ start: index, end: index + keyword.length, keyword });
-        searchIndex = index + 1;
-      }
-    }
-
-    matches.sort((a, b) => {
-      if (a.start !== b.start) return a.start - b.start;
-      return b.end - a.end; // 같은 시작 위치면 긴 것 우선
-    });
-
-    const nonOverlappingMatches: Array<{ start: number; end: number; keyword: string }> = [];
-    for (const match of matches) {
-      const overlaps = nonOverlappingMatches.some(
-        existing => !(match.end <= existing.start || match.start >= existing.end)
-      );
-      if (!overlaps) {
-        nonOverlappingMatches.push(match);
-      }
-    }
-
-    nonOverlappingMatches.sort((a, b) => a.start - b.start);
-
-    for (const match of nonOverlappingMatches) {
-      if (match.start > lastIndex) {
-        parts.push({ text: text.substring(lastIndex, match.start), isImportant: false });
-      }
-      parts.push({ text: text.substring(match.start, match.end), isImportant: true });
-      lastIndex = match.end;
-    }
-
-    if (lastIndex < text.length) {
-      parts.push({ text: text.substring(lastIndex), isImportant: false });
-    }
-
-    if (parts.length === 0) {
-      parts.push({ text, isImportant: false });
-    }
-
-    return parts.map((part, index) => {
-      if (part.isImportant) {
-        return (
-          <LetterColorAnimation
-            key={index}
-            text={part.text}
-            duration={6}
-            style={{
-              display: 'inline-block',
-            }}
-          />
-        );
-      }
-      return <span key={index}>{part.text}</span>;
-    });
-  }, [importantKeywords]);
-
   const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
     if (isConversationEnded) return null;
     
     return (
-      <div
-        className="recommendation-scroll"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          gap: '8px',
-          marginTop: additionalMarginTop ? `${additionalMarginTop}px` : (compact ? '0' : '24px'),
-          paddingTop: compact ? '0' : '24px',
-          paddingBottom: compact ? '0' : '4px',
-          width: '100%',
-          opacity: shouldAnimate ? (showRecommendationChips ? 1 : 0) : 1,
-          transition: shouldAnimate ? 'opacity 0.5s ease-in' : 'none',
-        }}
-      >
-        {randomRecommendations.map((message, index) => {
-          return (
-            <button
-              key={index}
-              onClick={() => handleRecommendationClick(message)}
-              disabled={chatState.isLoading}
-              className="touch-manipulation active:scale-95 disabled:opacity-50 rounded-3xl outline outline-1 outline-offset-[-1px] outline-white"
-              style={{
-                display: 'inline-flex',
-                padding: '8px 16px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                flex: '0 0 auto',
-                cursor: 'pointer',
-                background: 'linear-gradient(180deg,rgb(251, 255, 254) 0%, #F4E9F0 63.94%, #FFF 100%)',
-              }}
-              type="button"
-            >
-              <span
-                style={{
-                  fontFamily: 'Pretendard Variable',
-                  fontSize: '14px',
-                  fontStyle: 'normal' as const,
-                  fontWeight: 600,
-                  lineHeight: '190%',
-                  letterSpacing: '-0.48px',
-                  color: '#757575',
-                  whiteSpace: 'nowrap' as const,
-                }}
-              >
-                {renderTextWithAnimation(message)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <RecommendationChips
+        recommendations={randomRecommendations}
+        onRecommendationClick={handleRecommendationClick}
+        isLoading={chatState.isLoading}
+        showRecommendationChips={showRecommendationChips}
+        additionalMarginTop={additionalMarginTop}
+        compact={compact}
+        shouldAnimate={shouldAnimate}
+      />
     );
-  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, showRecommendationChips, renderTextWithAnimation]);
+  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, showRecommendationChips]);
 
   const isThinking = chatState.isLoading || voiceState.isProcessingVoice;
 
@@ -1242,7 +914,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-20" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
-          <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain">
+          <div ref={chatRef} className="h-full overflow-y-auto px-6 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '200vh' }}>
             {chatState.messages.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-full text-center">
                 <div 
@@ -1271,64 +943,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
               <>
                 {showSummary ? (
                   showFinalMessage ? (
-                    <div 
-                      className="fixed inset-0 flex flex-col justify-end pb-20 px-6"
-                      style={{
-                        background: '#D0ECE6',
-                        zIndex: 10,
-                      }}
-                    >
-                      <div className="text-left">
-                        <TextPressure
-                          text="COEX에서"
-                          trigger="auto"
-                          duration={1.2}
-                          style={{
-                            color: '#000',
-                            fontFamily: 'Pretendard Variable',
-                            fontSize: '32pt',
-                            fontStyle: 'normal',
-                            fontWeight: 600,
-                            lineHeight: '140%',
-                            letterSpacing: '-1.8px',
-                            display: 'block',
-                            marginBottom: '0',
-                          }}
-                        />
-                        <TextPressure
-                          text="즐거운 시간"
-                          trigger="auto"
-                          duration={1.2}
-                          style={{
-                            color: '#000',
-                            fontFamily: 'Pretendard Variable',
-                            fontSize: '32pt',
-                            fontStyle: 'normal',
-                            fontWeight: 600,
-                            lineHeight: '140%',
-                            letterSpacing: '-1.8px',
-                            display: 'block',
-                            marginBottom: '0',
-                          }}
-                        />
-                        <TextPressure
-                          text="보내세요!"
-                          trigger="auto"
-                          duration={1.2}
-                          style={{
-                            color: '#000',
-                            fontFamily: 'Pretendard Variable',
-                            fontSize: '32pt',
-                            fontStyle: 'normal',
-                            fontWeight: 600,
-                            lineHeight: '140%',
-                            letterSpacing: '-1.8px',
-                            display: 'block',
-                            marginBottom: '0',
-                          }}
-                        />
-                      </div>
-                    </div>
+                    <FinalMessageScreen />
                   ) : selectedKeyword && selectedKeywordTurn !== null ? (
                     <div 
                       className="fixed inset-0"
@@ -1420,206 +1035,59 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                           opacity: isKeywordsAnimatingOut ? 0 : 1,
                         }}
                       >
-                        {extractedKeywords.map((keyword, index) => {
-                        // 쉼표가 있으면 쉼표 이전 텍스트만 사용
-                        const displayKeyword = keyword.includes(',') 
-                          ? keyword.split(',')[0].trim() 
-                          : keyword;
-                        
-                        // 컨테이너 너비 추정
-                        const estimatedWidth = typeof window !== 'undefined' ? window.innerWidth : 375;
-                        
-                        // width가 좁을 때 circle 크기 조정 (최소 0.7배까지)
-                        const widthScale = estimatedWidth < 400 
-                          ? Math.max(0.7, estimatedWidth / 400) 
-                          : 1;
-                        
-                        // 모든 circle 크기 동일
-                        const baseSize = 120;
-                        const ellipseSize = baseSize * 1.2 * widthScale;
-                        const padding = Math.max(8, ellipseSize * 0.25);
-                        
-                        // Zig zag 위치 계산 (좌측 상단부터)
-                        const getZigZagPosition = (idx: number) => {
-                          // Zig zag 형식 배치 (좌측 상단부터)
-                          // 2열 그리드: 짝수 인덱스는 왼쪽, 홀수 인덱스는 오른쪽
-                          const row = Math.floor(idx / 2);
-                          const col = idx % 2;
-                          
-                          // 좌측 상단부터 시작
-                          const startTop = 15; // vh 단위
-                          const startLeft = 25; // % 단위 (20 -> 25로 조정: 왼쪽을 오른쪽으로)
-                          const rightLeft = 75; // % 단위 (80 -> 75로 조정: 오른쪽을 왼쪽으로)
-                          const verticalSpacing = 18; // vh 단위
-                          
-                          // Zig zag: 짝수 row는 왼쪽->오른쪽, 홀수 row는 오른쪽->왼쪽
-                          const isEvenRow = row % 2 === 0;
-                          const leftPercent = isEvenRow 
-                            ? (col === 0 ? startLeft : rightLeft)
-                            : (col === 0 ? rightLeft : startLeft);
-                          
-                          // 오른쪽 column (홀수 인덱스 또는 짝수 row의 오른쪽)에 추가 offset
-                          const isRightColumn = isEvenRow 
-                            ? col === 1 
-                            : col === 0;
-                          const rightColumnOffset = isRightColumn ? 9 : 0; // 오른쪽 column을 더 아래로
-                          
-                          return {
-                            topPercent: startTop + (row * verticalSpacing) + rightColumnOffset,
-                            leftPercent,
-                          };
-                        };
-                        
-                        const { topPercent, leftPercent } = getZigZagPosition(index);
-                        const animationOffset = circleAnimationOffsets[index] || 0;
-                        
-                        return (
-                          <div
-                            key={index}
-                            className="absolute cursor-pointer"
-                            onClick={() => handleKeywordClick(keyword)}
+                        <KeywordCircles
+                          keywords={extractedKeywords}
+                          onKeywordClick={handleKeywordClick}
+                          circleAnimationOffsets={circleAnimationOffsets}
+                          isKeywordsAnimatingOut={isKeywordsAnimatingOut}
+                        />
+                      </div>
+                      
+                      {!selectedKeyword && !showFinalMessage && (
+                        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
+                          <button
+                            onClick={handleEndButton}
+                            className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
                             style={{
-                              top: `${topPercent}vh`,
-                              left: `${leftPercent}%`,
-                              width: `${ellipseSize}px`,
-                              height: `${ellipseSize}px`,
-                              borderRadius: '297px',
-                              opacity: isKeywordsAnimatingOut ? 0 : 0.65,
-                              background: 'radial-gradient(50% 50% at 50% 50%, #DEE6FF 43.75%, #FFF 65.87%, rgba(255, 255, 255, 0.61) 100%)',
-                              boxShadow: '0 -14px 20px 0 #FFEFFC, 0 20px 20px 0 #CBD7F3, 0 4px 100px 0 #CFE9FF',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              position: 'absolute',
-                              transform: isKeywordsAnimatingOut 
-                                ? `translate(-50%, calc(-50% - ${topPercent + 50}vh))` 
-                                : `translate(-50%, calc(-50% + ${animationOffset}px))`,
-                              transition: isKeywordsAnimatingOut 
-                                ? `transform 0.8s ease-out ${index * 0.1}s, opacity 0.8s ease-out ${index * 0.1}s` 
-                                : 'none', // 애니메이션은 requestAnimationFrame으로 처리
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isKeywordsAnimatingOut) {
-                                e.currentTarget.style.transform = `translate(-50%, calc(-50% + ${animationOffset}px)) scale(1.05)`;
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isKeywordsAnimatingOut) {
-                                e.currentTarget.style.transform = `translate(-50%, calc(-50% + ${animationOffset}px)) scale(1)`;
-                              }
+                              height: '56px',
+                              padding: '15px 85px',
+                              borderRadius: '68px',
+                              background: 'rgba(135, 254, 200, 0.75)',
+                              boxShadow: '0 0 50px 0 #EEE inset',
+                              color: '#000',
+                              textAlign: 'center',
+                              fontFamily: 'Pretendard Variable',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              lineHeight: '110%',
+                              letterSpacing: '-0.64px',
                             }}
                           >
-                            <span
-                              style={{
-                                fontFamily: 'Pretendard Variable',
-                                fontSize: '15px',
-                                fontWeight: 500,
-                                letterSpacing: '-0.36px',
-                                color: '#000',
-                                textAlign: 'center',
-                                lineHeight: '1.4',
-                                padding: `${padding}px`,
-                                whiteSpace: 'nowrap',
-                                pointerEvents: 'none',
-                              }}
-                            >
-                              {displayKeyword}
-                            </span>
-                          </div>
-                        );
-                      })}
+                            마치기
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    
-                    {!selectedKeyword && !showFinalMessage && (
-                      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
-                        <button
-                          onClick={handleEndButton}
-                          className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
-                          style={{
-                            height: '56px',
-                            padding: '15px 85px',
-                            borderRadius: '68px',
-                            background: 'rgba(135, 254, 200, 0.75)',
-                            boxShadow: '0 0 50px 0 #EEE inset',
-                            color: '#000',
-                            textAlign: 'center',
-                            fontFamily: 'Pretendard Variable',
-                            fontSize: '16px',
-                            fontWeight: 700,
-                            lineHeight: '110%',
-                            letterSpacing: '-0.64px',
-                          }}
-                        >
-                          마치기
-                        </button>
-                      </div>
-                    )}
-                  </div>
                   )
                 ) : showEndMessage ? (
-                  <div className="fixed inset-0 flex flex-col items-center justify-center">
-                    <div
-                      style={{
-                        fontFamily: 'Pretendard Variable',
-                        fontSize: '22px',
-                        fontWeight: 400,
-                        color: '#000',
-                        textAlign: 'center',
-                        lineHeight: '140%',
-                        letterSpacing: '-0.88px',
-                        marginBottom: '40px',
-                        padding: '0 24px',
-                        whiteSpace: 'pre-line',
-                      }}
-                    >
-                      <div>
-                        <SplitWords
-                          text="오늘의 대화가 모두 끝났어요."
-                          delay={0}
-                          duration={1.2}
-                          stagger={0.05}
-                          animation="fadeIn"
-                        />
-                      </div>
-                      <div>
-                        <SplitWords
-                          text="제가 안내한 내용을 정리해드릴게요."
-                          delay={0}
-                          duration={1.2}
-                          stagger={0.05}
-                          animation="fadeIn"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
-                      <div className="px-6 pb-8 pt-4">
-                        <button
-                          onClick={handleNextToSummary}
-                          className="w-full touch-manipulation active:scale-95 flex justify-center items-center"
-                          style={{
-                            height: '56px',
-                            padding: '15px 85px',
-                            borderRadius: '68px',
-                            background: 'rgba(135, 254, 200, 0.75)',
-                            boxShadow: '0 0 50px 0 #EEE inset',
-                            color: '#000',
-                            textAlign: 'center',
-                            fontFamily: 'Pretendard Variable',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            lineHeight: '110%',
-                            letterSpacing: '-0.64px',
-                          }}
-                        >
-                          대화 요약 보러가기
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <EndMessageScreen onNextToSummary={handleNextToSummary} />
                 ) : (
                   <div className="relative">
-                    {(chatState.isLoading || voiceState.isProcessingVoice || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                    {/* 음성 녹음 중일 때는 AI 답변 div 숨기고 '듣고 있어요' 표시 */}
+                    {voiceState.isRecording ? (
+                      <div className="flex items-center justify-center min-h-[60vh]">
+                        <ChatBubble 
+                          key="listening-bubble"
+                          message={{ role: 'assistant', content: '' }} 
+                          isThinking={true}
+                          onPlayTTS={playFull}
+                          isPlayingTTS={isPlayingTTS}
+                          isGlobalLoading={true}
+                          typewriterVariant={typewriterVariant}
+                          isRecording={true}
+                        />
+                      </div>
+                    ) : (chatState.isLoading || voiceState.isProcessingVoice || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
                       <div 
                         className="space-y-4"
                         style={{
@@ -1637,7 +1105,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                             isPlayingTTS={isPlayingTTS}
                             isGlobalLoading={chatState.isLoading || voiceState.isProcessingVoice}
                             typewriterVariant={typewriterVariant}
-                            isRecording={voiceState.isRecording}
+                            isRecording={false}
                           />
                         ) : (
                           <>
@@ -1719,7 +1187,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                 value={chatState.inputValue}
                 onChange={(e) => chatState.setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="메시지 보내기..."
+                placeholder="Sori에게 얘기해주세요!"
                 disabled={chatState.isLoading || voiceState.isProcessingVoice}
                 style={{
                   color: '#878181',
