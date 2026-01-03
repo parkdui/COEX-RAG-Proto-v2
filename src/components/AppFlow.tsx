@@ -230,25 +230,59 @@ export default function AppFlow() {
       switch (currentPage) {
       case 'blocked':
         return (
-          <div className="min-h-screen flex items-center justify-center px-6 relative" style={{ zIndex: 10 }}>
+          <div className="fixed inset-0 flex items-center justify-center px-6" style={{ zIndex: 10 }}>
             <div className="text-center max-w-md">
-              <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '20px', fontWeight: 600 }}>
-                {accessStatus?.message || '접속이 제한되었습니다.'}
-              </div>
-              {accessStatus?.reason === 'DAILY_LIMIT' && (
-                <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
-                  오늘의 이용 인원이 모두 찼습니다. 내일 다시 이용해 주세요.
-                </div>
-              )}
-              {accessStatus?.reason === 'CONCURRENCY_LIMIT' && (
-                <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
-                  현재 접속이 많습니다. 잠시 후 다시 시도해 주세요.
-                </div>
-              )}
-              {accessStatus?.reason === 'ONCE_PER_DAY' && (
-                <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
-                  오늘은 이미 이용하셨습니다. 내일 다시 이용해 주세요.
-                </div>
+              {accessStatus?.reason === 'ONCE_PER_DAY' ? (
+                <>
+                  {/* 제목 문구 */}
+                  <div 
+                    style={{ 
+                      color: '#000',
+                      textAlign: 'center',
+                      fontFamily: 'Pretendard Variable',
+                      fontSize: '20px',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      lineHeight: '130%',
+                      letterSpacing: '-0.432px',
+                      whiteSpace: 'pre-line',
+                      marginBottom: '16px'
+                    }}
+                  >
+                    아쉽지만 오늘의 대화는 여기까지예요.{'\n'}다음에 또 이야기해요!
+                  </div>
+                  {/* 본문 문구 */}
+                  <div 
+                    style={{ 
+                      color: '#000',
+                      textAlign: 'center',
+                      fontFamily: 'Pretendard Variable',
+                      fontSize: '16px',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      lineHeight: '130%',
+                      letterSpacing: '-0.432px'
+                    }}
+                  >
+                    하루에 한 번만 대화할 수 있어요.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-gray-800 mb-4" style={{ fontFamily: 'Pretendard Variable', fontSize: '20px', fontWeight: 600 }}>
+                    {accessStatus?.message || '접속이 제한되었습니다.'}
+                  </div>
+                  {accessStatus?.reason === 'DAILY_LIMIT' && (
+                    <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
+                      오늘의 이용 인원이 모두 찼습니다. 내일 다시 이용해 주세요.
+                    </div>
+                  )}
+                  {accessStatus?.reason === 'CONCURRENCY_LIMIT' && (
+                    <div className="text-gray-600 text-sm" style={{ fontFamily: 'Pretendard Variable' }}>
+                      현재 접속이 많습니다. 잠시 후 다시 시도해 주세요.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

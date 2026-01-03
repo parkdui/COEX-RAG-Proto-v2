@@ -10,16 +10,17 @@ const Canvas = dynamic(() => import('@react-three/fiber').then((mod) => mod.Canv
   ssr: false,
 });
 
-const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
-  uniforms: {
-    time: { value: 0 },
-    lightDir: { value: new THREE.Vector3(0.2, 0.9, 0.3).normalize() },
-    ringDir: { value: new THREE.Vector3(0.08, 0.56, 0.86).normalize() },
-    boost: { value: 0 },
-    globalAlpha: { value: 1 },
-    paletteMix: { value: 0 },
-  },
-  vertexShader: `
+const createDefaultShaderMaterial = () =>
+  new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      lightDir: { value: new THREE.Vector3(0.2, 0.9, 0.3).normalize() },
+      ringDir: { value: new THREE.Vector3(0.08, 0.56, 0.86).normalize() },
+      boost: { value: 0 },
+      globalAlpha: { value: 1 },
+      paletteMix: { value: 0 },
+    },
+    vertexShader: `
       varying vec2 vUv;
       varying vec3 vNormal;
       varying vec3 vWorldPos;
@@ -31,7 +32,7 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
         gl_Position = projectionMatrix * viewMatrix * worldPos;
       }
     `,
-  fragmentShader: `
+    fragmentShader: `
       precision highp float;
       uniform float time;
       uniform vec3 lightDir;
@@ -48,13 +49,13 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
       float breathingMotion(float time){ float slow=sin(time*0.3)*0.15; float fast=sin(time*0.8)*0.08; float deep=sin(time*0.15)*0.25; return slow+fast+deep; }
       float bumpMove(float c,float w,float f){ float d0=abs(f-(c-1.0)); float d1=abs(f-c); float d2=abs(f-(c+1.0)); float d=min(d0,min(d1,d2)); float aa=0.0025; return smoothstep(w+aa,0.0+aa,d);}      
       vec3 bandWeights(float f){ float width=0.25; float y=bumpMove(0.18,width,f); float p=bumpMove(0.52,width,f); float u=bumpMove(0.86,width,f); return vec3(y,p,u);}      
-      float softBlur(float x, float strength) {
-        return exp(-x * x / strength);
-      }
+      float softBlur(float x, float strength) { return exp(-x * x / strength); }
       void main(){
         vec3 N=normalize(vNormal); vec3 L=normalize(lightDir); vec2 p=vUv-0.5; float r=length(p);
+        // Reduce motion near the center (keep outer ring lively)
+        float centerAtten = smoothstep(0.10, 0.42, r);
         float breathing=breathingMotion(time * 0.32);
-        r=r*(1.0+breathing*0.14);
+        r=r*(1.0+breathing*0.14*centerAtten);
         float topness=clamp(dot(N,normalize(ringDir))*0.5+0.5,0.0,1.0);
         vec3 emerald=vec3(0.04, 0.92, 0.50);
         vec3 neonMint=vec3(0.30, 0.98, 0.75);
@@ -88,9 +89,9 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
           mix(0.1, 0.28, boost) * wave0 +
           mix(0.06, 0.18, boost) * wave1 +
           mix(0.04, 0.12, boost) * wave2
-        );
-        float ripple1=noise(vUv*3.0+time*0.26)*0.02*boostFactor; float ripple2=noise(vUv*5.0+time*0.2)*0.012*boostFactor; float ripple3=noise(vUv*7.0+time*0.4)*0.008*boostFactor; float totalRipple=ripple1+ripple2+ripple3;
-        float elastic1=elasticWave(topness*2.0+time*0.32,3.0,0.05*boostFactor); float elastic2=elasticWave(topness*3.0+time*0.52,2.1,0.036*boostFactor); float totalElastic=elastic1+elastic2;
+        ) * centerAtten;
+        float ripple1=noise(vUv*3.0+time*0.26)*0.02*boostFactor; float ripple2=noise(vUv*5.0+time*0.2)*0.012*boostFactor; float ripple3=noise(vUv*7.0+time*0.4)*0.008*boostFactor; float totalRipple=(ripple1+ripple2+ripple3) * centerAtten;
+        float elastic1=elasticWave(topness*2.0+time*0.32,3.0,0.05*boostFactor); float elastic2=elasticWave(topness*3.0+time*0.52,2.1,0.036*boostFactor); float totalElastic=(elastic1+elastic2) * centerAtten;
         float blurAmount=0.012; float f1=topness*1.8+phase+totalRipple+totalElastic + outwardWave; float f2=topness*1.8+phase+blurAmount+totalRipple*0.8+totalElastic*0.6 + outwardWave * 0.72; float f3=topness*1.8+phase+(blurAmount*1.5)+totalRipple*0.6+totalElastic*0.4 + outwardWave * 0.45;
         float perturb=0.01*n2(vUv*1.5+time*0.05); vec3 w1=bandWeights(f1+perturb); vec3 w2=bandWeights(f2+perturb*0.8); vec3 w3=bandWeights(f3+perturb*0.6);
         float wobble1=0.995+0.0025*n2(vUv*2.2+time*0.06); float wobble2=0.995+0.0025*n2(vUv*2.2+time*0.06+1.7); float wobble3=0.995+0.0025*n2(vUv*2.2+time*0.06+3.1); w1*=wobble1; w2*=wobble2; w3*=wobble3;
@@ -126,11 +127,12 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
         lit+=mix(centerYellow, highlightPurple, paletteMix * 0.58) * centerGlow * mix(0.18,0.32,boost);
         vec3 gray=vec3(dot(lit,vec3(0.299,0.587,0.114)));
         float loopPhase = 0.5 + 0.5 * sin(6.28318530718 * time / 7.0);
-        float sat = 1.0 + 0.85 * loopPhase;
+        // Active(=boost/paletteMix)일 때 채도/명도 상승 폭을 더 키워서 체감 강화
+        float sat = 1.0 + (0.85 + 0.55 * boost + 0.25 * paletteMix) * loopPhase;
         lit = mix(gray, lit, sat);
-        float brightness = 1.0 + 0.14 * loopPhase;
+        float brightness = 1.0 + (0.14 + 0.08 * boost) * loopPhase;
         lit *= brightness;
-        float contrast = 1.0 + 0.32 * loopPhase;
+        float contrast = 1.0 + (0.32 + 0.14 * boost) * loopPhase;
         lit = (lit - 0.5) * contrast + 0.5;
         lit=pow(lit,vec3(0.92)); lit*=mix(1.0,1.05,boost); lit=mix(lit,vec3(1.0),0.02); lit=clamp(lit,0.0,1.0);
         float edgeBase = smoothstep(0.56, 0.32, r);
@@ -142,21 +144,22 @@ const createDefaultShaderMaterial = () => new THREE.ShaderMaterial({
         gl_FragColor=vec4(lit,alpha * globalAlpha);
       }
     `,
-  transparent: true,
-  extensions: { derivatives: true } as any,
-});
+    transparent: true,
+    extensions: { derivatives: true } as any,
+  });
 
-const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
-  uniforms: {
-    time: { value: 0 },
-    lightDir: { value: new THREE.Vector3(0.2, 0.9, 0.3).normalize() },
-    ringDir: { value: new THREE.Vector3(0.08, 0.56, 0.86).normalize() },
-    boost: { value: 0 },
-    globalAlpha: { value: 1 },
-    paletteMix: { value: 0 },
-    dir: { value: new THREE.Vector2(0, 1) },
-  },
-  vertexShader: `
+const createWaterShaderMaterial = () =>
+  new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      lightDir: { value: new THREE.Vector3(0.2, 0.9, 0.3).normalize() },
+      ringDir: { value: new THREE.Vector3(0.08, 0.56, 0.86).normalize() },
+      boost: { value: 0 },
+      globalAlpha: { value: 1 },
+      paletteMix: { value: 0 },
+      dir: { value: new THREE.Vector2(0, 1) },
+    },
+    vertexShader: `
       uniform float time;
       uniform float boost;
       varying vec2 vUv;
@@ -186,7 +189,7 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         gl_Position = projectionMatrix * viewMatrix * worldPos;
       }
     `,
-  fragmentShader: `
+    fragmentShader: `
       precision highp float;
       uniform float time;
       uniform float boost;
@@ -209,6 +212,8 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         vec3 L=normalize(lightDir);
         vec2 p = vUv - 0.5;
         float r=length(p);
+        // Reduce motion near the center (keep outer ring lively)
+        float centerAtten = smoothstep(0.10, 0.42, r);
         float topness=clamp(dot(N,normalize(ringDir))*0.5+0.5,0.0,1.0);
         vec3 emerald=vec3(0.04, 0.92, 0.50);
         vec3 neonMint=vec3(0.30, 0.98, 0.75);
@@ -227,10 +232,10 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         float ripple1=sin(dist1*18.0-time*8.4)*exp(-dist1*7.5)*0.08*rippleIntensity;
         float ripple2=sin(dist2*16.0-time*7.2)*exp(-dist2*5.8)*0.06*rippleIntensity;
         float ripple3=sin(dist3*19.0-time*9.6)*exp(-dist3*6.4)*0.075*rippleIntensity;
-        float totalRipple=ripple1+ripple2+ripple3;
+        float totalRipple=(ripple1+ripple2+ripple3) * centerAtten;
         float elastic1=elasticWave(topness*2.0+time*0.38,3.0,0.12);
         float elastic2=elasticWave(topness*3.0+time*0.62,2.2,0.07);
-        float totalElastic=(elastic1+elastic2) * (1.0 + boost * 0.85);
+        float totalElastic=(elastic1+elastic2) * (1.0 + boost * 0.85) * centerAtten;
         float blurAmount=0.012;
         float f1=topness*1.8+phase+totalRipple+totalElastic;
         float f2=topness*1.8+phase+blurAmount+totalRipple*0.82+totalElastic*0.64;
@@ -273,7 +278,7 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         float lateral = exp(-pow(t * 3.2, 2.0));
         float dirPhase = s * mix(14.0, 22.0, boost) - time * mix(8.0, 14.0, boost);
         float dirWave = sin(dirPhase);
-        float dirOut = forwardMask * lateral * dirWave * mix(0.18, 0.42, boost);
+        float dirOut = forwardMask * lateral * dirWave * mix(0.18, 0.42, boost) * centerAtten;
         lit += vec3(0.10, 0.16, 0.22) * dirOut;
         vec3 V=vec3(0.0,0.0,1.0);
         float fres=pow(1.0 - max(dot(N,V),0.0), 2.4);
@@ -284,11 +289,12 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         lit+=vec3(0.08,0.94,0.60)*(1.0-topness)*mix(0.12,0.22,boost);
         vec3 gray=vec3(dot(lit,vec3(0.299,0.587,0.114)));
         float loopPhase = 0.5 + 0.5 * sin(6.28318530718 * time / 9.5);
-        float sat = 1.0 + 0.6 * loopPhase;
+        // Active(=boost/paletteMix)일 때 채도/명도 상승 폭을 더 키워서 체감 강화
+        float sat = 1.0 + (0.6 + 0.65 * boost + 0.18 * paletteMix) * loopPhase;
         lit = mix(gray, lit, sat);
-        float brightness = 1.0 + 0.1 * loopPhase;
+        float brightness = 1.0 + (0.1 + 0.07 * boost) * loopPhase;
         lit *= brightness;
-        float contrast = 1.0 + 0.2 * loopPhase;
+        float contrast = 1.0 + (0.2 + 0.12 * boost) * loopPhase;
         lit = (lit - 0.5) * contrast + 0.5;
         lit=pow(lit,vec3(0.92));
         lit*=1.04;
@@ -302,9 +308,9 @@ const createWaterShaderMaterial = () => new THREE.ShaderMaterial({
         gl_FragColor=vec4(lit,alpha * globalAlpha);
       }
     `,
-  transparent: true,
-  extensions: { derivatives: true } as any,
-});
+    transparent: true,
+    extensions: { derivatives: true } as any,
+  });
 
 const AgenticBubble = ({
   position,
@@ -316,19 +322,21 @@ const AgenticBubble = ({
   positionLerp = 0.08,
   opacityLerp = 0.08,
   scaleLerp = 0.16,
+  scaleSpring = null,
   paletteTarget = 0,
   paletteLerp = 0.12,
   breathe = false,
 }: {
   position: [number, number, number];
   targetPosition?: [number, number, number];
-  boosted: boolean;
+  boosted: boolean | number;
   variant?: 'default' | 'water';
   opacityTarget?: number;
   scaleTarget?: number;
   positionLerp?: number;
   opacityLerp?: number;
   scaleLerp?: number;
+  scaleSpring?: { stiffness: number; damping: number; mass: number } | null;
   paletteTarget?: number;
   paletteLerp?: number;
   breathe?: boolean;
@@ -341,6 +349,7 @@ const AgenticBubble = ({
   const boostValueRef = useRef(0);
   const opacityRef = useRef(opacityTarget);
   const scaleRef = useRef(scaleTarget);
+  const scaleVelRef = useRef(0);
   const paletteRef = useRef(paletteTarget);
   const targetPositionRef = useRef(new THREE.Vector3(...position));
 
@@ -350,8 +359,13 @@ const AgenticBubble = ({
 
   useFrame((state, delta) => {
     material.uniforms.time.value += delta;
-    const boostTarget = boosted ? 1 : 0;
-    const boostLerp = boosted ? 0.14 : 0.008;
+
+    // Allow boosted to be either boolean (legacy) or a float intensity (0..1+).
+    const boostTarget =
+      typeof boosted === 'number' ? Math.max(0, boosted) : boosted ? 1 : 0;
+
+    // boost 감소를 매우 느리게 - waveLevel이 0에 가까워질 때까지 부드럽게 유지
+    const boostLerp = boostTarget > 0 ? 0.14 : 0.008;
     boostValueRef.current = THREE.MathUtils.lerp(boostValueRef.current, boostTarget, boostLerp);
     if (material.uniforms.boost != null) {
       material.uniforms.boost.value = boostValueRef.current;
@@ -362,7 +376,22 @@ const AgenticBubble = ({
       material.uniforms.globalAlpha.value = opacityRef.current;
     }
 
-    scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, scaleTarget, scaleLerp);
+    if (scaleSpring) {
+      // Spring scale for a snappy, "juicy" shrink/return.
+      // x'' + (damping/mass)x' + (stiffness/mass)(x-target) = 0
+      const stiffness = scaleSpring.stiffness ?? 220;
+      const damping = scaleSpring.damping ?? 22;
+      const mass = scaleSpring.mass ?? 1;
+      const x = scaleRef.current;
+      const v = scaleVelRef.current;
+      const a = (-stiffness * (x - scaleTarget) - damping * v) / mass;
+      const vNext = v + a * delta;
+      const xNext = x + vNext * delta;
+      scaleVelRef.current = vNext;
+      scaleRef.current = xNext;
+    } else {
+      scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, scaleTarget, scaleLerp);
+    }
 
     paletteRef.current = THREE.MathUtils.lerp(paletteRef.current, paletteTarget, paletteLerp);
     if (material.uniforms.paletteMix != null) {
@@ -374,6 +403,7 @@ const AgenticBubble = ({
       const smoothFreq = breathe ? 0.28 : 0.18;
       const smoothAmp = breathe ? 0.04 : 0.006;
       const breatheFactor = 1 + Math.sin(time * smoothFreq) * smoothAmp;
+
       meshRef.current.scale.setScalar(scaleRef.current * breatheFactor);
       if (positionLerp > 0) {
         meshRef.current.position.lerp(targetPositionRef.current, positionLerp);
@@ -389,28 +419,34 @@ const AgenticBubble = ({
   );
 };
 
-const Scene = ({ phase, centered = false, waving = false, waveLevel = 0 }: {
+const Scene = ({ phase, centered = false, waving = false, waveLevel = 0, activity = 0 }: {
   phase: 'idle' | 'transitioning' | 'completed';
   centered?: boolean;
   waving?: boolean;
   waveLevel?: number;
+  activity?: number;
 }) => {
   const { camera, viewport } = useThree();
   viewport.getCurrentViewport(camera, [0, 0, 0]);
-  const spacing = 1.68;
 
   const topPosition = useMemo(() => [0, 0, 0] as [number, number, number], []);
-
   const topOpacityTarget = 1;
-  const topScaleTarget = phase === 'idle' ? 1.18 : 1;
+  const baseScaleTarget = phase === 'idle' ? 1.18 : 1;
+  // Slightly shrink while active, and return to normal when inactive.
+  // 0..1 -> ~0%..6.5% shrink
+  const topScaleTarget = baseScaleTarget * (1 - 0.065 * Math.max(0, Math.min(1, activity)));
+
+  // waveLevel이 매우 작아질 때만 variant 변경 - 끊김 최소화
   const variant = waveLevel > 0.005 ? 'water' : 'default';
 
+  // Smooth group movement (one blob moving)
   const groupRef = useRef<Group>(null);
   useEffect(() => {
     if (groupRef.current) {
       groupRef.current.position.set(0, 0.8, 1);
     }
   }, []);
+
   const groupYTarget = centered ? 0.0 : 0.8;
   useFrame(() => {
     if (groupRef.current) {
@@ -421,7 +457,7 @@ const Scene = ({ phase, centered = false, waving = false, waveLevel = 0 }: {
   return (
     <group ref={groupRef} renderOrder={1000}>
       <AgenticBubble
-        boosted={waveLevel > 0.001}
+        boosted={Math.min(1.15, Math.max(0, waveLevel * 0.95))}
         position={topPosition}
         targetPosition={topPosition}
         variant={variant}
@@ -429,44 +465,14 @@ const Scene = ({ phase, centered = false, waving = false, waveLevel = 0 }: {
         scaleTarget={topScaleTarget}
         positionLerp={0.08}
         opacityLerp={0.06}
+        // Spring makes the active shrink feel immediate + juicy
+        scaleSpring={{ stiffness: 260, damping: 20, mass: 1 }}
         scaleLerp={0.16}
-        paletteTarget={Math.max(0, Math.min(0.85, waveLevel))}
+        paletteTarget={Math.max(0, Math.min(0.9, waveLevel))}
         paletteLerp={0.14}
         breathe={waveLevel > 0.01}
       />
     </group>
-  );
-};
-
-const CanvasBackground = ({ phase, centered, waving, waveLevel }: {
-  phase: 'idle' | 'transitioning' | 'completed';
-  centered?: boolean;
-  waving?: boolean;
-  waveLevel?: number;
-}) => {
-  return (
-    <div className="canvas-wrapper" aria-hidden>
-      <Canvas
-        camera={{ position: [0, 0, 6], fov: 50 }}
-        gl={{ antialias: true, alpha: true }}
-      >
-        <ambientLight intensity={0.35} />
-        <directionalLight position={[4, 6, 8]} intensity={0.8} />
-        <Scene phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} />
-      </Canvas>
-      <style jsx>{`
-        .canvas-wrapper {
-          position: absolute;
-          inset: 0;
-          overflow: hidden;
-        }
-        :global(canvas) {
-          width: 100% !important;
-          height: 100% !important;
-          display: block;
-        }
-      `}</style>
-    </div>
   );
 };
 
@@ -478,134 +484,109 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
   const [phase] = useState<'idle' | 'transitioning' | 'completed'>('completed');
   const [centered, setCentered] = useState(false);
   const [waving, setWaving] = useState(false);
-  const [waveLevel, setWaveLevel] = useState(0);
+  const [waveLevel, setWaveLevel] = useState(0); // 0..1.25
+  const [activity, setActivity] = useState(0); // 0/1 (scale kick)
   const waveLevelRef = useRef(0);
-  useEffect(() => { waveLevelRef.current = waveLevel; }, [waveLevel]);
-  const tweenRef = useRef<number | null>(null);
-  
-  const tweenWave = (to: number, duration = 400, easingType = 'easeInOut') => {
-    if (tweenRef.current) cancelAnimationFrame(tweenRef.current);
-    const from = waveLevelRef.current;
-    const start = performance.now();
-    
-    const easings: Record<string, (t: number) => number> = {
-      easeInOut: (t) => 0.5 - 0.5 * Math.cos(Math.PI * t),
-      easeIn: (t) => t * t,
-      easeOut: (t) => 1 - (1 - t) * (1 - t),
-      easeInOutCubic: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
-      easeOutCubic: (t) => 1 - Math.pow(1 - t, 3),
-      easeInOutQuart: (t) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2,
-      easeOutQuart: (t) => 1 - Math.pow(1 - t, 4),
-      easeOutQuint: (t) => 1 - Math.pow(1 - t, 5),
-      easeInOutExpo: (t) => t === 0 ? 0 : t === 1 ? 1 : t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2,
-      easeOutExpo: (t) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
-      easeInOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
-    };
-    
-    const ease = easings[easingType] || easings.easeInOut;
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      setWaveLevel(from + (to - from) * ease(t));
-      if (t < 1) tweenRef.current = requestAnimationFrame(step);
-    };
-    tweenRef.current = requestAnimationFrame(step);
-  };
+  const lastNowRef = useRef(0);
 
   useEffect(() => {
     if (!isActive) {
       setWaveLevel(0);
       setWaving(false);
-      if (tweenRef.current) {
-        cancelAnimationFrame(tweenRef.current);
-        tweenRef.current = null;
-      }
+      setActivity(0);
+      waveLevelRef.current = 0;
+      lastNowRef.current = 0;
       return;
     }
 
-    let isCancelled = false;
-    const timeouts: NodeJS.Timeout[] = [];
+    // coco 레포지토리의 newblo.js와 동일한 로직
+    // '생각 중이에요'는 2-3초만 나타나므로 빠르게 시작하도록 주기를 단축
+    let raf = 0;
+    const start = performance.now();
+    // Cycle design (total 4s - 빠른 반복):
+    // - 0.5s ramp-up -> 1.5s active hold  (2s "active" window)
+    // - 0.5s ramp-down -> 1.5s rest hold  (2s "inactive" window)
+    const RAMP_MS = 500;
+    const ACTIVE_HOLD_MS = 1500;
+    const REST_HOLD_MS = 1500;
+    const CYCLE_MS = RAMP_MS + ACTIVE_HOLD_MS + RAMP_MS + REST_HOLD_MS;
     
-    const runAnimationCycle = () => {
-      if (isCancelled || !isActive) return;
-      
-      const t0 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        setWaving(true);
-        // 1단계: 천천히 시작 (0 → 0.25)
-        tweenWave(0.25, 400, 'easeIn');
-      }, 1000);
-      timeouts.push(t0);
-      
-      const t1 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 2단계: 빠르게 상승 (0.25 → 0.85) - 더 격렬한 웨이브
-        tweenWave(0.85, 280, 'easeOut');
-      }, 1000 + 400);
-      timeouts.push(t1);
-      
-      const t2 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 3단계: 처음 빠르게 감소 (0.85 → 0.55) - 빠르게 시작
-        tweenWave(0.55, 600, 'easeOutCubic');
-      }, 1000 + 400 + 280 + 500);
-      timeouts.push(t2);
-      
-      const t3 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 4단계: 중간 속도로 감소 (0.55 → 0.32) - 점진적 감속
-        tweenWave(0.32, 850, 'easeOutQuart');
-      }, 1000 + 400 + 280 + 500 + 600);
-      timeouts.push(t3);
-      
-      const t4 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 5단계: 천천히 감소 (0.32 → 0.15) - 더 부드럽게
-        tweenWave(0.15, 1200, 'easeOutQuart');
-      }, 1000 + 400 + 280 + 500 + 600 + 850);
-      timeouts.push(t4);
-      
-      const t4_5 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 5.5단계: 더 천천히 감소 (0.15 → 0.08)
-        tweenWave(0.08, 1400, 'easeOutQuint');
-      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200);
-      timeouts.push(t4_5);
-      
-      const t5 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 6단계: 매우 천천히 감소 (0.08 → 0.03)
-        tweenWave(0.03, 1800, 'easeOutQuint');
-      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400);
-      timeouts.push(t5);
-      
-      const t6 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // 7단계: 완전히 멈춤 (0.03 → 0.0) - 가장 부드럽게
-        tweenWave(0.0, 2400, 'easeInOutSine');
-      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800);
-      timeouts.push(t6);
-      
-      const t7 = setTimeout(() => {
-        if (isCancelled || !isActive) return;
-        // waveLevel이 거의 0이 될 때 setWaving(false) - variant 전환 후 호출
-        setWaving(false);
-        // ver9/3.js처럼 반복 실행 - isActive가 true인 동안 계속 반복
-        if (isActive && !isCancelled) {
-          runAnimationCycle();
-        }
-      }, 1000 + 400 + 280 + 500 + 600 + 850 + 1200 + 1400 + 1800 + 2400 + 500);
-      timeouts.push(t7);
-    };
+    // 즉시 물결 효과가 보이도록 초기 waveLevel을 높게 설정
+    // waveLevel > 0.005이면 'water' variant로 전환됨
+    waveLevelRef.current = 0.8;
+    setWaveLevel(0.8);
+    setWaving(true);
+    setActivity(1);
 
-    runAnimationCycle();
-    
-    return () => {
-      isCancelled = true;
-      timeouts.forEach(timeout => clearTimeout(timeout));
-      if (tweenRef.current) {
-        cancelAnimationFrame(tweenRef.current);
-        tweenRef.current = null;
+    // Smooth easing helper (0..1)
+    const ease01 = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t); // easeInOutSine
+
+    const tick = (now: number) => {
+      // If the tab lags or resumes after a pause, limit per-frame changes
+      // so we don't get a sudden "spike" wobble at the top.
+      const lastNow = lastNowRef.current || now;
+      const dt = Math.min(0.05, Math.max(0.0, (now - lastNow) / 1000)); // clamp to 50ms
+      lastNowRef.current = now;
+
+      const t = (now - start) % CYCLE_MS;
+      const tRampUpEnd = RAMP_MS;
+      const tActiveEnd = RAMP_MS + ACTIVE_HOLD_MS;
+      const tRampDownEnd = RAMP_MS + ACTIVE_HOLD_MS + RAMP_MS;
+
+      // Envelope (0..1): smooth 0.5s up -> 1.5s hold -> smooth 0.5s down -> 1.5s rest
+      let env = 0;
+      if (t < tRampUpEnd) {
+        env = ease01(t / RAMP_MS);
+      } else if (t < tActiveEnd) {
+        env = 1;
+      } else if (t < tRampDownEnd) {
+        const u = (t - tActiveEnd) / RAMP_MS;
+        env = 1 - ease01(u);
+      } else {
+        env = 0;
       }
+
+      // Keep smooth wave/brightness via waveLevel,
+      // but make the SCALE change a crisp boundary between "active 4s" and "inactive 4s".
+      const isActiveForScale = t < tActiveEnd;
+      setWaving(env > 0.02);
+      setActivity(isActiveForScale ? 1 : 0);
+
+      const seconds = (now - start) / 1000;
+      // multi-frequency wobble (keeps it "watery" instead of a single pulse)
+      let wobble =
+        0.68 +
+        0.18 * Math.sin(seconds * 2.6) +
+        0.12 * Math.sin(seconds * 4.3 + 1.1) +
+        0.07 * Math.sin(seconds * 6.1 + 2.0);
+      // Cap rare peaks so the top doesn't "over-wobble" when frames stutter.
+      wobble = Math.max(0.54, Math.min(0.92, wobble));
+
+      // Keep a tiny "idle" motion to avoid feeling like it hard-stops at 0.
+      // Active adds on top of it.
+      const BASE_LEVEL = 0.045;
+      const ACTIVE_GAIN = 0.95;
+
+      // Final waveLevel (drives both motion + saturation via boost in shader)
+      const targetLevel = Math.max(0, Math.min(1.25, BASE_LEVEL + env * wobble * ACTIVE_GAIN));
+
+      // Slew-limit: avoid sudden jumps (feels like "lag spike" wobble)
+      const cur = waveLevelRef.current;
+      const maxUpPerSec = 0.9;
+      const maxDownPerSec = 1.2;
+      const next =
+        targetLevel > cur
+          ? Math.min(targetLevel, cur + maxUpPerSec * dt)
+          : Math.max(targetLevel, cur - maxDownPerSec * dt);
+      waveLevelRef.current = next;
+      setWaveLevel(next);
+
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
     };
   }, [isActive]);
 
@@ -614,25 +595,48 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
   }
 
   return (
-    <div className="container container--bright">
-      <CanvasBackground phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} />
+    <div className="test-coex-v2-host" aria-hidden>
+      <div className="test-coex-v2-bg" />
+      <div className="test-coex-v2-bg-grad" />
+      <div className="test-coex-v2-canvas-wrapper">
+        <Canvas
+          camera={{ position: [0, 0, 6], fov: 50 }}
+          gl={{ antialias: true, alpha: true }}
+        >
+          <ambientLight intensity={0.35} />
+          <directionalLight position={[4, 6, 8]} intensity={0.8} />
+          <Scene phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} activity={activity} />
+        </Canvas>
+      </div>
       <style jsx>{`
-        .container {
+        .test-coex-v2-host {
           position: fixed;
           inset: 0;
-          width: 100%;
-          height: 100vh;
-          overflow: hidden;
-          background: radial-gradient(circle at 30% 20%, #fffdfc 0%, #fff6fa 38%, #fdeff3 100%);
-          transition: background 2s ease;
-          z-index: 0;
           pointer-events: none;
+          z-index: 1;
         }
-        .container--bright {
-          background: radial-gradient(circle at 30% 20%, #fffeff 0%, #fff7fb 38%, #fbeff5 100%);
+        .test-coex-v2-bg {
+          position: absolute;
+          inset: 0;
+          background: transparent;
+        }
+        .test-coex-v2-bg-grad {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          background: radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%);
+        }
+        .test-coex-v2-canvas-wrapper {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .test-coex-v2-canvas-wrapper :global(canvas) {
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
         }
       `}</style>
     </div>
   );
 }
-

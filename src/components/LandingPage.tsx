@@ -208,9 +208,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
           zIndex: 60,
-          paddingTop: moveToBottom ? '20px' : '120px',
-          paddingBottom: '120px', // 버튼 공간 확보
-          transform: moveToBottom ? 'translateY(calc(100vh - 240px))' : 'translateY(0)',
+          paddingTop: moveToBottom ? '20px' : '140px',
+          paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px) + 40px)', // 버튼 공간 확보 + safe area + 여유 공간
+          transform: moveToBottom ? 'translateY(calc(100vh - 240px - env(safe-area-inset-bottom, 0px) - 40px))' : 'translateY(0)',
         }}
       >
         <div className="text-left">
@@ -345,7 +345,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 px-6 pb-8 pt-4 safe-bottom" style={{ zIndex: 60 }}>
+      <div className="fixed bottom-0 left-0 right-0 px-6 pb-8 pt-6 safe-bottom" style={{ zIndex: 60, paddingTop: 'calc(24px + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={handleStartClick}
           disabled={isTransitioning || (conversationCount !== null && conversationCount + 1 >= 100)}

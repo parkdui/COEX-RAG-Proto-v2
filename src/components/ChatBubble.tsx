@@ -101,7 +101,8 @@ const getDotColor = (typewriterVariant: TypewriterVariant): string => {
 };
 
 const assistantGlassWrapperStyle: React.CSSProperties = {
-  width: 'min(360px, 92vw)',
+  width: '100%',
+  maxWidth: 'min(360px, 92vw)',
   margin: '0 auto 32px auto', // 하단 margin 추가로 shadow 공간 확보
   pointerEvents: 'none',
   position: 'relative',
@@ -132,7 +133,7 @@ const assistantGlassContentStyleV1: React.CSSProperties = {
 const assistantGlassContentStyleV2: React.CSSProperties = {
   display: 'grid',
   gap: 'clamp(18px, 3.8vw, 26px)',
-  padding: 'clamp(24px, 5.6vw, 34px) clamp(20px, 5vw, 28px) clamp(24px, 5.6vw, 34px)',
+  padding: 'clamp(26px, 5.6vw, 34px) clamp(20px, 5vw, 28px) clamp(24px, 5.6vw, 34px)',
   borderRadius: 'clamp(32px, 10vw, 48px)',
   background: 'linear-gradient(180deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.00) 16.666%, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.38) 66%, rgba(255,255,255,0.70) 100%)',
   border: '0.5px solid rgba(255,255,255,0.20)',
@@ -893,7 +894,7 @@ const MessageSegment: React.FC<{
       <div className={isFirst ? "w-full" : "w-full"}>
         {isFirst ? (
           <>
-            <div className="whitespace-pre-wrap mb-3 flex justify-center" style={firstBubbleStyle}>
+            <div className="whitespace-pre-wrap flex justify-center" style={{ ...firstBubbleStyle, marginBottom: '0.7rem' }}>
               <Typewriter
                 text={firstSentence}
                 speed={typewriterSpeed}
@@ -1020,7 +1021,7 @@ const SegmentedMessageComponent: React.FC<{
       return (
         <div>
           {displayedHighlight && (
-            <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+            <div className="flex justify-center" style={{ width: '100%', marginBottom: '0.7rem' }}>
               <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
@@ -1048,7 +1049,7 @@ const SegmentedMessageComponent: React.FC<{
                 style={{ 
                   width: '100%', 
                   maxWidth: '100%',
-                  marginTop: '16px',
+                  marginTop: '14px',
                   marginBottom: '0',
                 }}
               >
@@ -1146,7 +1147,7 @@ const SegmentedMessageComponent: React.FC<{
                     return (
                       <>
                         {firstSegmentHighlight && (
-                          <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+                          <div className="flex justify-center" style={{ width: '100%', marginBottom: '0.7rem' }}>
                             <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                               <SplitText text={firstSegmentHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
                             </div>
@@ -1167,7 +1168,7 @@ const SegmentedMessageComponent: React.FC<{
                         style={{ 
                           width: '100%', 
                           maxWidth: '100%',
-                          marginTop: '16px',
+                          marginTop: '14px',
                           marginBottom: '0',
                         }}
                       >
@@ -1421,7 +1422,7 @@ const SingleMessageComponent: React.FC<{
       return (
         <div>
           {displayedHighlight && (
-            <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+            <div className="flex justify-center" style={{ width: '100%', marginBottom: '0.7rem' }}>
               <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                 <QuotedTextRenderer text={displayedHighlight} enableKeywordLineBreak />
                 {showCursor && displayedRest.length === 0 && (
@@ -1449,7 +1450,7 @@ const SingleMessageComponent: React.FC<{
                 style={{ 
                   width: '100%', 
                   maxWidth: '100%',
-                  marginTop: '16px',
+                  marginTop: '14px',
                   marginBottom: '0',
                 }}
               >
@@ -1534,7 +1535,7 @@ const SingleMessageComponent: React.FC<{
               ...(isThinking ? {
                 width: 'auto',
                 minWidth: '120px',
-                marginTop: '20vh', // y position 조정
+                marginTop: isRecording ? 'calc(20vh + 10px)' : '20vh', // y position 조정 (듣고 있어요만 10px 아래로)
                 // auto width에서는 transition 제거 (텍스트를 감쌀 수 있도록)
               } : (!isThinking && message.content && message.content.length > 0 ? {
                 width: loadingWidth,
@@ -1591,7 +1592,7 @@ const SingleMessageComponent: React.FC<{
                         return (
                           <>
                             {assistantHighlight && (
-                              <div className="flex justify-center mb-3" style={{ width: '100%' }}>
+                              <div className="flex justify-center" style={{ width: '100%', marginBottom: '0.7rem' }}>
                                 <div className="whitespace-pre-wrap flex justify-center" style={{ ...assistantHeadlineTextStyleV2, width: '100%' }}>
                                   <SplitText text={assistantHighlight} delay={headlineDelay} duration={headlineDuration} stagger={staggerTime} animation="fadeIn" />
                                 </div>
@@ -1612,7 +1613,7 @@ const SingleMessageComponent: React.FC<{
                         style={{ 
                           width: '100%', 
                           maxWidth: '100%',
-                          marginTop: '16px',
+                          marginTop: '14px',
                           marginBottom: '0',
                         }}
                       >

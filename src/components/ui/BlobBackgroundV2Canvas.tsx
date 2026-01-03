@@ -41,12 +41,13 @@ export function CanvasBackground({ boosted, phase, popActive, className }: Canva
           z-index: 1;
           opacity: 1;
           transition: opacity 900ms ease, filter 1200ms ease;
+          filter: saturate(1.22) brightness(1.03);
         }
         .coex-v2-canvas-wrapper--active {
           opacity: 1;
         }
         .coex-v2-canvas-wrapper--pop {
-          filter: saturate(1.08) brightness(1.04);
+          filter: saturate(1.22) brightness(1.03);
         }
         .coex-v2-canvas-wrapper :global(canvas) {
           width: 100% !important;

@@ -11,10 +11,14 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
   const [heights, setHeights] = useState<number[]>([8, 8, 8, 8]);
   const animationFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const [animationProgress, setAnimationProgress] = useState(0);
+  const animationStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isActive) {
       setHeights([8, 8, 8, 8]);
+      setAnimationProgress(0);
+      animationStartTimeRef.current = null;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
@@ -22,7 +26,10 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
       return;
     }
 
+    // isActive가 true가 되면 애니메이션 시작
+    animationStartTimeRef.current = Date.now();
     startTimeRef.current = Date.now();
+    setAnimationProgress(0);
 
     const animate = () => {
       if (!isActive) {
@@ -54,6 +61,14 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
       
       setHeights(newHeights);
       
+      // 위치 이동 애니메이션 진행도 업데이트
+      if (animationStartTimeRef.current) {
+        const animationElapsed = (Date.now() - animationStartTimeRef.current) / 1000;
+        const moveDuration = 0.6; // 이동 애니메이션 0.6초
+        const progress = Math.min(animationElapsed / moveDuration, 1);
+        setAnimationProgress(progress);
+      }
+      
       if (isActive) {
         animationFrameRef.current = requestAnimationFrame(animate);
       }
@@ -73,11 +88,31 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     return null;
   }
 
+  // Fade-in 애니메이션: 0.3초
+  const fadeInDuration = 0.3;
+  const fadeInElapsed = animationStartTimeRef.current 
+    ? Math.min((Date.now() - animationStartTimeRef.current) / 1000, fadeInDuration) 
+    : 0;
+  const opacity = Math.min(fadeInElapsed / fadeInDuration, 1);
+  
+  // 이동 애니메이션: bottom 120px -> 화면 중앙 (50vh)
+  // easing 함수: ease-out
+  const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+  const easedProgress = easeOut(animationProgress);
+  
+  // 초기 위치: bottom 120px
+  // 최종 위치: 화면 중앙 (50vh)
+  // translateY로 이동: -(50vh - 120px)만큼 위로 이동
+  const initialBottom = 120; // px
+  const translateY = easedProgress * (-50 + (initialBottom / (typeof window !== 'undefined' ? window.innerHeight : 800) * 100)); // vh 단위
+
   return (
     <div
-      className="fixed bottom-0 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none"
+      className="fixed left-1/2 z-50 pointer-events-none"
       style={{
-        bottom: '120px', // 입력창 위에 표시
+        bottom: animationProgress >= 1 ? 'auto' : `${initialBottom}px`,
+        top: animationProgress >= 1 ? '50%' : 'auto',
+        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}vh` : '0'})`,
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
@@ -85,6 +120,8 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
         background: 'rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(10px)',
         borderRadius: '24px',
+        opacity: opacity,
+        transition: 'opacity 0.3s ease-in-out',
       }}
     >
       {heights.map((height, index) => (
