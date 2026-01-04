@@ -102,7 +102,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
   // Placeholder vertical carousel sliding animation (AnimatedLogo와 같은 형식)
   useEffect(() => {
     const container = placeholderContainerRef.current;
-    if (!container || showSummary || showEndMessage || isConversationEnded) return;
+    if (!container || showSummary || showEndMessage || showFinalMessage || isConversationEnded) return;
 
     const textHeight = 21; // 각 텍스트의 높이 (line-height: 150%, font-size: 14px ≈ 21px)
     const containerHeight = 21; // 외부 컨테이너 높이 (텍스트 하나 높이와 동일)
@@ -170,14 +170,14 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
     // 초기 위치 설정
     container.style.transform = `translateY(${currentPosition}px)`;
     
-    animationFrameId = requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [showSummary, showEndMessage, isConversationEnded]);
+  }, [showSummary, showEndMessage, showFinalMessage, isConversationEnded]);
 
   const getRandomRecommendations = useCallback(() => {
     // fixedQAData의 question들을 사용
@@ -1272,13 +1272,49 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
   const isThinking = chatState.isLoading || voiceState.isProcessingVoice;
 
+  // 디버깅: ThinkingBlob 렌더링 조건 확인 (주석처리)
+  // useEffect(() => {
+  //   const shouldRenderCanvasBackground = showBlob && !showSummary && !isThinking;
+  //   const shouldRenderThinkingBlob = !showSummary && isThinking;
+  //   
+  //   console.log('[MainPage] Blob 렌더링 상태:', {
+  //     isThinking,
+  //     showBlob,
+  //     showSummary,
+  //     shouldRenderCanvasBackground,
+  //     shouldRenderThinkingBlob,
+  //   });
+  //   
+  //   // DOM에 실제로 렌더링되었는지 확인
+  //   setTimeout(() => {
+  //     const allCanvasBackgrounds = document.querySelectorAll('.coex-v2-canvas-wrapper');
+  //     const thinkingBlobElement = document.querySelector('.test-coex-v2-host');
+  //     console.log('[MainPage] DOM 확인:', {
+  //       canvasBackgroundCount: allCanvasBackgrounds.length,
+  //       canvasBackgrounds: allCanvasBackgrounds.length > 0 ? '❌ 여전히 있음' : '✅ 제거됨',
+  //       thinkingBlob: thinkingBlobElement ? '✅ 있음' : '❌ 없음',
+  //     });
+  //     
+  //     // 모든 CanvasBackground 요소의 부모 확인
+  //     allCanvasBackgrounds.forEach((el, idx) => {
+  //       console.log(`[MainPage] CanvasBackground ${idx}:`, {
+  //         element: el,
+  //         parent: el.parentElement,
+  //         computedStyle: window.getComputedStyle(el.parentElement || el),
+  //       });
+  //     });
+  //   }, 100);
+  // }, [isThinking, chatState.isLoading, voiceState.isProcessingVoice, showBlob, showSummary]);
+
   return (
-    <div className="min-h-screen flex flex-col safe-area-inset overscroll-contain relative v10-main-page">
+    <div className={`min-h-screen flex flex-col safe-area-inset overscroll-contain relative v10-main-page ${isThinking ? 'is-thinking' : ''}`} style={{ overflowX: 'hidden', overflowY: 'auto', height: '100vh' }}>
+      {/* 상시 blob - 원래대로 복구 */}
       {showBlob && !showSummary && !isThinking && (
         <CanvasBackground boosted={false} phase="completed" popActive={true} />
       )}
       
-      {showBlob && !showSummary && isThinking && (
+      {/* isThinking일 때는 showBlob과 관계없이 ThinkingBlob 표시 */}
+      {!showSummary && isThinking && (
         <ThinkingBlob isActive={isThinking} />
       )}
       
@@ -1310,9 +1346,9 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
 
       <main className="relative flex-1 flex flex-col min-h-0 pb-32 pt-20" style={{ background: 'transparent' }}>
         <div className="flex-1 overflow-hidden">
-          <div ref={chatRef} className="h-full overflow-y-auto overflow-x-visible px-4 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '100vh' }}>
+          <div ref={chatRef} className="h-full overflow-y-auto overflow-x-visible px-4 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '100vh', paddingBottom: 'calc(1rem + 60px)' }}>
             {chatState.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center min-h-full text-center">
+              <div className="flex flex-col items-center justify-start min-h-full text-center" style={{ paddingTop: '80px' }}>
                 <div 
                   style={{ 
                     color: '#000', 
@@ -1321,16 +1357,13 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
                     fontSize: '22px', 
                     fontStyle: 'normal', 
                     fontWeight: 400, 
-                    lineHeight: '110%', 
+                    lineHeight: '140%', 
                     letterSpacing: '-0.88px' 
                   }}
                   className="p-6 w-full"
                 >
                   <div className="flex justify-center">
-                    <SplitText text="안녕하세요! 이솔이에요" delay={0} duration={1.2} stagger={0.05} animation="fadeIn" />
-                  </div>
-                  <div className="flex justify-center mt-2">
-                    <SplitText text="코엑스 안내를 도와드릴게요" delay={1.2} duration={1.2} stagger={0.05} animation="fadeIn" />
+                    <SplitText text="이솔이 코엑스 안내를 도와드릴게요." delay={0} duration={1.2} stagger={0.05} animation="fadeIn" />
                   </div>
                 </div>
               </div>
@@ -1791,6 +1824,9 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
       <style jsx>{`
         .v10-main-page {
           background: transparent;
+          overflow-x: hidden;
+          overflow-y: auto;
+          height: 100vh;
           /* v10/1: bottom tint cycle (5s per step) */
           --v10-pulse-0: #fff2fb; /* top */
           --v10-pulse-1: #f3e2f7; /* mid */
@@ -1810,7 +1846,7 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
           position: fixed;
           inset: 0;
           pointer-events: none;
-          z-index: 0;
+          z-index: -1;
           opacity: 0;
           /* 항상 왼쪽이 더 진해지도록 "좌측 음영" 레이어를 추가 */
           background:
@@ -1858,7 +1894,31 @@ export default function MainPageV1({ showBlob = true }: MainPageV1Props = { show
         }
         
         .v10-main-page > :global(.coex-v2-canvas-wrapper) {
-          z-index: 1;
+          z-index: 0 !important;
+        }
+        
+        /* ThinkingBlob이 제대로 보이도록 z-index 설정 (배경이므로 0) */
+        .v10-main-page > :global(.test-coex-v2-host) {
+          z-index: 0;
+        }
+        
+        /* isThinking일 때 모든 CanvasBackground 숨김 */
+        .v10-main-page.is-thinking > :global(.coex-v2-canvas-wrapper),
+        .v10-main-page.is-thinking :global(.coex-v2-canvas-wrapper),
+        .v10-main-page.is-thinking :global(.coex-v2-host .coex-v2-canvas-wrapper) {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+        
+        /* isThinking일 때 모든 coex-v2-host 숨김 (BlobBackground에서 렌더링되는 경우) */
+        .v10-main-page.is-thinking :global(.coex-v2-host),
+        body:has(.v10-main-page.is-thinking) :global(.coex-v2-host) {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
         }
         
         @keyframes v10PinkPulse {

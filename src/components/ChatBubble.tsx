@@ -138,7 +138,7 @@ const assistantGlassContentStyleV2: React.CSSProperties = {
   background: 'linear-gradient(180deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.00) 16.666%, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.38) 66%, rgba(255,255,255,0.70) 100%)',
   border: '0.5px solid rgba(255,255,255,0.20)',
   boxShadow:
-    '0 28px 48px rgba(22, 42, 58, 0.10), inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -12px 36px rgba(255,255,255,0.05)',
+    '0 8px 12px rgba(22, 42, 58, 0.10), inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -12px 36px rgba(255,255,255,0.05)',
   backdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
   WebkitBackdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
   filter: 'saturate(0.92)',

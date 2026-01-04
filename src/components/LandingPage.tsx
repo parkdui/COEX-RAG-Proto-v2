@@ -208,9 +208,9 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
         style={{
           zIndex: 60,
-          paddingTop: moveToBottom ? '20px' : '140px',
-          paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px) + 40px)', // 버튼 공간 확보 + safe area + 여유 공간
-          transform: moveToBottom ? 'translateY(calc(100vh - 240px - env(safe-area-inset-bottom, 0px) - 40px))' : 'translateY(0)',
+          paddingTop: moveToBottom ? '20px' : 'clamp(120px, 20vh, 180px)', // iPhone에서 더 많은 공간 확보
+          paddingBottom: 'calc(140px + env(safe-area-inset-bottom, 0px) + 60px)', // 버튼 공간 확보 + safe area + 여유 공간 증가
+          transform: moveToBottom ? 'translateY(calc(100vh - 260px - env(safe-area-inset-bottom, 0px) - 60px))' : 'translateY(0)',
         }}
       >
         <div className="text-left">
@@ -287,7 +287,7 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
             ) : (
               <>
                 {showSori && (
-                  <div style={{ fontFamily: 'Pretendard Variable', fontWeight: 600, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '40.5pt', marginBottom: '16px' }}>
+                  <div className="landing-title-v2" style={{ fontFamily: 'Pretendard Variable', fontWeight: 600, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '40.5pt', marginBottom: '16px' }}>
                     <div className="v2-title-container" style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em', display: 'inline-flex', alignItems: 'flex-end' }}>
                       <VerticalCarouselText
                         text="Sori"
@@ -389,6 +389,15 @@ export default function LandingPage({ onStart, showBlob = true }: LandingPagePro
         @media (max-width: 480px) {
           .landing-start-btn {
             padding: 0 clamp(18px, 12vw, 32px);
+          }
+        }
+        /* 320px 이하 디바이스에서 제목 텍스트 크기 조정 */
+        @media (max-width: 320px) {
+          .landing-title-v2 {
+            font-size: 28pt !important;
+          }
+          .landing-title-v2 :global(.vertical-carousel-v2) {
+            font-size: 28pt !important;
           }
         }
         .landing-start-btn::after {

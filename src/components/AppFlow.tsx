@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import LandingPage from './LandingPage';
+import OnboardingPage from './OnboardingPage';
 import MainPage from './MainPage';
 import BlobBackground from './ui/BlobBackground';
 
-type PageType = 'landing' | 'main' | 'blocked';
+type PageType = 'landing' | 'onboarding' | 'main' | 'blocked';
 
 interface EnterResponse {
   allowed: boolean;
@@ -26,6 +27,15 @@ export default function AppFlow() {
   const leaveHandlerRef = useRef<(() => void) | null>(null);
 
   const handleNext = () => {
+    setIsTransitioning(true);
+    setCurrentPage('onboarding');
+    // OnboardingPage가 마운트된 후 fade-in 애니메이션 시작
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 50);
+  };
+
+  const handleOnboardingComplete = () => {
     setIsTransitioning(true);
     setCurrentPage('main');
     // MainPage가 마운트된 후 fade-in 애니메이션 시작
@@ -294,6 +304,19 @@ export default function AppFlow() {
               onStart={handleBlobAnimationStart} 
               showBlob={false} 
             />
+          </div>
+        );
+      case 'onboarding':
+        return (
+          <div 
+            className="transition-opacity duration-500 relative"
+            style={{ 
+              zIndex: 10,
+              opacity: isTransitioning ? 0 : 1,
+              animation: isTransitioning ? 'none' : 'fadeIn 0.6s ease-in-out'
+            }}
+          >
+            <OnboardingPage onComplete={handleOnboardingComplete} />
           </div>
         );
       case 'main':

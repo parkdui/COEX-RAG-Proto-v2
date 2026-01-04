@@ -6,6 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Mesh, Group } from 'three';
 
+// NOTE: r3f Canvas는 SSR에서 깨지기 쉬워서 dynamic import로 감쌉니다.
 const Canvas = dynamic(() => import('@react-three/fiber').then((mod) => mod.Canvas), {
   ssr: false,
 });
@@ -431,7 +432,7 @@ const Scene = ({ phase, centered = false, waving = false, waveLevel = 0, activit
 
   const topPosition = useMemo(() => [0, 0, 0] as [number, number, number], []);
   const topOpacityTarget = 1;
-  const baseScaleTarget = phase === 'idle' ? 1.18 : 1;
+  const baseScaleTarget = phase === 'idle' ? 1.18 : 1.3; // ThinkingBlob일 때 더 크게 (1.3)
   // Slightly shrink while active, and return to normal when inactive.
   // 0..1 -> ~0%..6.5% shrink
   const topScaleTarget = baseScaleTarget * (1 - 0.065 * Math.max(0, Math.min(1, activity)));
@@ -476,6 +477,41 @@ const Scene = ({ phase, centered = false, waving = false, waveLevel = 0, activit
   );
 };
 
+const BlobBackground9_3 = ({ phase, centered, waving, waveLevel, activity = 0 }: {
+  phase: 'idle' | 'transitioning' | 'completed';
+  centered?: boolean;
+  waving?: boolean;
+  waveLevel?: number;
+  activity?: number;
+}) => {
+  return (
+    <div className="canvas-wrapper" aria-hidden>
+      <Canvas camera={{ position: [0, 0, 6], fov: 50 }} gl={{ antialias: true, alpha: true }}>
+        <ambientLight intensity={0.35} />
+        <directionalLight position={[4, 6, 8]} intensity={0.8} />
+        <Scene phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} activity={activity} />
+      </Canvas>
+      <style jsx>{`
+        .canvas-wrapper {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          width: 100%;
+          height: 100%;
+          z-index: 1;
+          background: transparent;
+        }
+        .canvas-wrapper :global(canvas) {
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
+          pointer-events: none;
+        }
+      `}</style>
+    </div>
+  );
+};
+
 interface ThinkingBlobProps {
   isActive?: boolean;
 }
@@ -484,9 +520,10 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
   const [phase] = useState<'idle' | 'transitioning' | 'completed'>('completed');
   const [centered, setCentered] = useState(false);
   const [waving, setWaving] = useState(false);
-  const [waveLevel, setWaveLevel] = useState(0); // 0..1.25
-  const [activity, setActivity] = useState(0); // 0/1 (scale kick)
-  const waveLevelRef = useRef(0);
+  // 즉시 물결 효과가 보이도록 초기 waveLevel을 높게 설정
+  const [waveLevel, setWaveLevel] = useState(isActive ? 0.9 : 0); // 0..1.25
+  const [activity, setActivity] = useState(isActive ? 1 : 0); // 0/1 (scale kick)
+  const waveLevelRef = useRef(isActive ? 0.9 : 0);
   const lastNowRef = useRef(0);
 
   useEffect(() => {
@@ -500,21 +537,25 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
     }
 
     // coco 레포지토리의 newblo.js와 동일한 로직
-    // '생각 중이에요'는 2-3초만 나타나므로 빠르게 시작하도록 주기를 단축
+    // 요구사항:
+    // - 3초간 "Active(물처럼 유기적으로 일렁임)" → 3초간 "Default(잔잔)" 를 계속 반복
+    // - Active 구간에서 채도도 더 올라가게(쉐이더는 boost/waveLevel을 반영)
     let raf = 0;
     const start = performance.now();
-    // Cycle design (total 4s - 빠른 반복):
-    // - 0.5s ramp-up -> 1.5s active hold  (2s "active" window)
-    // - 0.5s ramp-down -> 1.5s rest hold  (2s "inactive" window)
-    const RAMP_MS = 500;
-    const ACTIVE_HOLD_MS = 1500;
-    const REST_HOLD_MS = 1500;
+    // Transition should be smooth: ~2s to connect active <-> inactive (no hard cuts)
+    // Cycle design (total 8s):
+    // - 2s ramp-up -> 2s active hold  (4s "active" window)
+    // - 2s ramp-down -> 2s rest hold  (4s "inactive" window)
+    const RAMP_MS = 2000;
+    const ACTIVE_HOLD_MS = 2000;
+    const REST_HOLD_MS = 2000;
     const CYCLE_MS = RAMP_MS + ACTIVE_HOLD_MS + RAMP_MS + REST_HOLD_MS;
     
     // 즉시 물결 효과가 보이도록 초기 waveLevel을 높게 설정
     // waveLevel > 0.005이면 'water' variant로 전환됨
-    waveLevelRef.current = 0.8;
-    setWaveLevel(0.8);
+    const initialWaveLevel = 0.9;
+    waveLevelRef.current = initialWaveLevel;
+    setWaveLevel(initialWaveLevel);
     setWaving(true);
     setActivity(1);
 
@@ -533,7 +574,7 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
       const tActiveEnd = RAMP_MS + ACTIVE_HOLD_MS;
       const tRampDownEnd = RAMP_MS + ACTIVE_HOLD_MS + RAMP_MS;
 
-      // Envelope (0..1): smooth 0.5s up -> 1.5s hold -> smooth 0.5s down -> 1.5s rest
+      // Envelope (0..1): smooth 2s up -> 2s hold -> smooth 2s down -> 2s rest
       let env = 0;
       if (t < tRampUpEnd) {
         env = ease01(t / RAMP_MS);
@@ -594,47 +635,51 @@ export default function ThinkingBlob({ isActive = false }: ThinkingBlobProps) {
     return null;
   }
 
+  // 디버깅: 렌더링 확인 (주석처리)
+  // useEffect(() => {
+  //   if (isActive) {
+  //     const variant = waveLevel > 0.005 ? 'water' : 'default';
+  //     console.log('[ThinkingBlob] ✅ 컴포넌트 렌더링됨:', { 
+  //       isActive, 
+  //       waveLevel, 
+  //       waving, 
+  //       activity, 
+  //       variant
+  //     });
+  //     
+  //     // Canvas가 실제로 렌더링되었는지 확인
+  //     setTimeout(() => {
+  //       const canvas = document.querySelector('.test-coex-v2-host canvas');
+  //       console.log('[ThinkingBlob] Canvas 렌더링 여부:', canvas ? '✅ Canvas 찾음' : '❌ Canvas 못찾음', canvas);
+  //       if (canvas) {
+  //         console.log('[ThinkingBlob] Canvas 크기:', {
+  //           width: (canvas as HTMLCanvasElement).width,
+  //           height: (canvas as HTMLCanvasElement).height,
+  //           clientWidth: (canvas as HTMLCanvasElement).clientWidth,
+  //           clientHeight: (canvas as HTMLCanvasElement).clientHeight,
+  //         });
+  //       }
+  //     }, 200);
+  //   } else {
+  //     console.log('[ThinkingBlob] ❌ 컴포넌트 비활성화됨 (isActive=false)');
+  //   }
+  // }, [isActive, waveLevel, waving, activity]);
+
   return (
     <div className="test-coex-v2-host" aria-hidden>
-      <div className="test-coex-v2-bg" />
-      <div className="test-coex-v2-bg-grad" />
-      <div className="test-coex-v2-canvas-wrapper">
-        <Canvas
-          camera={{ position: [0, 0, 6], fov: 50 }}
-          gl={{ antialias: true, alpha: true }}
-        >
-          <ambientLight intensity={0.35} />
-          <directionalLight position={[4, 6, 8]} intensity={0.8} />
-          <Scene phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} activity={activity} />
-        </Canvas>
-      </div>
+      <BlobBackground9_3 phase={phase} centered={centered} waving={waving} waveLevel={waveLevel} activity={activity} />
       <style jsx>{`
         .test-coex-v2-host {
           position: fixed;
           inset: 0;
           pointer-events: none;
-          z-index: 1;
+          z-index: 0;
+          width: 100vw;
+          height: 100vh;
         }
-        .test-coex-v2-bg {
-          position: absolute;
-          inset: 0;
-          background: transparent;
-        }
-        .test-coex-v2-bg-grad {
-          position: absolute;
-          inset: 0;
-          opacity: 0;
-          background: radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%);
-        }
-        .test-coex-v2-canvas-wrapper {
-          position: absolute;
-          inset: 0;
-          overflow: hidden;
-        }
-        .test-coex-v2-canvas-wrapper :global(canvas) {
-          width: 100% !important;
-          height: 100% !important;
-          display: block;
+        /* CanvasBackground 위에 표시되도록 */
+        .test-coex-v2-host canvas {
+          z-index: 0;
         }
       `}</style>
     </div>
