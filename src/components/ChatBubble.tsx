@@ -103,11 +103,11 @@ const getDotColor = (typewriterVariant: TypewriterVariant): string => {
 const assistantGlassWrapperStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: 'min(360px, 92vw)',
-  margin: '0 auto 32px auto', // 하단 margin 추가로 shadow 공간 확보
+  margin: '0 auto 0px auto', // 하단 margin 제거
   pointerEvents: 'none',
   position: 'relative',
   zIndex: 10,
-  paddingBottom: '32px', // Shadow가 잘리지 않도록 하단 padding 확장
+  paddingBottom: '4px', // 하단 padding 축소
 };
 
 // Version 1: Original glass style
@@ -811,15 +811,139 @@ const TokenInfo: React.FC<{ tokens: any }> = () => null;
  */
 const HitInfo: React.FC<{ hits: any[] }> = () => null;
 
-const SiteLinkComponent: React.FC<{ url: string }> = ({ url }) => (
+const SiteLinkComponent: React.FC<{ url: string; linkText?: string }> = ({ url, linkText }) => (
   <a href={url} target="_blank" rel="noopener noreferrer" className="site-link-button" style={siteLinkWrapperStyle}>
-    <span style={siteLinkTextStyle}>행사 홈페이지 바로가기</span>
+    <span style={siteLinkTextStyle}>{linkText || '사이트 바로가기'}</span>
     <img src="/link-external-01.svg" alt="" style={siteLinkIconStyle} />
   </a>
 );
 
 const SiteLink = React.memo(SiteLinkComponent);
 SiteLink.displayName = 'SiteLink';
+
+// 피드백 UI 컴포넌트
+const FeedbackComponent: React.FC<{ 
+  onFeedback: (feedback: 'negative' | 'positive') => void;
+  isVisible: boolean;
+}> = ({ onFeedback, isVisible }) => {
+  const [selectedFeedback, setSelectedFeedback] = useState<'negative' | 'positive' | null>(null);
+
+  const handleFeedbackClick = (feedback: 'negative' | 'positive') => {
+    if (selectedFeedback) return; // 이미 선택된 경우 무시
+    setSelectedFeedback(feedback);
+    onFeedback(feedback);
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div
+      className="mt-4 flex flex-col items-center gap-3"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transition: 'opacity 0.4s ease-in-out',
+      }}
+    >
+      {/* '추천이 적절했나요?' 텍스트 */}
+      <div
+        style={{
+          color: 'rgba(112, 60, 161, 0.70)',
+          fontFamily: 'Pretendard Variable',
+          fontSize: '14px',
+          fontStyle: 'normal',
+          fontWeight: 500,
+          lineHeight: '140%',
+          letterSpacing: '-0.56px',
+        }}
+      >
+        추천이 적절했나요?
+      </div>
+
+      {/* 버튼 2개 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          alignSelf: 'stretch',
+        }}
+      >
+        <button
+          onClick={() => handleFeedbackClick('negative')}
+          disabled={selectedFeedback !== null}
+          style={{
+            borderRadius: '32px',
+            border: '1px solid #D2D2FC',
+            background: selectedFeedback === 'negative'
+              ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
+              : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
+            boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
+            padding: '8px 20px',
+            cursor: selectedFeedback !== null ? 'default' : 'pointer',
+            transition: 'all 0.2s ease',
+            flex: 1,
+            marginRight: '6px',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Pretendard Variable',
+              fontSize: '15px',
+              fontStyle: 'normal',
+              fontWeight: 500,
+              lineHeight: '140%',
+              letterSpacing: '-0.6px',
+              background: 'linear-gradient(97deg, #000 42.46%, #DACDFC 94.61%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            조금 아쉬워요
+          </span>
+        </button>
+
+        <button
+          onClick={() => handleFeedbackClick('positive')}
+          disabled={selectedFeedback !== null}
+          style={{
+            borderRadius: '32px',
+            border: '1px solid #D2D2FC',
+            background: selectedFeedback === 'positive'
+              ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
+              : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
+            boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
+            padding: '8px 20px',
+            cursor: selectedFeedback !== null ? 'default' : 'pointer',
+            transition: 'all 0.2s ease',
+            flex: 1,
+            marginLeft: '12px',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Pretendard Variable',
+              fontSize: '15px',
+              fontStyle: 'normal',
+              fontWeight: 500,
+              lineHeight: '140%',
+              letterSpacing: '-0.6px',
+              background: 'linear-gradient(97deg, #000 42.46%, #DACDFC 94.61%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            잘 맞아요
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const Feedback = React.memo(FeedbackComponent);
+Feedback.displayName = 'Feedback';
 
 /**
  * 분할된 메시지 세그먼트 컴포넌트
@@ -934,7 +1058,8 @@ const SegmentedMessageComponent: React.FC<{
   isPlayingTTS: boolean;
   typewriterVariant: TypewriterVariant;
   glassStyleVariant?: GlassStyleVariant;
-}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2' }) => {
+  isFirstAnswer?: boolean;
+}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2', isFirstAnswer = false }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
 
@@ -967,6 +1092,10 @@ const SegmentedMessageComponent: React.FC<{
     const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
     return { siteUrl: url, shouldShowSite: url.length > 0 };
   }, [message.siteUrl]);
+
+  const linkText = useMemo(() => {
+    return typeof message.linkText === 'string' ? message.linkText.trim() : undefined;
+  }, [message.linkText]);
 
   useEffect(() => {
     setIsSiteVisible(false);
@@ -1124,7 +1253,7 @@ const SegmentedMessageComponent: React.FC<{
   const TypewriterComponent = typewriterComponents[typewriterVariant];
 
   return (
-    <div className="flex justify-center mb-4">
+    <div className="flex justify-center mb-0">
       <div className="assistant-glass-wrapper" style={assistantGlassWrapperStyle}>
           <div className="assistant-glass-content" style={getAssistantGlassContentStyle(glassStyleVariant)}>
           {showHighlight && <div className="assistant-glass-highlight" />}
@@ -1205,8 +1334,20 @@ const SegmentedMessageComponent: React.FC<{
                     pointerEvents: shouldShowSite ? 'auto' : 'none',
                   }}
                 >
-                  {shouldShowSite && <SiteLink url={siteUrl} />}
+                  {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                 </div>
+                
+                {/* 첫 번째 답변에만 피드백 UI 표시 */}
+                {isFirstAnswer && (
+                  <Feedback 
+                    onFeedback={(feedback) => {
+                      console.log('Feedback received:', feedback);
+                      // TODO: 피드백 처리 로직 추가
+                    }}
+                    isVisible={true}
+                  />
+                )}
+
                 {message.tokens && <TokenInfo tokens={message.tokens} />}
                 {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
               </>
@@ -1231,8 +1372,19 @@ const SegmentedMessageComponent: React.FC<{
                     pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
                   }}
                 >
-                  {shouldShowSite && <SiteLink url={siteUrl} />}
+                  {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                 </div>
+
+                {/* 첫 번째 답변에만 피드백 UI 표시 */}
+                {isFirstAnswer && (
+                  <Feedback 
+                    onFeedback={(feedback) => {
+                      console.log('Feedback received:', feedback);
+                      // TODO: 피드백 처리 로직 추가
+                    }}
+                    isVisible={shouldShowSite && isSiteVisible}
+                  />
+                )}
 
                 {message.tokens && <TokenInfo tokens={message.tokens} />}
                 {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
@@ -1300,15 +1452,19 @@ const SingleMessageComponent: React.FC<{
   typewriterVariant: TypewriterVariant;
   glassStyleVariant?: GlassStyleVariant;
   isRecording?: boolean;
+  thinkingText?: string; // 커스텀 thinking 텍스트
+  isFirstAnswer?: boolean;
 }> = ({
   message,
   isThinking,
   onPlayTTS: _onPlayTTS,
   isPlayingTTS: _isPlayingTTS,
   isGlobalLoading: _isGlobalLoading = false,
+  thinkingText,
   typewriterVariant,
   glassStyleVariant = 'v2',
   isRecording = false,
+  isFirstAnswer = false,
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
@@ -1350,6 +1506,10 @@ const SingleMessageComponent: React.FC<{
     const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
     return { siteUrl: url, shouldShowSite: url.length > 0 };
   }, [message.siteUrl]);
+
+  const linkText = useMemo(() => {
+    return typeof message.linkText === 'string' ? message.linkText.trim() : undefined;
+  }, [message.linkText]);
 
   useEffect(() => {
     if (message.role === 'assistant' && !isThinking && message.content) {
@@ -1532,10 +1692,10 @@ const SingleMessageComponent: React.FC<{
             className="assistant-glass-wrapper" 
             style={{
               ...assistantGlassWrapperStyle,
-              ...(isThinking ? {
+              ...((isThinking || isRecording) ? {
                 width: 'auto',
                 minWidth: '120px',
-                marginTop: isRecording ? 'calc(20vh + 10px)' : '20vh', // y position 조정 (듣고 있어요만 10px 아래로)
+                marginTop: '20vh', // '생각 중이에요'와 '이솔이 듣고 있어요' 동일한 위치
                 // auto width에서는 transition 제거 (텍스트를 감쌀 수 있도록)
               } : (!isThinking && message.content && message.content.length > 0 ? {
                 width: loadingWidth,
@@ -1543,7 +1703,7 @@ const SingleMessageComponent: React.FC<{
               } : {})),
             }}
           >
-          {isThinking ? (
+          {(isThinking || isRecording) ? (
             <span
               className="text-center text-cyan-800 font-semibold font-['Pretendard_Variable']"
               style={{
@@ -1557,7 +1717,7 @@ const SingleMessageComponent: React.FC<{
                 width: '100%',
               }}
             >
-              {isRecording ? '듣고 있어요' : '생각 중이에요'}
+              {isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요')}
             </span>
           ) : (
             <>
@@ -1650,8 +1810,19 @@ const SingleMessageComponent: React.FC<{
                         pointerEvents: shouldShowSite ? 'auto' : 'none',
                       }}
                     >
-                      {shouldShowSite && <SiteLink url={siteUrl} />}
+                      {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                     </div>
+
+                    {/* 첫 번째 답변에만 피드백 UI 표시 */}
+                    {isFirstAnswer && (
+                      <Feedback 
+                        onFeedback={(feedback) => {
+                          console.log('Feedback received:', feedback);
+                          // TODO: 피드백 처리 로직 추가
+                        }}
+                        isVisible={true}
+                      />
+                    )}
 
                     {message.tokens && <TokenInfo tokens={message.tokens} />}
                     {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
@@ -1677,8 +1848,19 @@ const SingleMessageComponent: React.FC<{
                         pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
                       }}
                     >
-                      {shouldShowSite && <SiteLink url={siteUrl} />}
+                      {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                     </div>
+
+                    {/* 첫 번째 답변에만 피드백 UI 표시 */}
+                    {isFirstAnswer && (
+                      <Feedback 
+                        onFeedback={(feedback) => {
+                          console.log('Feedback received:', feedback);
+                          // TODO: 피드백 처리 로직 추가
+                        }}
+                        isVisible={shouldShowSite && isSiteVisible}
+                      />
+                    )}
 
                     {message.tokens && <TokenInfo tokens={message.tokens} />}
                     {message.hits && message.hits.length > 0 && <HitInfo hits={message.hits} />}
@@ -1713,7 +1895,7 @@ SingleMessage.displayName = 'SingleMessage';
 /**
  * 메인 ChatBubble 컴포넌트
  */
-export const ChatBubble: React.FC<ChatBubbleProps> = ({ 
+export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> = ({ 
   message, 
   isThinking = false, 
   onPlayTTS, 
@@ -1721,7 +1903,9 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   isGlobalLoading = false,
   typewriterVariant = 'v1',
   glassStyleVariant = 'v2',
-  isRecording = false
+  isRecording = false,
+  thinkingText,
+  isFirstAnswer = false
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -1732,6 +1916,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
         isPlayingTTS={isPlayingTTS}
         typewriterVariant={typewriterVariant}
         glassStyleVariant={glassStyleVariant}
+        isFirstAnswer={isFirstAnswer}
       />
     );
   }
@@ -1747,6 +1932,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       typewriterVariant={typewriterVariant}
       glassStyleVariant={glassStyleVariant}
       isRecording={isRecording}
+      thinkingText={thinkingText}
+      isFirstAnswer={isFirstAnswer}
     />
   );
 };

@@ -95,16 +95,17 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     : 0;
   const opacity = Math.min(fadeInElapsed / fadeInDuration, 1);
   
-  // 이동 애니메이션: bottom 120px -> 화면 중앙 (50vh)
+  // 이동 애니메이션: bottom 96px -> 화면 중앙 (50vh)
   // easing 함수: ease-out
   const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
   const easedProgress = easeOut(animationProgress);
   
-  // 초기 위치: bottom 120px
+  // 초기 위치: bottom 96px (120px에서 20% 위로 올림)
   // 최종 위치: 화면 중앙 (50vh)
-  // translateY로 이동: -(50vh - 120px)만큼 위로 이동
-  const initialBottom = 120; // px
-  const translateY = easedProgress * (-50 + (initialBottom / (typeof window !== 'undefined' ? window.innerHeight : 800) * 100)); // vh 단위
+  const initialBottom = 96; // px
+  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const centerTop = screenHeight / 2; // 50vh를 px로 변환
+  const translateY = easedProgress * (-(screenHeight - initialBottom - centerTop)); // px 단위
 
   return (
     <div
@@ -112,16 +113,15 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
       style={{
         bottom: animationProgress >= 1 ? 'auto' : `${initialBottom}px`,
         top: animationProgress >= 1 ? '50%' : 'auto',
-        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}vh` : '0'})`,
+        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}px` : '-50%'})`,
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
         padding: '12px 16px',
-        background: 'rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(10px)',
+        background: 'transparent',
         borderRadius: '24px',
         opacity: opacity,
-        transition: 'opacity 0.3s ease-in-out',
+        transition: animationProgress >= 1 ? 'opacity 0.3s ease-in-out' : 'none',
       }}
     >
       {heights.map((height, index) => (
@@ -130,7 +130,7 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
           style={{
             width: '4px',
             height: `${height}px`,
-            background: 'linear-gradient(180deg, rgba(118, 212, 255, 0.8) 0%, rgba(77, 255, 138, 0.8) 100%)',
+            background: '#4E5363', // dark gray, no gradient
             borderRadius: '2px',
             transition: 'none', // 애니메이션은 requestAnimationFrame으로 처리
             minHeight: '8px',

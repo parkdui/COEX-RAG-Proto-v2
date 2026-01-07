@@ -77,8 +77,8 @@ function Scene({ boosted, phase, popActive }: SceneProps) {
     [phase, spacing]
   );
 
-  const topOpacityTarget = phase === 'idle' ? 1 : 0;
-  const topScaleTarget = phase === 'transitioning' ? 1.12 : 1;
+  const topOpacityTarget = phase === 'idle' || phase === 'completed' ? 1 : 0;
+  const topScaleTarget = phase === 'transitioning' || phase === 'completed' ? 1.12 : 1;
   const bottomScaleTarget = popActive ? 2.0 : phase === 'completed' ? 1.04 : 1;
   const bottomPositionLerp = phase === 'completed' ? 0.12 : 0.04;
   const bottomScaleLerp = popActive ? 0.2 : 0.14;

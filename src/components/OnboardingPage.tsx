@@ -6,7 +6,7 @@ import ThinkingBlob from '@/components/ui/ThinkingBlob';
 import Logo from '@/components/ui/Logo';
 
 interface OnboardingPageProps {
-  onComplete: () => void;
+  onComplete: (selectedOption: string) => void;
 }
 
 const BUTTON_OPTIONS = [
@@ -78,16 +78,16 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
 
   // Step 4: 텍스트 애니메이션 완료 후 3초 대기, 그 다음 MainPage로 전환
   useEffect(() => {
-    if (currentStep === 'selected' && textAnimationComplete) {
+    if (currentStep === 'selected' && textAnimationComplete && selectedOption) {
       // 텍스트가 모두 표시된 후 3초 대기
       const timer = setTimeout(() => {
         setShowThinkingBlob(false);
-        onComplete();
+        onComplete(selectedOption);
       }, 3000);
 
       return () => clearTimeout(timer);
     }
-  }, [currentStep, textAnimationComplete, onComplete]);
+  }, [currentStep, textAnimationComplete, selectedOption, onComplete]);
 
   // 텍스트 애니메이션 완료 시간 계산
   // SplitText의 duration(0.8초) + stagger(0.05초) * 단어 수
@@ -114,7 +114,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       {/* 상단 COEX Logo */}
       <Logo />
 
-      <div className="flex flex-col items-center justify-center px-6" style={{ zIndex: 10, position: 'relative', paddingTop: '120px', width: '100%', maxWidth: '100vw' }}>
+      <div className="flex flex-col items-center justify-center px-6" style={{ zIndex: 10, position: 'relative', paddingTop: '50%', width: '100%', maxWidth: '100vw' }}>
         {/* Step 1 & 2: 텍스트 영역 */}
         <div 
           className="text-center mb-8"
@@ -194,7 +194,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
               }}
             >
               <SplitText 
-                text={`오늘 ${selectedOption} 코엑스를 방문하셨군요.\n맞춤형 질문을 생성할게요`} 
+                text={`오늘 ${selectedOption} 코엑스를 방문하셨군요.\n맞춤형 안내를 생성할게요.`} 
                 delay={0} 
                 duration={0.8} 
                 stagger={0.05} 

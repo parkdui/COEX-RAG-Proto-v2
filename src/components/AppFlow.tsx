@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import LandingPage from './LandingPage';
+import LandingPageV2 from './LandingPageV2';
 import OnboardingPage from './OnboardingPage';
 import MainPage from './MainPage';
 import BlobBackground from './ui/BlobBackground';
@@ -23,6 +24,7 @@ export default function AppFlow() {
   const [showBlobBackground] = useState(true);
   const [accessStatus, setAccessStatus] = useState<EnterResponse | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [selectedOnboardingOption, setSelectedOnboardingOption] = useState<string | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const leaveHandlerRef = useRef<(() => void) | null>(null);
 
@@ -35,7 +37,8 @@ export default function AppFlow() {
     }, 50);
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = (selectedOption: string) => {
+    setSelectedOnboardingOption(selectedOption);
     setIsTransitioning(true);
     setCurrentPage('main');
     // MainPage가 마운트된 후 fade-in 애니메이션 시작
@@ -300,8 +303,8 @@ export default function AppFlow() {
       case 'landing':
         return (
           <div className="relative" style={{ zIndex: 10 }}>
-            <LandingPage 
-              onStart={handleBlobAnimationStart} 
+            <LandingPageV2 
+              onStart={handleNext} 
               showBlob={false} 
             />
           </div>
@@ -329,14 +332,14 @@ export default function AppFlow() {
               animation: isTransitioning ? 'none' : 'fadeIn 0.6s ease-in-out'
             }}
           >
-            <MainPage showBlob={false} />
+            <MainPage showBlob={true} selectedOnboardingOption={selectedOnboardingOption} />
           </div>
         );
       default:
         return (
           <div className="relative" style={{ zIndex: 10 }}>
-            <LandingPage 
-              onStart={handleBlobAnimationStart} 
+            <LandingPageV2 
+              onStart={handleNext} 
               showBlob={false} 
             />
           </div>

@@ -30,6 +30,7 @@ export interface Message {
   segments?: TextSegment[];
   thumbnailUrl?: string;
   siteUrl?: string;
+  linkText?: string; // 사이트 링크 버튼에 표시될 텍스트
 }
 
 export interface ChatBubbleProps {
@@ -41,6 +42,7 @@ export interface ChatBubbleProps {
   typewriterVariant?: 'v1' | 'v2' | 'v3';
   glassStyleVariant?: 'v1' | 'v2';
   isRecording?: boolean;
+  isFirstAnswer?: boolean; // 첫 번째 답변인지 여부
 }
 
 export interface AudioConstraints {

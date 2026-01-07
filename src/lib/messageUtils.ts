@@ -14,6 +14,8 @@ export function createAssistantMessage(data: {
   hits?: any[];
   defaultAnswer?: string;
   thumbnailUrl?: string; // 직접 thumbnailUrl을 전달할 수 있도록 추가
+  siteUrl?: string; // 직접 siteUrl을 전달할 수 있도록 추가
+  linkText?: string; // 사이트 링크 버튼에 표시될 텍스트
 }): Message {
   const answerText = data.answer || data.defaultAnswer || '(응답 없음)';
   const segments = splitTextIntoSegments(answerText);
@@ -47,6 +49,8 @@ export function createAssistantMessage(data: {
       meta['관련사이트'],
       meta['사이트'],
       meta['Site URL'],
+      meta['O'], // O column 직접 확인
+      meta['O column'],
     ];
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.trim().length > 0) {
@@ -59,9 +63,12 @@ export function createAssistantMessage(data: {
   const primaryHit = (data.hits || [])[0];
   // 직접 전달된 thumbnailUrl이 있으면 우선 사용, 없으면 hits에서 추출
   const thumbnailUrl = data.thumbnailUrl || extractThumbnail(primaryHit);
-  let siteUrl = extractSite(primaryHit);
+  // 직접 전달된 siteUrl이 있으면 우선 사용, 없으면 hits에서 추출
+  let siteUrl = data.siteUrl || extractSite(primaryHit);
 
-  if (siteUrl) {
+  // siteUrl이 hits에서 추출된 경우에만 제목 매칭 검증 수행
+  // 직접 전달된 siteUrl은 검증하지 않음 (fixedQAData 등에서 전달된 경우)
+  if (siteUrl && !data.siteUrl) {
     const meta = (primaryHit && primaryHit.meta) || {};
     const titleCandidates = [
       meta.title,
@@ -96,6 +103,7 @@ export function createAssistantMessage(data: {
     segments: segments.length > 1 ? segments : undefined,
     thumbnailUrl,
     siteUrl,
+    linkText: data.linkText, // linkText 전달
   };
 }
 
