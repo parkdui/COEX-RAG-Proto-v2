@@ -207,7 +207,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
             </div>
             
             {showSori && (
-              <div className="landing-title-v2" style={{ fontFamily: 'Pretendard Variable', fontWeight: 600, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '40.5pt', marginBottom: '16px' }}>
+              <div className="landing-title-v2" style={{ fontFamily: 'Pretendard Variable', fontWeight: 400, lineHeight: '90%', letterSpacing: '-1.8px', fontSize: '40.5pt', marginBottom: '16px' }}>
                 <div className="v2-title-container" style={{ height: '0.9em', overflow: 'visible', lineHeight: '0.9em', display: 'inline-flex', alignItems: 'flex-end' }}>
                   <VerticalCarouselText
                     text="Sori"
@@ -218,7 +218,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
                     className="vertical-carousel-v2"
                     style={{ 
                       fontFamily: 'Pretendard Variable', 
-                      fontWeight: 600, 
+                      fontWeight: 400, 
                       lineHeight: '90%', 
                       letterSpacing: '-1.8px', 
                       fontSize: '40.5pt'
@@ -233,7 +233,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
                     className="vertical-carousel-v2"
                     style={{ 
                       fontFamily: 'Pretendard Variable', 
-                      fontWeight: 600, 
+                      fontWeight: 400, 
                       lineHeight: '90%', 
                       letterSpacing: '-1.8px', 
                       fontSize: '40.5pt',
@@ -249,7 +249,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
                     className="vertical-carousel-v2"
                     style={{ 
                       fontFamily: 'Pretendard Variable', 
-                      fontWeight: 600, 
+                      fontWeight: 400, 
                       lineHeight: '90%', 
                       letterSpacing: '-1.8px', 
                       fontSize: '40.5pt',

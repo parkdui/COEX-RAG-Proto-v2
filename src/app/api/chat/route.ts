@@ -1276,7 +1276,7 @@ export async function POST(request: NextRequest) {
     try {
       result = await callClovaChat(messages, {
       temperature: 0.3,
-        maxTokens: 80, // 최소 한 문장 이상 생성되도록 증가 (40→80)
+        maxTokens: 150, // 충분한 길이의 답변을 생성할 수 있도록 증가 (80→150)
       });
       console.log("[chat] CLOVA Chat API response received");
     } catch (clovaError) {
@@ -1292,6 +1292,22 @@ export async function POST(request: NextRequest) {
     if (!cleanedAnswer || cleanedAnswer.length < 5) {
       cleanedAnswer = '안녕하세요! 코엑스에서 무엇을 도와드릴까요?';
       console.warn(`[WARNING] AI 응답이 비어있거나 너무 짧습니다. 기본 메시지 사용: "${cleanedAnswer}"`);
+    }
+
+    // 응답이 끊겼는지 확인 (마지막 문장이 완전하지 않은 경우 감지)
+    // 한국어 문장 종결 기호로 끝나지 않고, 마지막 문자가 한글 자음/모음이 아닌 경우 의심
+    const lastChar = cleanedAnswer[cleanedAnswer.length - 1];
+    const koreanEndingChars = ['요', '다', '죠', '네', '어', '아', '게', '지', '까', '니', '나', '니', '해', '해요', '합니다', '습니다'];
+    const isLikelyTruncated = 
+      !['.', '!', '?', '。', '！', '？'].includes(lastChar) && 
+      !koreanEndingChars.some(ending => cleanedAnswer.endsWith(ending)) &&
+      cleanedAnswer.length > 50; // 짧은 응답은 제외
+    
+    if (isLikelyTruncated) {
+      console.warn(`[WARNING] AI 응답이 중간에 끊긴 것으로 보입니다. 길이: ${cleanedAnswer.length}, 마지막 문자: "${lastChar}"`);
+      console.warn(`[WARNING] 응답 내용: "${cleanedAnswer.substring(cleanedAnswer.length - 50)}"`);
+      // maxTokens가 부족했을 가능성이 있으므로, 더 긴 응답을 위해 재시도할 수도 있지만
+      // 일단 경고만 출력하고 현재 응답을 사용
     }
 
     // 5번째 답변일 때 본문 하단에 질문 문장 추가

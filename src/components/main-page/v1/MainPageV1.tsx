@@ -60,7 +60,10 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const [swapNonce, setSwapNonce] = useState(0);
   const [chipsBottomPx, setChipsBottomPx] = useState(0); // Test2Scene.js처럼 0으로 초기화
   const [blobPhase, setBlobPhase] = useState<CanvasPhase>('idle');
+  const blobAnimationStartedRef = useRef(false);
   const [customThinkingText, setCustomThinkingText] = useState<string | undefined>(undefined);
+  const [answerContainerPaddingBottom, setAnswerContainerPaddingBottom] = useState<string>('20%');
+  const [lastUserMessageText, setLastUserMessageText] = useState<string | null>(null);
   const chipAIdxRef = useRef(0);
   const chipBIdxRef = useRef(1);
   const nextChipIdxRef = useRef(2);
@@ -221,6 +224,54 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     () => chatState.messages.filter((message) => message.role === 'assistant'),
     [chatState.messages]
   );
+
+  // 답변 개수와 화면 크기에 따라 paddingBottom 동적 계산
+  useEffect(() => {
+    const calculatePaddingBottom = () => {
+      // 최근 질문(user message) 이후의 assistant 메시지 개수 계산
+      const messages = chatState.messages;
+      let lastUserMessageIndex = -1;
+      
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          lastUserMessageIndex = i;
+          break;
+        }
+      }
+      
+      const recentAssistantMessages = lastUserMessageIndex >= 0
+        ? messages.slice(lastUserMessageIndex + 1).filter(msg => msg.role === 'assistant')
+        : messages.filter(msg => msg.role === 'assistant');
+      
+      const answerCount = recentAssistantMessages.length;
+      
+      // iPhone에서 두 번째 답변이 잘리지 않도록 답변 개수에 따라 paddingBottom 조정
+      if (answerCount >= 2) {
+        // 화면 높이가 작을수록 더 큰 비율 필요 (iPhone은 보통 800px 미만)
+        const isSmallScreen = window.innerHeight < 800;
+        setAnswerContainerPaddingBottom(isSmallScreen ? '45%' : '35%');
+      } else if (answerCount === 1) {
+        setAnswerContainerPaddingBottom('25%');
+      } else {
+        setAnswerContainerPaddingBottom('20%');
+      }
+    };
+
+    calculatePaddingBottom();
+
+    // 화면 크기 변경 시에도 재계산
+    const handleResize = () => {
+      calculatePaddingBottom();
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [chatState.messages]);
 
   // 마지막 assistant-glass-wrapper를 찾아서 modalRef에 저장 (Test2Scene.js와 동일)
   useLayoutEffect(() => {
@@ -492,6 +543,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       });
 
       chatState.addMessage(assistantMessage);
+      
+      // 답변이 추가되면 사용자 메시지 텍스트 초기화
+      setLastUserMessageText(null);
 
       // skipTTS가 true이면 TTS 재생하지 않음
       if (!response.skipTTS) {
@@ -611,11 +665,22 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   }, [chatState.messages.length]);
 
   // Blob background 애니메이션 트리거: idle -> transitioning -> completed
+  // MainPage 일반 화면에서는 2단계 background(completed 상태)만 유지
+  // 한 번만 애니메이션을 실행하여 여러 blob이 겹치는 문제 방지
   useEffect(() => {
     // showBlob이 false이면 애니메이션 트리거하지 않음
     if (!showBlob) {
+      blobAnimationStartedRef.current = false;
       return;
     }
+
+    // 이미 애니메이션이 시작되었거나 completed 상태라면 다시 트리거하지 않음
+    if (blobAnimationStartedRef.current || blobPhase === 'completed') {
+      return;
+    }
+
+    // 애니메이션 시작 표시
+    blobAnimationStartedRef.current = true;
 
     // blobPhase를 idle로 리셋하고 애니메이션 시작
     setBlobPhase('idle');
@@ -625,7 +690,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       setBlobPhase('transitioning');
     }, 100);
 
-    // transitioning 후 completed로 전환 (하단 블롭이 상단으로 이동)
+    // transitioning 후 completed로 전환 (하단 블롭이 상단으로 이동, 2단계 상태)
     const completedTimer = setTimeout(() => {
       setBlobPhase('completed');
     }, 2000); // 2초 후 completed 상태로 전환
@@ -634,7 +699,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       clearTimeout(transitioningTimer);
       clearTimeout(completedTimer);
     };
-  }, [showBlob]); // showBlob이 변경될 때마다 실행
+  }, [showBlob]); // showBlob만 dependency로 사용하여 한 번만 실행
 
   useEffect(() => {
     const assistantCount = assistantMessages.length;
@@ -690,9 +755,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       if (result.success && result.text) {
         chatState.setInputValue(result.text);
         
-        const userMessage = createUserMessage(result.text);
+        // 사용자 메시지 저장 (STT 처리 후 '생각 중이에요' 화면에서 표시하기 위해)
+        const recognizedText = result.text;
+        setLastUserMessageText(recognizedText);
+        
+        const userMessage = createUserMessage(recognizedText);
         chatState.addMessage(userMessage);
 
+        // STT 처리가 완료되면 isProcessingVoice를 false로 설정하고 isLoading으로 전환
+        voiceState.setIsProcessingVoice(false);
         chatState.setIsLoading(true);
         try {
           const historyToSend = chatState.chatHistory.slice(-4); // 최근 2턴 (토큰 절감 + 맥락 유지)
@@ -733,9 +804,11 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     } catch (error) {
       console.error('STT 처리 오류:', error);
       alert('음성 처리 중 오류가 발생했습니다.');
-    } finally {
+      // 에러 발생 시에도 isProcessingVoice를 false로 설정
       voiceState.setIsProcessingVoice(false);
     }
+    // STT 처리 성공 시에는 이미 setIsProcessingVoice(false)가 호출되었으므로
+    // finally 블록에서 중복 호출하지 않음
   }, [
     chatState.addErrorMessage,
     chatState.addMessage,
@@ -889,7 +962,16 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     e.preventDefault();
     if (!chatState.inputValue.trim() || chatState.isLoading || isConversationEnded) return;
 
+    // 질문 제출 시 즉시 스크롤을 맨 위로 순간이동
+    if (chatRef.current) {
+      chatRef.current.scrollTop = 0;
+    }
+
     const question = chatState.inputValue.trim(); // inputValue를 변수에 저장 (setInputValue 전에)
+    
+    // 사용자 메시지 저장 (텍스트 입력 시에도 '생각 중이에요' 화면에서 표시하기 위해)
+    setLastUserMessageText(question);
+    
     const userMessage = createUserMessage(question);
     chatState.addMessage(userMessage);
     chatState.setInputValue('');
@@ -1192,6 +1274,11 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const handleRecommendationClick = useCallback(async (recommendation: string) => {
     if (chatState.isLoading || isConversationEnded) return;
     
+    // 질문 제출 시 즉시 스크롤을 맨 위로 순간이동
+    if (chatRef.current) {
+      chatRef.current.scrollTop = 0;
+    }
+    
     // 선택된 추천 추가
     setSelectedRecommendations(prev => new Set(prev).add(recommendation));
     
@@ -1354,8 +1441,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
     if (isConversationEnded) return null;
     
-    // 첫 질문 시작 scene에서만 표시 (메시지가 없을 때만)
-    const shouldShow = chatState.messages.length === 0;
+    // 첫 질문 시작 scene에서만 표시 (메시지가 없고, 로딩 중이 아닐 때만)
+    const shouldShow = chatState.messages.length === 0 && !(chatState.isLoading || voiceState.isProcessingVoice);
     const chipsToShow = visibleChipCount === 2 
       ? [randomRecommendations[chipAIdx], randomRecommendations[chipBIdx]].filter(Boolean)
       : randomRecommendations.slice(0, 3);
@@ -1428,7 +1515,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         </div>
       </div>
     );
-  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, chatState.messages.length, assistantMessages.length, showRecommendationChips, visibleChipCount, chipAIdx, chipBIdx, swapNonce, chipsBehind, chipsBottomPx]);
+  }, [isConversationEnded, randomRecommendations, handleRecommendationClick, chatState.isLoading, chatState.messages.length, assistantMessages.length, showRecommendationChips, visibleChipCount, chipAIdx, chipBIdx, swapNonce, chipsBehind, chipsBottomPx, voiceState.isProcessingVoice]);
 
   const isThinking = chatState.isLoading || voiceState.isProcessingVoice;
 
@@ -1468,14 +1555,43 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
   return (
     <div className={`min-h-screen flex flex-col safe-area-inset overscroll-contain relative v10-main-page ${isThinking ? 'is-thinking' : ''}`} style={{ overflowX: 'hidden', overflowY: 'auto', height: '100vh' }}>
-      {/* 상시 blob - 애니메이션 트리거 */}
+      {/* 상시 blob - 애니메이션 트리거: 2단계 background만 표시 (위쪽 blob 숨김) */}
       {showBlob && !showSummary && !isThinking && (
-        <CanvasBackground boosted={false} phase={blobPhase} popActive={true} />
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 0,
+            pointerEvents: 'none',
+            background: 'radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%)',
+          }}
+        >
+          <CanvasBackground 
+            boosted={false} 
+            phase={blobPhase} 
+            popActive={true} 
+            hideTopBlob={false} 
+            hideBottomBlob={true} 
+            customTopScale={2}
+            customCameraFov={50}
+          />
+        </div>
       )}
       
-      {/* isThinking일 때는 showBlob과 관계없이 ThinkingBlob 표시 */}
+      {/* isThinking일 때는 showBlob과 관계없이 ThinkingBlob 표시 + 밝은 배경색 유지 */}
       {!showSummary && isThinking && (
-        <ThinkingBlob isActive={isThinking} />
+        <>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 0,
+              pointerEvents: 'none',
+              background: 'radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%)',
+            }}
+          />
+          <ThinkingBlob isActive={isThinking} />
+        </>
       )}
       
       <AudioWaveVisualizer stream={voiceState.audioStream} isActive={voiceState.isRecording} />
@@ -1507,7 +1623,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       <main className="relative flex-1 flex flex-col min-h-0 pt-20" style={{ background: 'transparent', paddingBottom: 0 }}>
         <div className="flex-1 overflow-hidden">
           <div ref={chatRef} className="h-full overflow-y-auto overflow-x-visible px-4 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '100vh', paddingBottom: 'calc(1rem + 60px)' }}>
-            {chatState.messages.length === 0 && (
+            {chatState.messages.length === 0 && !chatState.isLoading && !voiceState.isRecording && !voiceState.isProcessingVoice && (
               <div className="flex flex-col items-center justify-start min-h-full text-center" style={{ paddingTop: '80px' }}>
                 <div 
                   style={{ 
@@ -1536,7 +1652,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                 </div>
               </div>
             )}
-            {chatState.messages.length > 0 && (
+            {(chatState.messages.length > 0 || isThinking || voiceState.isRecording || voiceState.isProcessingVoice) && (
               <>
                 {showFinalMessage ? (
                   <FinalMessageScreen />
@@ -1670,8 +1786,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                   <EndMessageScreen onNextToSummary={handleNextToSummary} />
                 ) : (
                   <div className="relative">
-                    {/* 음성 녹음 중일 때는 AI 답변 div 숨기고 '이솔이 듣고 있어요' 표시 */}
-                    {voiceState.isRecording ? (
+                    {/* 음성 녹음 중이거나 STT 처리 중일 때는 '이솔이 듣고 있어요' 표시 (첫 화면 포함) */}
+                    {(voiceState.isRecording || voiceState.isProcessingVoice) ? (
                       <div 
                         style={{
                           opacity: 1,
@@ -1689,31 +1805,56 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           isPlayingTTS={isPlayingTTS}
                           isGlobalLoading={true}
                           typewriterVariant={typewriterVariant}
-                          isRecording={true}
+                          isRecording={voiceState.isRecording}
                         />
                       </div>
-                    ) : (chatState.isLoading || voiceState.isProcessingVoice || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                    ) : (chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
                       <div 
                         style={{
                           opacity: 1,
-                          paddingBottom: '20%', // 하단 여백을 20%로 변경
+                          paddingBottom: answerContainerPaddingBottom,
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '2px', // 간격을 2px로 더 줄임
                         }}
                       >
-                        {(chatState.isLoading || voiceState.isProcessingVoice) ? (
-                          <ChatBubble 
-                            key="thinking-bubble"
-                            message={{ role: 'assistant', content: '' }} 
-                            isThinking={true}
-                            onPlayTTS={playFull}
-                            isPlayingTTS={isPlayingTTS}
-                            isGlobalLoading={chatState.isLoading || voiceState.isProcessingVoice}
-                            typewriterVariant={typewriterVariant}
-                            isRecording={false}
-                            thinkingText={customThinkingText}
-                          />
+                        {chatState.isLoading ? (
+                          <>
+                            {/* 사용자 메시지 표시 (STT 처리 후 또는 텍스트 입력 후 '생각 중이에요'로 바뀔 때) */}
+                            {lastUserMessageText && (
+                              <div
+                                style={{
+                                  marginBottom: '32px', // '생각 중이에요'보다 32px 위에 위치
+                                  color: 'rgb(0, 0, 0)',
+                                  textAlign: 'center',
+                                  fontFamily: 'Pretendard Variable',
+                                  fontSize: '18px',
+                                  fontStyle: 'normal',
+                                  fontWeight: 400,
+                                  lineHeight: '130%',
+                                  letterSpacing: '-0.72px',
+                                  wordBreak: 'break-word',
+                                  overflowWrap: 'break-word',
+                                  maxWidth: 'min(360px, 92vw)',
+                                  marginLeft: 'auto',
+                                  marginRight: 'auto',
+                                }}
+                              >
+                                {lastUserMessageText}
+                              </div>
+                            )}
+                            <ChatBubble 
+                              key="thinking-bubble"
+                              message={{ role: 'assistant', content: '' }} 
+                              isThinking={true}
+                              onPlayTTS={playFull}
+                              isPlayingTTS={isPlayingTTS}
+                              isGlobalLoading={chatState.isLoading}
+                              typewriterVariant={typewriterVariant}
+                              isRecording={false}
+                              thinkingText={customThinkingText}
+                            />
+                          </>
                         ) : (
                           <>
                             {(() => {
@@ -1817,7 +1958,21 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
               {renderRecommendationChips(0, true, true)}
               
               {/* input layer: always on top */}
-              <div className="fixed bottom-0 left-0 right-0 z-30 safe-bottom" style={{ maxWidth: 'min(360px, 92vw)', margin: '0 auto', width: '100%', paddingTop: '16px', paddingBottom: '16px', paddingLeft: 0, paddingRight: 0 }}>
+              <div 
+                className="fixed bottom-0 left-0 right-0 z-30 safe-bottom" 
+                style={{ 
+                  maxWidth: 'min(360px, 92vw)', 
+                  margin: '0 auto', 
+                  width: '100%', 
+                  paddingTop: '16px', 
+                  paddingBottom: '16px', 
+                  paddingLeft: 0, 
+                  paddingRight: 0,
+                  opacity: (isThinking || voiceState.isRecording) ? 0 : 1,
+                  transition: 'opacity 0.3s ease-in-out',
+                  pointerEvents: (isThinking || voiceState.isRecording) ? 'none' : 'auto',
+                }}
+              >
                 <form onSubmit={handleSubmit} className="w-full">
             <div 
               ref={inputBarRef}

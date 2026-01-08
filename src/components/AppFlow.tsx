@@ -374,7 +374,8 @@ export default function AppFlow() {
 
   return (
     <div className="min-h-screen relative" style={{ background: 'transparent' }}>
-      {showBlobBackground && (
+      {/* MainPage에서는 BlobBackground를 렌더링하지 않음 (MainPage 내부에서 자체 blob 사용) */}
+      {showBlobBackground && currentPage !== 'main' && (
         <div 
           style={{ 
             position: 'fixed', 

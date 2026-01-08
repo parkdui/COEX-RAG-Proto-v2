@@ -95,25 +95,32 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     : 0;
   const opacity = Math.min(fadeInElapsed / fadeInDuration, 1);
   
-  // 이동 애니메이션: bottom 96px -> 화면 중앙 (50vh)
+  // 이동 애니메이션: bottom 96px -> '이솔이 듣고 있어요' 텍스트 아래 2rem 위치
   // easing 함수: ease-out
   const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
   const easedProgress = easeOut(animationProgress);
   
   // 초기 위치: bottom 96px (120px에서 20% 위로 올림)
-  // 최종 위치: 화면 중앙 (50vh)
+  // 최종 위치: '이솔이 듣고 있어요' 텍스트 아래 32px
+  // '이솔이 듣고 있어요' 텍스트는 marginTop: 20vh, 텍스트 높이 약 23px
+  // 텍스트 bottom = 20vh + 23px
+  // sound wave top = 텍스트 bottom + 32px = 20vh + 23px + 32px = 20vh + 55px
   const initialBottom = 96; // px
   const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const centerTop = screenHeight / 2; // 50vh를 px로 변환
-  const translateY = easedProgress * (-(screenHeight - initialBottom - centerTop)); // px 단위
+  const textTopVh = 20; // '이솔이 듣고 있어요' 텍스트의 marginTop: 20vh
+  const textTopPx = (textTopVh / 100) * screenHeight; // 20vh를 px로 변환
+  const textHeight = 23; // 텍스트 높이 (fontSize 18px * lineHeight 130%)
+  const gapPx = 32; // 32px 간격 (텍스트와 sound wave 사이)
+  const finalTopPx = textTopPx + textHeight + gapPx; // 최종 위치: 20vh + 23px + 32px
+  const translateY = easedProgress * (-(screenHeight - initialBottom - finalTopPx)); // px 단위
 
   return (
     <div
       className="fixed left-1/2 z-50 pointer-events-none"
       style={{
         bottom: animationProgress >= 1 ? 'auto' : `${initialBottom}px`,
-        top: animationProgress >= 1 ? '50%' : 'auto',
-        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}px` : '-50%'})`,
+        top: animationProgress >= 1 ? `${finalTopPx}px` : 'auto',
+        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}px` : '0'})`,
         display: 'flex',
         alignItems: 'center',
         gap: '6px',

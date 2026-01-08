@@ -11,11 +11,16 @@ interface CanvasBackgroundProps {
   phase: CanvasPhase;
   popActive: boolean;
   className?: string;
+  hideTopBlob?: boolean; // MainPage에서 위쪽 blob을 숨기기 위한 prop
+  hideBottomBlob?: boolean; // MainPage에서 하단 blob을 숨기기 위한 prop
+  customBottomScale?: number; // MainPage에서 blob 크기를 조정하기 위한 prop
+  customTopScale?: number; // MainPage에서 상단 blob 크기를 조정하기 위한 prop
+  customCameraFov?: number; // MainPage에서 카메라 FOV를 조정하기 위한 prop
 }
 
 type Vector3Tuple = [number, number, number];
 
-export function CanvasBackground({ boosted, phase, popActive, className }: CanvasBackgroundProps) {
+export function CanvasBackground({ boosted, phase, popActive, className, hideTopBlob = false, hideBottomBlob = false, customBottomScale, customTopScale, customCameraFov }: CanvasBackgroundProps) {
   const wrapperClassName = [
     'coex-v2-canvas-wrapper',
     phase !== 'idle' ? 'coex-v2-canvas-wrapper--active' : '',
@@ -27,10 +32,10 @@ export function CanvasBackground({ boosted, phase, popActive, className }: Canva
 
   return (
     <div className={wrapperClassName} aria-hidden>
-      <Canvas camera={{ position: [0, 0, 6], fov: 50 }} gl={{ antialias: true, alpha: true }}>
+      <Canvas camera={{ position: [0, 0, 6], fov: customCameraFov ?? 50 }} gl={{ antialias: true, alpha: true }}>
         <ambientLight intensity={0.35} />
         <directionalLight position={[4, 6, 8]} intensity={0.8} />
-        <Scene boosted={boosted || phase === 'idle'} phase={phase} popActive={popActive} />
+        <Scene boosted={boosted || phase === 'idle'} phase={phase} popActive={popActive} hideTopBlob={hideTopBlob} hideBottomBlob={hideBottomBlob} customBottomScale={customBottomScale} customTopScale={customTopScale} />
       </Canvas>
       <style jsx>{`
         .coex-v2-canvas-wrapper {
@@ -63,9 +68,13 @@ interface SceneProps {
   boosted: boolean;
   phase: CanvasPhase;
   popActive: boolean;
+  hideTopBlob?: boolean;
+  hideBottomBlob?: boolean;
+  customBottomScale?: number;
+  customTopScale?: number;
 }
 
-function Scene({ boosted, phase, popActive }: SceneProps) {
+function Scene({ boosted, phase, popActive, hideTopBlob = false, hideBottomBlob = false, customBottomScale, customTopScale }: SceneProps) {
   const { camera, viewport } = useThree();
   viewport.getCurrentViewport(camera, [0, 0, 0]);
   const spacing = 1.68;
@@ -77,9 +86,13 @@ function Scene({ boosted, phase, popActive }: SceneProps) {
     [phase, spacing]
   );
 
-  const topOpacityTarget = phase === 'idle' || phase === 'completed' ? 1 : 0;
-  const topScaleTarget = phase === 'transitioning' || phase === 'completed' ? 1.12 : 1;
-  const bottomScaleTarget = popActive ? 2.0 : phase === 'completed' ? 1.04 : 1;
+  const topOpacityTarget = hideTopBlob ? 0 : (phase === 'idle' || phase === 'completed' ? 1 : 0);
+  const topScaleTarget = customTopScale !== undefined 
+    ? customTopScale 
+    : (phase === 'transitioning' || phase === 'completed' ? 1.12 : 1);
+  const bottomScaleTarget = customBottomScale !== undefined 
+    ? customBottomScale 
+    : (popActive ? 2.0 : phase === 'completed' ? 1.04 : 1);
   const bottomPositionLerp = phase === 'completed' ? 0.12 : 0.04;
   const bottomScaleLerp = popActive ? 0.2 : 0.14;
   const bottomVariant = phase === 'transitioning' ? 'water' : 'default';
@@ -104,7 +117,7 @@ function Scene({ boosted, phase, popActive }: SceneProps) {
         position={bottomStartPosition}
         targetPosition={bottomTargetPosition}
         variant={bottomVariant}
-        opacityTarget={1}
+        opacityTarget={hideBottomBlob ? 0 : 1}
         scaleTarget={bottomScaleTarget}
         positionLerp={bottomPositionLerp}
         opacityLerp={0.1}

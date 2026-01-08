@@ -242,15 +242,13 @@ const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
 
 const siteLinkWrapperStyle: React.CSSProperties = {
   display: 'inline-flex',
-  padding: '8px 20px',
+  padding: '6px 12px',
   alignItems: 'center',
-  gap: '10px',
+  gap: '6px',
   borderRadius: '99px',
-  background: 'rgba(255,255,255,0.14)',
+  background: '#ffffff',
   border: '1px solid rgba(255,255,255,0.42)',
   boxShadow: '0 2px 2px rgba(22, 42, 58, 0.05), inset 0 1px 0 rgba(255,255,255,0.1)',
-  backdropFilter: 'blur(28px) saturate(1.6)',
-  WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
   textDecoration: 'none',
   cursor: 'pointer',
 } as const;
@@ -259,7 +257,7 @@ const siteLinkTextStyle: React.CSSProperties = {
   color: '#000',
   textAlign: 'center',
   fontFamily: 'Pretendard Variable',
-  fontSize: '15px',
+  fontSize: '12px',
   fontStyle: 'normal',
   fontWeight: 500,
   lineHeight: '150%',
@@ -267,8 +265,8 @@ const siteLinkTextStyle: React.CSSProperties = {
 } as const;
 
 const siteLinkIconStyle: React.CSSProperties = {
-  width: '22px',
-  height: '22px',
+  width: '16px',
+  height: '16px',
 } as const;
 
 const AssistantGlassStyles = () => (
@@ -813,7 +811,7 @@ const HitInfo: React.FC<{ hits: any[] }> = () => null;
 
 const SiteLinkComponent: React.FC<{ url: string; linkText?: string }> = ({ url, linkText }) => (
   <a href={url} target="_blank" rel="noopener noreferrer" className="site-link-button" style={siteLinkWrapperStyle}>
-    <span style={siteLinkTextStyle}>{linkText || '사이트 바로가기'}</span>
+    <span style={siteLinkTextStyle}>{linkText || '바로가기'}</span>
     <img src="/link-external-01.svg" alt="" style={siteLinkIconStyle} />
   </a>
 );
@@ -838,7 +836,7 @@ const FeedbackComponent: React.FC<{
 
   return (
     <div
-      className="mt-4 flex flex-col items-center gap-3"
+      className="mt-4 flex items-center justify-center gap-3"
       style={{
         opacity: isVisible ? 1 : 0,
         transition: 'opacity 0.4s ease-in-out',
@@ -854,6 +852,7 @@ const FeedbackComponent: React.FC<{
           fontWeight: 500,
           lineHeight: '140%',
           letterSpacing: '-0.56px',
+          whiteSpace: 'nowrap',
         }}
       >
         추천이 적절했나요?
@@ -863,32 +862,29 @@ const FeedbackComponent: React.FC<{
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          gap: '8px',
           alignItems: 'center',
-          alignSelf: 'stretch',
         }}
       >
         <button
           onClick={() => handleFeedbackClick('negative')}
           disabled={selectedFeedback !== null}
           style={{
-            borderRadius: '32px',
+            borderRadius: '24px',
             border: '1px solid #D2D2FC',
             background: selectedFeedback === 'negative'
               ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
               : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
             boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
-            padding: '8px 20px',
+            padding: '6px 16px',
             cursor: selectedFeedback !== null ? 'default' : 'pointer',
             transition: 'all 0.2s ease',
-            flex: 1,
-            marginRight: '6px',
           }}
         >
           <span
             style={{
               fontFamily: 'Pretendard Variable',
-              fontSize: '15px',
+              fontSize: '13px',
               fontStyle: 'normal',
               fontWeight: 500,
               lineHeight: '140%',
@@ -907,23 +903,21 @@ const FeedbackComponent: React.FC<{
           onClick={() => handleFeedbackClick('positive')}
           disabled={selectedFeedback !== null}
           style={{
-            borderRadius: '32px',
+            borderRadius: '24px',
             border: '1px solid #D2D2FC',
             background: selectedFeedback === 'positive'
               ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
               : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
             boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
-            padding: '8px 20px',
+            padding: '6px 16px',
             cursor: selectedFeedback !== null ? 'default' : 'pointer',
             transition: 'all 0.2s ease',
-            flex: 1,
-            marginLeft: '12px',
           }}
         >
           <span
             style={{
               fontFamily: 'Pretendard Variable',
-              fontSize: '15px',
+              fontSize: '13px',
               fontStyle: 'normal',
               fontWeight: 500,
               lineHeight: '140%',
@@ -1185,7 +1179,8 @@ const SegmentedMessageComponent: React.FC<{
                 <div
                   style={{
                     width: '100%',
-                    aspectRatio: '1 / 1',
+                    minHeight: 'min(60vh, 400px)',
+                    maxHeight: '70vh',
                     borderRadius: '16px',
                     overflow: 'hidden',
                     position: 'relative',
@@ -1203,8 +1198,25 @@ const SegmentedMessageComponent: React.FC<{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
+                      display: 'block',
                     }}
                   />
+                  {shouldShowSite && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        opacity: isSiteVisible ? 1 : 0,
+                        transform: isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
+                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                        pointerEvents: isSiteVisible ? 'auto' : 'none',
+                        zIndex: 10,
+                      }}
+                    >
+                      <SiteLink url={siteUrl} linkText={linkText} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1247,7 +1259,7 @@ const SegmentedMessageComponent: React.FC<{
         </div>
       );
     },
-    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage, typewriterVariant]
+    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
@@ -1320,21 +1332,24 @@ const SegmentedMessageComponent: React.FC<{
                               objectFit: 'cover',
                             }}
                           />
+                          {shouldShowSite && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                opacity: 1,
+                                pointerEvents: 'auto',
+                                zIndex: 10,
+                              }}
+                            >
+                              <SiteLink url={siteUrl} linkText={linkText} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
                   </div>
-                </div>
-                <div
-                  className="mt-4 flex justify-center"
-                  style={{
-                    opacity: shouldShowSite ? 1 : 0,
-                    transform: shouldShowSite ? 'translateY(0)' : 'translateY(12px)',
-                    transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                    pointerEvents: shouldShowSite ? 'auto' : 'none',
-                  }}
-                >
-                  {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                 </div>
                 
                 {/* 첫 번째 답변에만 피드백 UI 표시 */}
@@ -1362,18 +1377,6 @@ const SegmentedMessageComponent: React.FC<{
                   }}
                   render={renderTypewriter}
                 />
-
-                <div
-                  className="mt-4 flex justify-center"
-                  style={{
-                    opacity: shouldShowSite && isSiteVisible ? 1 : 0,
-                    transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
-                    transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                    pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
-                  }}
-                >
-                  {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
-                </div>
 
                 {/* 첫 번째 답변에만 피드백 UI 표시 */}
                 {isFirstAnswer && (
@@ -1617,7 +1620,8 @@ const SingleMessageComponent: React.FC<{
                 <div
                   style={{
                     width: '100%',
-                    aspectRatio: '1 / 1',
+                    minHeight: 'min(60vh, 400px)',
+                    maxHeight: '70vh',
                     borderRadius: '16px',
                     overflow: 'hidden',
                     position: 'relative',
@@ -1635,8 +1639,25 @@ const SingleMessageComponent: React.FC<{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
+                      display: 'block',
                     }}
                   />
+                  {shouldShowSite && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        opacity: isSiteVisible ? 1 : 0,
+                        transform: isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
+                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
+                        pointerEvents: isSiteVisible ? 'auto' : 'none',
+                        zIndex: 10,
+                      }}
+                    >
+                      <SiteLink url={siteUrl} linkText={linkText} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1679,7 +1700,7 @@ const SingleMessageComponent: React.FC<{
         </div>
       );
     },
-    [assistantHighlight, assistantText, imageUrl, shouldShowImage, typewriterVariant]
+    [assistantHighlight, assistantText, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
@@ -1796,21 +1817,24 @@ const SingleMessageComponent: React.FC<{
                               objectFit: 'cover',
                             }}
                           />
+                          {shouldShowSite && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                opacity: 1,
+                                pointerEvents: 'auto',
+                                zIndex: 10,
+                              }}
+                            >
+                              <SiteLink url={siteUrl} linkText={linkText} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
                       </div>
-                    </div>
-                    <div
-                      className="mt-4 flex justify-center"
-                      style={{
-                        opacity: shouldShowSite ? 1 : 0,
-                        transform: shouldShowSite ? 'translateY(0)' : 'translateY(12px)',
-                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                        pointerEvents: shouldShowSite ? 'auto' : 'none',
-                      }}
-                    >
-                      {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
                     </div>
 
                     {/* 첫 번째 답변에만 피드백 UI 표시 */}
@@ -1838,18 +1862,6 @@ const SingleMessageComponent: React.FC<{
                       }}
                       render={renderTypewriter}
                     />
-
-                    <div
-                      className="mt-4 flex justify-center"
-                      style={{
-                        opacity: shouldShowSite && isSiteVisible ? 1 : 0,
-                        transform: shouldShowSite && isSiteVisible ? 'translateY(0)' : 'translateY(12px)',
-                        transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out',
-                        pointerEvents: shouldShowSite && isSiteVisible ? 'auto' : 'none',
-                      }}
-                    >
-                      {shouldShowSite && <SiteLink url={siteUrl} linkText={linkText} />}
-                    </div>
 
                     {/* 첫 번째 답변에만 피드백 UI 표시 */}
                     {isFirstAnswer && (

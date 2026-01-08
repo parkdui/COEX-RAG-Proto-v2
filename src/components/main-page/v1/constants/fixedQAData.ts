@@ -16,6 +16,15 @@ export const ONBOARDING_TO_CHIP_MAP: Record<string, keyof typeof CHIP_VARIANTS> 
   '혼자서 자유롭게': 'solo',
 };
 
+// 각 chipKey별 paraphrasing 옵션 (topicId 기반으로 순환 선택)
+// 주의: "{chip}라면" 패턴에 자연스럽게 들어갈 수 있는 표현만 사용
+export const CHIP_PARAPHRASING: Record<keyof typeof CHIP_VARIANTS, string[]> = {
+  solo: ['혼자', '혼자서', '혼자만이', '혼자', '혼자서', '혼자만이', '혼자'],
+  couple: ['둘이', '단둘이', '둘이서', '다같이', '둘이', '단둘이', '둘이서'],
+  friend: ['같이', '다같이', '함께', '다같이', '같이', '다같이', '같이'],
+  family: ['가족끼리', '다같이', '가족이', '다같이', '가족끼리', '다같이', '가족이'],
+};
+
 export interface FixedAnswer {
   text: string;
   image?: string; // 기존 호환성을 위해 선택적
@@ -333,12 +342,18 @@ export function buildQAForChip(topic: FixedQA, chipKey: keyof typeof CHIP_VARIAN
     Array.isArray(topic.soloTextTemplates) &&
     topic.soloTextTemplates.length === topic.answers.length;
 
+  // topicId를 기반으로 paraphrasing 선택 (각 topic마다 다른 표현 사용)
+  const paraphrasingOptions = CHIP_PARAPHRASING[chipKey];
+  // topicId의 해시값을 사용하여 일관된 선택 (같은 topicId는 항상 같은 paraphrasing)
+  const topicIndex = topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+
   return {
-    question: topic.questionTemplate.replaceAll("{chip}", chip.label),
+    question: topic.questionTemplate.replaceAll("{chip}", selectedParaphrasing),
     answers: topic.answers.map((a, i) => ({
       text: (useSolo ? topic.soloTextTemplates![i] : a.textTemplate).replaceAll(
         "{chip}",
-        chip.sentence
+        selectedParaphrasing
       ),
       keywords: a.keywords,
       linkText: a.linkText,

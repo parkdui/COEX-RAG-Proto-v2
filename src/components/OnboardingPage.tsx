@@ -119,9 +119,9 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
         <div 
           className="text-center mb-8"
           style={{
-            minHeight: '60px',
+            minHeight: '80px',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
             width: '100%',
             maxWidth: 'min(500px, 90vw)',
@@ -139,8 +139,15 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 opacity: greetingOpacity,
                 transition: 'opacity 0.5s ease-in-out',
                 position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
                 width: '100%',
                 padding: '0 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '80px',
               }}
             >
               <SplitText 
@@ -164,8 +171,15 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 opacity: questionOpacity,
                 transition: 'opacity 0.5s ease-in-out',
                 position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
                 width: '100%',
                 padding: '0 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '80px',
               }}
             >
               <SplitText 
@@ -189,12 +203,20 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 opacity: 1,
                 transition: 'opacity 0.5s ease-in-out',
                 whiteSpace: 'pre-line',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
                 width: '100%',
                 padding: '0 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '80px',
               }}
             >
               <SplitText 
-                text={`오늘 ${selectedOption} 코엑스를 방문하셨군요.\n맞춤형 안내를 생성할게요.`} 
+                text={`${selectedOption} 방문하셨군요.\n맞춤형 안내를 생성할게요.`} 
                 delay={0} 
                 duration={0.8} 
                 stagger={0.05} 

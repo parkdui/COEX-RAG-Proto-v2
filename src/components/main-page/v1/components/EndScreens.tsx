@@ -5,6 +5,7 @@ import { Message } from '@/types';
 import { ChatBubble } from '@/components/ChatBubble';
 import { SplitWords } from '@/components/ui';
 import TextPressure from '@/components/ui/TextPressure';
+import BlobBackgroundV2 from '@/components/ui/BlobBackgroundV2';
 import { isInfoRequestQuestion } from '../utils/questionUtils';
 
 interface EndMessageScreenProps {
@@ -222,11 +223,11 @@ export const FinalMessageScreen: React.FC = () => {
     <div 
       className="fixed inset-0 flex flex-col justify-end pb-20 px-6"
       style={{
-        background: '#D0ECE6',
         zIndex: 10,
       }}
     >
-      <div className="text-left">
+      <BlobBackgroundV2 />
+      <div className="text-left" style={{ position: 'relative', zIndex: 20 }}>
         <TextPressure
           text="COEX에서"
           trigger="auto"
