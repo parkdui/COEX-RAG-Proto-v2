@@ -36,6 +36,7 @@ export interface FixedAnswer {
 export interface FixedQA {
   topicId: string;
   questionTemplate: string;
+  thinkingText?: string;
   answers: Array<{
     textTemplate: string;
     keywords?: string[];
@@ -54,6 +55,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "restaurant",
     questionTemplate: "{chip} 가기 좋은 식당을 추천해줘",
+    thinkingText: "{chip} 가기 좋은 식당을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -82,6 +84,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "date",
     questionTemplate: "{chip} 구경하기 좋은 곳을 추천해줘",
+    thinkingText: "{chip} 구경하기 좋은 장소를 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -110,6 +113,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "kpop",
     questionTemplate: "{chip} 가기 좋은 KPOP 관련 구경거리를 추천해줘",
+    thinkingText: "{chip} 가기 좋은 KPOP 관련 구경거리를 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -138,6 +142,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "solo_play",
     questionTemplate: "{chip} 휴식하기 좋은 공간을 알고 싶어",
+    thinkingText: "{chip} 휴식하기 좋은 공간을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -166,6 +171,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "shopping",
     questionTemplate: "{chip} 쇼핑하기 좋은 곳을 찾고 있어",
+    thinkingText: "{chip} 쇼핑하기 좋은 곳을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -194,6 +200,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "cafe",
     questionTemplate: "{chip} 갈만한 조용한 카페를 찾고 있어",
+    thinkingText: "{chip} 갈만한 조용한 카페를 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -222,6 +229,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "korean_food",
     questionTemplate: "{chip} 방문하기 좋은 한식당을 찾고 있어",
+    thinkingText: "{chip} 방문하기 좋은 한식당을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -250,6 +258,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "famous",
     questionTemplate: "{chip} 코엑스에서 가장 유명한 곳에 가고 싶어",
+    thinkingText: "{chip} 코엑스에서 가장 유명한 곳을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -278,6 +287,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "trendy_food",
     questionTemplate: "{chip} 분위기 있는 트렌디한 음식점을 찾고 있어",
+    thinkingText: "{chip} 분위기 있는 트렌디한 음식점을 찾고 있어요",
     answers: [
       {
         textTemplate:
@@ -306,6 +316,7 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "around_coex",
     questionTemplate: "{chip} 코엑스 주변 구경거리를 추천해줘",
+    thinkingText: "{chip} 코엑스 주변 구경거리를 찾고 있어요",
     answers: [
       {
         textTemplate:

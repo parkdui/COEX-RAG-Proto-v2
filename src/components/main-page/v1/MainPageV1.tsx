@@ -14,7 +14,7 @@ import useCoexTTS from '@/hooks/useCoexTTS';
 import { useChatState } from './hooks/useChatState';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
 import { apiRequests } from './utils/apiRequests';
-import { fixedQAData, getQuestionsForOption, findQAByQuestion, CHIP_VARIANTS, ONBOARDING_TO_CHIP_MAP, buildQAForChip } from './constants/fixedQAData';
+import { fixedQAData, getQuestionsForOption, findQAByQuestion, CHIP_VARIANTS, ONBOARDING_TO_CHIP_MAP, buildQAForChip, CHIP_PARAPHRASING } from './constants/fixedQAData';
 import { RecommendationChips } from './components/RecommendationChips';
 import { KeywordCircles } from './components/KeywordCircles';
 import { EndMessageScreen, FinalMessageScreen, KeywordDetailScreen } from './components/EndScreens';
@@ -523,6 +523,37 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }
   }, [userMessageSummaries, getFallbackSummary]);
 
+  // 사용자 입력에서 thinkingText 생성
+  const generateThinkingText = useCallback(async (userInput: string) => {
+    if (!userInput || !userInput.trim()) {
+      setCustomThinkingText(undefined);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/generate-thinking-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: userInput.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const thinkingText = data.thinkingText;
+        if (thinkingText) {
+          setCustomThinkingText(thinkingText);
+        } else {
+          setCustomThinkingText(undefined);
+        }
+      } else {
+        setCustomThinkingText(undefined);
+      }
+    } catch (error) {
+      console.error('Generate thinking text error:', error);
+      setCustomThinkingText(undefined);
+    }
+  }, []);
+
   const userMessages = useMemo(
     () => chatState.messages.filter((message) => message.role === 'user'),
     [chatState.messages]
@@ -759,6 +790,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         const recognizedText = result.text;
         setLastUserMessageText(recognizedText);
         
+        // thinkingText 생성 (STT 처리된 텍스트에서)
+        generateThinkingText(recognizedText);
+        
         const userMessage = createUserMessage(recognizedText);
         chatState.addMessage(userMessage);
 
@@ -793,6 +827,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           chatState.addErrorMessage('서버와의 통신에 실패했습니다.');
         } finally {
           chatState.setIsLoading(false);
+          // 답변이 완료되면 커스텀 thinking 텍스트 초기화
+          setCustomThinkingText(undefined);
         }
       } else {
         if (result.details && result.details.includes('STT007')) {
@@ -817,7 +853,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     chatState.setIsLoading,
     chatState.systemPrompt,
     voiceState.setIsProcessingVoice,
-    pushAssistantMessage
+    pushAssistantMessage,
+    generateThinkingText
   ]);
 
   // 음성 녹음 시작
@@ -848,7 +885,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       // 자동 중지 로직을 위한 변수들
       let silenceStartTime: number | null = null;
       const SILENCE_THRESHOLD = 0.01; // 음성 레벨 임계값
-      const SILENCE_DURATION = 2000; // 2초 동안 조용하면 자동 중지
+      const SILENCE_DURATION = 3000; // 3초 동안 조용하면 자동 중지
       let lastSoundTime = Date.now();
       const recordingStartTime = Date.now();
       
@@ -972,6 +1009,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     // 사용자 메시지 저장 (텍스트 입력 시에도 '생각 중이에요' 화면에서 표시하기 위해)
     setLastUserMessageText(question);
     
+    // thinkingText 생성 (사용자 입력 텍스트에서)
+    generateThinkingText(question);
+    
     const userMessage = createUserMessage(question);
     chatState.addMessage(userMessage);
     chatState.setInputValue('');
@@ -1007,6 +1047,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       chatState.addErrorMessage('서버와의 통신에 실패했습니다.');
     } finally {
       chatState.setIsLoading(false);
+      // 답변이 완료되면 커스텀 thinking 텍스트 초기화
+      setCustomThinkingText(undefined);
     }
   }, [
     chatState.addErrorMessage,
@@ -1018,7 +1060,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     chatState.setIsLoading,
     chatState.systemPrompt,
     isConversationEnded,
-    pushAssistantMessage
+    pushAssistantMessage,
+    generateThinkingText
   ]);
 
   const handleGoButton = useCallback(async () => {
@@ -1210,64 +1253,38 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }, 800);
   }, []);
 
-  // 첫 scene에서 두 개의 답변을 통합하여 TTS 전용 텍스트 생성
-  const createCombinedTTSText = useCallback((answers: Array<{ text: string } | string>): string => {
-    const extractedInfo: Array<{ type: string; name: string }> = [];
+  // 첫 scene에서 두 개의 답변을 통합하여 TTS 전용 텍스트 생성 (AI API 없이 간단하게)
+  const createCombinedTTSText = useCallback((answers: Array<{ text: string } | string>, chipText?: string): string => {
+    const placeNames: string[] = [];
     
     for (const answerObj of answers) {
       const answerText = typeof answerObj === 'string' ? answerObj : answerObj.text;
       
-      // 작은따옴표 안의 이름 추출
+      // 작은따옴표 안의 장소명 추출
       const nameMatch = answerText.match(/'([^']+)'/);
-      let name = nameMatch ? nameMatch[1] : '';
-      // 괄호와 그 안의 내용 제거 (예: "이비티(ebt)" -> "이비티")
-      if (name) {
+      if (nameMatch) {
+        let name = nameMatch[1];
+        // 괄호와 그 안의 내용 제거 (예: "이비티(ebt)" -> "이비티", "핫쵸(Hotcho)" -> "핫쵸")
         name = name.replace(/\s*\([^)]*\)/g, '').trim();
-      }
-      
-      // 식당 타입 추출 (중식당, 유러피안, 카페, 아쿠아리움 등)
-      let type = '';
-      if (answerText.includes('중식당')) {
-        type = '중식당';
-      } else if (answerText.includes('유러피안')) {
-        type = '유러피안 식당';
-      } else if (answerText.includes('카페')) {
-        type = '카페';
-      } else if (answerText.includes('아쿠아리움')) {
-        type = '아쿠아리움';
-      } else if (answerText.includes('영화관') || answerText.includes('메가박스')) {
-        type = '영화관';
-      } else if (answerText.includes('도서관') || answerText.includes('문고')) {
-        type = '도서관';
-      } else if (answerText.includes('쇼핑')) {
-        type = '쇼핑몰';
-      } else if (answerText.includes('K-POP') || answerText.includes('케이타운')) {
-        type = 'K-POP 스토어';
-      } else if (answerText.includes('식당') || answerText.includes('레스토랑')) {
-        type = '식당';
-      } else {
-        // 타입을 찾지 못한 경우 첫 문장에서 추출 시도
-        const firstLine = answerText.split('\n')[0];
-        if (firstLine.includes('추천')) {
-          type = '장소';
+        if (name) {
+          placeNames.push(name);
         }
-      }
-      
-      if (name && type) {
-        extractedInfo.push({ type, name });
       }
     }
     
-    if (extractedInfo.length === 0) {
+    if (placeNames.length === 0) {
       return '';
     }
     
-    // 통합 텍스트 생성
-    if (extractedInfo.length === 1) {
-      return `${extractedInfo[0].type} ${extractedInfo[0].name}을 추천드려요`;
+    // chip 텍스트 포함하여 통합 텍스트 생성
+    const chipPrefix = chipText ? `${chipText} 오셨다면 ` : '';
+    
+    if (placeNames.length === 1) {
+      return `${chipPrefix}${placeNames[0]}를 추천해요`;
     } else {
-      const parts = extractedInfo.map(info => `${info.type} ${info.name}`);
-      return `${parts.join(', 또는 ')}을 추천드려요`;
+      // "피어커피 또는 테라로사를 추천해요" 형식
+      const placesText = placeNames.slice(0, -1).join(', ') + ' 또는 ' + placeNames[placeNames.length - 1];
+      return `${chipPrefix}${placesText}을 추천해요`;
     }
   }, []);
 
@@ -1298,8 +1315,16 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       // 첫 scene인지 확인 (메시지가 1개인 경우 - 방금 추가한 user message만 있음)
       const isFirstScene = chatState.messages.length === 1;
       
-      // 첫 번째 질문에 대한 커스텀 thinking 텍스트 생성
-      if (isFirstScene) {
+      // fixedQA의 thinkingText 사용 (있으면)
+      if (matchedQAData.topic.thinkingText) {
+        // chip 적용을 위해 CHIP_PARAPHRASING 사용
+        const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
+        const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+        const thinkingText = matchedQAData.topic.thinkingText.replaceAll("{chip}", selectedParaphrasing);
+        setCustomThinkingText(thinkingText);
+      } else if (isFirstScene) {
+        // thinkingText가 없고 첫 scene인 경우에만 기본 텍스트 사용
         const thinkingText = `${recommendation}을 생각 중이에요`;
         setCustomThinkingText(thinkingText);
       } else {
@@ -1312,7 +1337,11 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       if (isFirstScene && matchedQAData.qa.answers.length > 1) {
         // 새로운 구조에 맞게 answers 변환
         const answersForTTS = matchedQAData.qa.answers.map(a => ({ text: a.text }));
-        combinedTTSText = createCombinedTTSText(answersForTTS);
+        // chip 텍스트 추출 (paraphrasing이 이미 적용된 상태)
+        const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
+        const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+        combinedTTSText = createCombinedTTSText(answersForTTS, selectedParaphrasing);
       }
       
       // 모든 answers를 순차적으로 표시
@@ -1371,8 +1400,10 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         
         // 첫 scene이고 첫 번째 답변인 경우 통합 TTS 텍스트 사용
         // 두 번째 답변부터는 TTS 재생하지 않음 (skipTTS 플래그 사용)
-        const shouldSkipTTS = isFirstScene && i > 0;
-        const ttsTextForFirst = (isFirstScene && i === 0 && combinedTTSText) ? combinedTTSText : undefined;
+        // 첫 번째 답변에서 combinedTTSText가 없으면 TTS 스킵 (중복 재생 방지)
+        const isFirstAnswerWithCombinedTTS = isFirstScene && i === 0 && combinedTTSText;
+        const shouldSkipTTS = (isFirstScene && i > 0) || (isFirstScene && i === 0 && !combinedTTSText);
+        const ttsTextForFirst = isFirstAnswerWithCombinedTTS ? combinedTTSText : undefined;
         
         await pushAssistantMessage({
           answer: answerText,
@@ -1383,7 +1414,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           siteUrl: answerObj.url, // URL 전달 (새 데이터 구조에서)
           linkText: answerObj.linkText, // 링크 텍스트 전달
           ttsText: ttsTextForFirst, // 첫 번째 답변에만 통합 TTS 텍스트 전달
-          skipTTS: shouldSkipTTS, // 두 번째 답변부터는 TTS 스킵
+          skipTTS: shouldSkipTTS, // 두 번째 답변부터, 또는 combinedTTSText가 없으면 TTS 스킵
         });
         
         // 각 답변이 추가된 후 최상단으로 스크롤
