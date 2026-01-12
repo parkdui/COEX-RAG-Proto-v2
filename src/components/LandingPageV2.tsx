@@ -4,13 +4,22 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Typewriter from './ui/Typewriter';
 import BlobBackgroundV2 from './ui/BlobBackgroundV2';
 import VerticalCarouselText from './ui/VerticalCarouselText';
+import { SplitText } from './ui';
+import ThinkingBlob from './ui/ThinkingBlob';
 
 interface LandingPageV2Props {
-  onStart: () => void;
+  onComplete: (selectedOption: string) => void;
   showBlob?: boolean;
 }
 
-export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV2Props) {
+const BUTTON_OPTIONS = [
+  '연인과 둘이',
+  '친구랑 같이',
+  '가족과 함께',
+  '혼자서 자유롭게',
+];
+
+export default function LandingPageV2({ onComplete, showBlob = true }: LandingPageV2Props) {
   const [showSori, setShowSori] = useState(false);
   const [moveToBottom, setMoveToBottom] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -20,6 +29,12 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
   const [titleOpacity, setTitleOpacity] = useState(1);
   const [showNewText, setShowNewText] = useState(false);
   const [newTextOpacity, setNewTextOpacity] = useState(0);
+  const [showButtons, setShowButtons] = useState(false);
+  const [buttonOpacity, setButtonOpacity] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showThinkingBlob, setShowThinkingBlob] = useState(false);
+  const [textAnimationComplete, setTextAnimationComplete] = useState(false);
+  const [questionTextOpacity, setQuestionTextOpacity] = useState(1);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // v2: 'Sori at COEX' 애니메이션 후 이동 처리
@@ -71,19 +86,56 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
     }
   }, [titleOpacity]);
 
-  // 새 텍스트가 나타나고 4.5초 뒤에 OnboardingPage로 전환
+  // 새 텍스트가 나타나면 1초 뒤에 버튼 fade-in 시작
   useEffect(() => {
     if (newTextOpacity === 1) {
-      const transitionTimer = window.setTimeout(() => {
-        setIsTransitioning(true);
-        onStart();
-      }, 4500);
+      const buttonTimer = window.setTimeout(() => {
+        setShowButtons(true);
+        // fade-in 시작
+        setTimeout(() => {
+          setButtonOpacity(1);
+        }, 50);
+      }, 1000); // 1초 후 버튼 표시
 
       return () => {
-        window.clearTimeout(transitionTimer);
+        window.clearTimeout(buttonTimer);
       };
     }
-  }, [newTextOpacity, onStart]);
+  }, [newTextOpacity]);
+
+  // 버튼 선택 시 처리
+  const handleButtonClick = useCallback((option: string) => {
+    setSelectedOption(option);
+    setShowThinkingBlob(true);
+    // 기존 텍스트 fade-out
+    setQuestionTextOpacity(0);
+  }, []);
+
+  // 텍스트 애니메이션 완료 시간 계산
+  useEffect(() => {
+    if (selectedOption) {
+      const timer = setTimeout(() => {
+        setTextAnimationComplete(true);
+      }, 1500); // SplitText 애니메이션 완료 시간
+
+      return () => clearTimeout(timer);
+    } else {
+      setTextAnimationComplete(false);
+    }
+  }, [selectedOption]);
+
+  // 텍스트 애니메이션 완료 후 3초 대기, 그 다음 MainPage로 전환
+  useEffect(() => {
+    if (textAnimationComplete && selectedOption) {
+      const timer = setTimeout(() => {
+        setShowThinkingBlob(false);
+        setIsTransitioning(true);
+        onComplete(selectedOption);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [textAnimationComplete, selectedOption, onComplete]);
 
   const handleVideoLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
@@ -126,6 +178,10 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
       }`}
       style={{ position: 'relative' }}
     >
+      {/* ThinkingBlob - 선택 후에만 표시 */}
+      {showThinkingBlob && (
+        <ThinkingBlob isActive={true} />
+      )}
       {/* 초기 비디오 재생 */}
       {showVideo && (
         <video
@@ -169,7 +225,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
       {showBlob && showBlobBackground && <BlobBackgroundV2 />}
 
       <div 
-        className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out overflow-hidden"
+        className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out"
         style={{
           zIndex: 60,
           paddingTop: moveToBottom ? '20px' : 'clamp(120px, 20vh, 180px)',
@@ -262,7 +318,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
           </div>
 
           {/* 새 텍스트 (안녕하세요, 이솔입니다. / 오늘 누구와 코엑스에 방문하셨나요?) - 기존 타이틀과 같은 위치 */}
-          {showNewText && (
+          {showNewText && !selectedOption && (
             <div 
               className="text-left"
               style={{
@@ -270,7 +326,7 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
                 top: 0,
                 left: 0,
                 right: 0,
-                opacity: newTextOpacity,
+                opacity: newTextOpacity * questionTextOpacity,
                 transition: 'opacity 0.5s ease-in-out',
                 color: 'black',
                 fontSize: '24px',
@@ -287,6 +343,198 @@ export default function LandingPageV2({ onStart, showBlob = true }: LandingPageV
               </div>
             </div>
           )}
+
+          {/* 선택 후 텍스트 (${buttonText} 방문하셨군요. 맞춤형 안내를 생성할게요.) */}
+          {selectedOption && (
+            <div 
+              className="text-left"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                opacity: 1,
+                color: 'black',
+                fontSize: '24px',
+                fontFamily: 'Pretendard Variable',
+                fontWeight: 400,
+                textTransform: 'capitalize',
+                lineHeight: '140%',
+                wordWrap: 'break-word',
+                letterSpacing: '-0.96px',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              <SplitText 
+                text={`${selectedOption} 방문하셨군요.\n맞춤형 안내를 생성할게요.`} 
+                delay={0} 
+                duration={0.8} 
+                stagger={0.05} 
+                animation="fadeIn" 
+              />
+            </div>
+          )}
+
+          {/* 버튼 영역 (텍스트보다 30px 위에 배치) */}
+          {showButtons && !selectedOption && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '-240%', // 텍스트보다 위에 배치
+                left: 0,
+                right: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                maxWidth: 'min(500px, 92vw)',
+                width: '100%',
+                opacity: buttonOpacity,
+                transition: 'opacity 0.8s ease-in-out',
+                zIndex: 70,
+              }}
+            >
+            {/* 첫 번째 줄: '연인과 둘이' */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                key={BUTTON_OPTIONS[0]}
+                onClick={() => handleButtonClick(BUTTON_OPTIONS[0])}
+                className="touch-manipulation active:scale-95"
+                style={{
+                  display: 'inline-flex',
+                  padding: '14px 20px',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '10px',
+                  borderRadius: '30px',
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.45)',
+                  boxShadow: '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(22px) saturate(1.55)',
+                  WebkitBackdropFilter: 'blur(22px) saturate(1.55)',
+                  color: '#000',
+                  fontSize: '18px',
+                  letterSpacing: '-0.9px',
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: 300,
+                  lineHeight: '130%',
+                  cursor: 'pointer',
+                  transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+                  textAlign: 'center',
+                  width: 'calc((100% - 12px) / 2)', // '친구랑 같이' 버튼과 동일한 너비
+                  minWidth: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 24px 46px rgba(36, 82, 94, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.92)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.52) 48%, rgba(255, 255, 255, 0.26) 100%)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)';
+                }}
+              >
+                {BUTTON_OPTIONS[0]}
+              </button>
+            </div>
+
+            {/* 두 번째 줄: '친구랑 같이', '가족과 함께' */}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', width: '100%' }}>
+              {[BUTTON_OPTIONS[1], BUTTON_OPTIONS[2]].map((option, index) => (
+                <button
+                  key={option}
+                  onClick={() => handleButtonClick(option)}
+                  className="touch-manipulation active:scale-95"
+                  style={{
+                    display: 'inline-flex',
+                    padding: '14px 20px',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '10px',
+                    borderRadius: '30px',
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.45)',
+                    boxShadow: '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)',
+                    backdropFilter: 'blur(22px) saturate(1.55)',
+                    WebkitBackdropFilter: 'blur(22px) saturate(1.55)',
+                    color: '#000',
+                    fontSize: '18px',
+                    letterSpacing: '-0.9px',
+                    fontFamily: 'Pretendard Variable',
+                    fontWeight: 300,
+                    lineHeight: '130%',
+                    cursor: 'pointer',
+                    transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+                    textAlign: 'center',
+                    width: 'calc((100% - 12px) / 2)', // 두 번째 줄 버튼 너비
+                    minWidth: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 24px 46px rgba(36, 82, 94, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.92)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.52) 48%, rgba(255, 255, 255, 0.26) 100%)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)';
+                  }}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
+            {/* 세 번째 줄: '혼자서 자유롭게' */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                key={BUTTON_OPTIONS[3]}
+                onClick={() => handleButtonClick(BUTTON_OPTIONS[3])}
+                className="touch-manipulation active:scale-95"
+                style={{
+                  display: 'inline-flex',
+                  padding: '14px 20px',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '10px',
+                  borderRadius: '30px',
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.45)',
+                  boxShadow: '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(22px) saturate(1.55)',
+                  WebkitBackdropFilter: 'blur(22px) saturate(1.55)',
+                  color: '#000',
+                  fontSize: '18px',
+                  letterSpacing: '-0.9px',
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: 300,
+                  lineHeight: '130%',
+                  cursor: 'pointer',
+                  transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+                  textAlign: 'center',
+                  width: 'calc((100% - 12px) / 2)', // '친구랑 같이' 버튼과 동일한 너비
+                  minWidth: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 24px 46px rgba(36, 82, 94, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.92)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.52) 48%, rgba(255, 255, 255, 0.26) 100%)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 18px 36px rgba(36, 82, 94, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.18) 100%)';
+                }}
+              >
+                {BUTTON_OPTIONS[3]}
+              </button>
+            </div>
+          </div>
+        )}
         </div>
       </div>
 

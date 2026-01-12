@@ -19,10 +19,10 @@ export const ONBOARDING_TO_CHIP_MAP: Record<string, keyof typeof CHIP_VARIANTS> 
 // 각 chipKey별 paraphrasing 옵션 (topicId 기반으로 순환 선택)
 // 주의: "{chip}라면" 패턴에 자연스럽게 들어갈 수 있는 표현만 사용
 export const CHIP_PARAPHRASING: Record<keyof typeof CHIP_VARIANTS, string[]> = {
-  solo: ['혼자', '혼자서', '혼자만이', '혼자', '혼자서', '혼자만이', '혼자'],
-  couple: ['둘이', '단둘이', '둘이서', '다같이', '둘이', '단둘이', '둘이서'],
-  friend: ['같이', '다같이', '함께', '다같이', '같이', '다같이', '같이'],
-  family: ['가족끼리', '다같이', '가족이', '다같이', '가족끼리', '다같이', '가족이'],
+  solo: ['혼자', '혼자서', '홀로'],
+  couple: ['둘이', '단둘이', '둘이서', '다같이'],
+  friend: ['같이', '다같이', '함께', '친구끼리'],
+  family: ['가족끼리', '다같이', '함께', '다함께'],
 };
 
 export interface FixedAnswer {
@@ -345,7 +345,7 @@ export const fixedQAData: FixedQA[] = [
 // =======================
 // 렌더링 헬퍼
 // =======================
-export function buildQAForChip(topic: FixedQA, chipKey: keyof typeof CHIP_VARIANTS) {
+export function buildQAForChip(topic: FixedQA, chipKey: keyof typeof CHIP_VARIANTS, variationIndex?: number) {
   const chip = CHIP_VARIANTS[chipKey];
 
   const useSolo =
@@ -356,8 +356,10 @@ export function buildQAForChip(topic: FixedQA, chipKey: keyof typeof CHIP_VARIAN
   // topicId를 기반으로 paraphrasing 선택 (각 topic마다 다른 표현 사용)
   const paraphrasingOptions = CHIP_PARAPHRASING[chipKey];
   // topicId의 해시값을 사용하여 일관된 선택 (같은 topicId는 항상 같은 paraphrasing)
+  // variationIndex를 추가하여 같은 topicId를 가진 chips가 서로 다른 paraphrasing을 사용하도록 함
   const topicIndex = topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+  const combinedIndex = variationIndex !== undefined ? (topicIndex + variationIndex) : topicIndex;
+  const selectedParaphrasing = paraphrasingOptions[combinedIndex % paraphrasingOptions.length];
 
   return {
     question: topic.questionTemplate.replaceAll("{chip}", selectedParaphrasing),
@@ -392,8 +394,9 @@ export function getQuestionsForOption(option: string | null): Array<{ question: 
     return [];
   }
 
-  return fixedQAData.map(topic => ({
-    question: buildQAForChip(topic, chipKey).question,
+  // 각 topic마다 다른 variationIndex를 사용하여 서로 다른 paraphrasing을 선택하도록 함
+  return fixedQAData.map((topic, index) => ({
+    question: buildQAForChip(topic, chipKey, index).question,
     topic,
     chipKey,
   }));
@@ -405,9 +408,12 @@ export function findQAByQuestion(questionText: string, option: string | null): {
     // 옵션이 없으면 모든 chipKey로 검색
     for (const topic of fixedQAData) {
       for (const chipKey of Object.keys(CHIP_VARIANTS) as Array<keyof typeof CHIP_VARIANTS>) {
-        const qa = buildQAForChip(topic, chipKey);
-        if (qa.question === questionText) {
-          return { topic, chipKey, qa };
+        // 모든 variationIndex를 시도하여 매칭
+        for (let variationIndex = 0; variationIndex < 10; variationIndex++) {
+          const qa = buildQAForChip(topic, chipKey, variationIndex);
+          if (qa.question === questionText) {
+            return { topic, chipKey, qa };
+          }
         }
       }
     }
@@ -420,11 +426,46 @@ export function findQAByQuestion(questionText: string, option: string | null): {
   }
 
   for (const topic of fixedQAData) {
-    const qa = buildQAForChip(topic, chipKey);
-    if (qa.question === questionText) {
-      return { topic, chipKey, qa };
+    // 모든 variationIndex를 시도하여 매칭
+    for (let variationIndex = 0; variationIndex < 10; variationIndex++) {
+      const qa = buildQAForChip(topic, chipKey, variationIndex);
+      if (qa.question === questionText) {
+        return { topic, chipKey, qa };
+      }
     }
   }
 
+  return null;
+}
+
+// 질문 텍스트에서 사용된 paraphrasingOptions를 추출하는 헬퍼 함수
+export function extractParaphrasingFromQuestion(questionText: string, questionTemplate: string, chipKey: keyof typeof CHIP_VARIANTS): string | null {
+  // questionTemplate에서 {chip} 위치 찾기
+  const chipPlaceholder = "{chip}";
+  const chipIndex = questionTemplate.indexOf(chipPlaceholder);
+  if (chipIndex === -1) {
+    return null;
+  }
+
+  // questionTemplate에서 {chip} 앞부분과 뒷부분 추출
+  const beforeChip = questionTemplate.substring(0, chipIndex);
+  const afterChip = questionTemplate.substring(chipIndex + chipPlaceholder.length);
+  
+  // questionText에서 beforeChip과 afterChip 사이의 텍스트 추출 (paraphrasingOptions)
+  const beforeIndex = questionText.indexOf(beforeChip);
+  const afterIndex = questionText.indexOf(afterChip, beforeIndex + beforeChip.length);
+  
+  if (beforeIndex === -1 || afterIndex === -1) {
+    return null;
+  }
+  
+  const extracted = questionText.substring(beforeIndex + beforeChip.length, afterIndex);
+  
+  // 추출된 텍스트가 CHIP_PARAPHRASING에 있는지 확인
+  const paraphrasingOptions = CHIP_PARAPHRASING[chipKey];
+  if (paraphrasingOptions.includes(extracted)) {
+    return extracted;
+  }
+  
   return null;
 }

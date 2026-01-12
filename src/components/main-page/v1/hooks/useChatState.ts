@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Message } from '@/types';
 import { createErrorMessage } from '@/lib/messageUtils';
+import { extractKeywords } from '../utils/extractKeywords';
 
 export const useChatState = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -15,7 +16,19 @@ export const useChatState = () => {
 
   const addMessage = useCallback((message: Message) => {
     setMessages(prev => [...prev, message]);
-    setChatHistory(prev => [...prev, message]);
+    
+    // chatHistory에는 assistant 메시지는 키워드만 저장, user 메시지는 그대로 저장
+    if (message.role === 'assistant') {
+      const keywords = extractKeywords(message.content);
+      if (keywords) {
+        setChatHistory(prev => [...prev, {
+          ...message,
+          content: keywords
+        }]);
+      }
+    } else {
+      setChatHistory(prev => [...prev, message]);
+    }
   }, []);
 
   const addErrorMessage = useCallback((error: string) => {

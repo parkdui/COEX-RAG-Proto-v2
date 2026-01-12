@@ -28,16 +28,7 @@ export default function AppFlow() {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const leaveHandlerRef = useRef<(() => void) | null>(null);
 
-  const handleNext = () => {
-    setIsTransitioning(true);
-    setCurrentPage('onboarding');
-    // OnboardingPage가 마운트된 후 fade-in 애니메이션 시작
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 50);
-  };
-
-  const handleOnboardingComplete = (selectedOption: string) => {
+  const handleLandingComplete = (selectedOption: string) => {
     setSelectedOnboardingOption(selectedOption);
     setIsTransitioning(true);
     setCurrentPage('main');
@@ -52,8 +43,8 @@ export default function AppFlow() {
   };
 
   const handleBlobAnimationComplete = () => {
-    // blob 애니메이션이 완료되면 페이지 전환
-    handleNext();
+    // blob 애니메이션이 완료되면 페이지 전환 (현재는 사용하지 않음)
+    // 필요시 구현
   };
 
   // 페이지 진입 시 접속 체크
@@ -304,22 +295,9 @@ export default function AppFlow() {
         return (
           <div className="relative" style={{ zIndex: 10 }}>
             <LandingPageV2 
-              onStart={handleNext} 
+              onComplete={handleLandingComplete} 
               showBlob={false} 
             />
-          </div>
-        );
-      case 'onboarding':
-        return (
-          <div 
-            className="transition-opacity duration-500 relative"
-            style={{ 
-              zIndex: 10,
-              opacity: isTransitioning ? 0 : 1,
-              animation: isTransitioning ? 'none' : 'fadeIn 0.6s ease-in-out'
-            }}
-          >
-            <OnboardingPage onComplete={handleOnboardingComplete} />
           </div>
         );
       case 'main':
@@ -339,7 +317,7 @@ export default function AppFlow() {
         return (
           <div className="relative" style={{ zIndex: 10 }}>
             <LandingPageV2 
-              onStart={handleNext} 
+              onComplete={handleLandingComplete} 
               showBlob={false} 
             />
           </div>
@@ -373,7 +351,7 @@ export default function AppFlow() {
   };
 
   return (
-    <div className="min-h-screen relative" style={{ background: 'transparent' }}>
+    <div className="min-h-screen relative" style={{ background: 'radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%)' }}>
       {/* MainPage에서는 BlobBackground를 렌더링하지 않음 (MainPage 내부에서 자체 blob 사용) */}
       {showBlobBackground && currentPage !== 'main' && (
         <div 

@@ -1028,6 +1028,7 @@ export async function POST(request: NextRequest) {
     console.log("[chat] Request body parsed");
     const question = (body?.question || "").trim();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
+    const feedbackPreference = body?.feedbackPreference as 'negative' | 'positive' | null | undefined;
 
     // vectors.json은 정보 요구 질문일 때만 필요하므로, 나중에 필요할 때 로드
     let vectors: any[] = [];
@@ -1150,9 +1151,21 @@ export async function POST(request: NextRequest) {
       ? `${defaultSystemPrompt}\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`
       : `너는 '이솔(SORI)'이라는 이름의 젊은 여성 AI 마스코트입니다. 코엑스를 방문한 사람과 자연스럽게 대화하며 즐거움, 영감, 새로운 시선을 선사하는 동행자입니다.\n\n[현재 날짜]\n오늘은 ${dateString}입니다. 모든 이벤트, 행사, 전시 등의 일정은 이 날짜를 기준으로 판단하세요.`;
     
-    // 6번째 API call일 때만 특별한 프롬프트 추가
+    // 피드백 정보를 시스템 프롬프트에 반영
+    if (feedbackPreference === 'negative') {
+      activeSystemPrompt += `\n\n[사용자 피드백]\n사용자가 이전 답변에 대해 아쉬움을 표시했습니다. 이번 답변에서는 이전과 다른 주제나 관점의 추천을 제공하세요.`;
+    } else if (feedbackPreference === 'positive') {
+      activeSystemPrompt += `\n\n[사용자 피드백]\n사용자가 이전 답변을 긍정적으로 평가했습니다. 이번 답변에서는 이전과 비슷한 주제나 관점의 추천을 제공하세요.`;
+    }
+    
+    // 5번째 API call일 때: 추가 답변 유도 금지
+    if (messageNumber === 5) {
+      activeSystemPrompt += `\n\n[중요] 이번 요청은 사용자가 마지막 질문을 할 수 있는 구간입니다. 답변에서 '어때요?', '더 말씀해주세요', '추가로 궁금한 점이 있나요?' 등과 같이 추가적인 답변을 유도하는 말을 절대로 넣지 마세요. 답변을 마무리하는 형태로 작성하세요.`;
+    }
+    
+    // 6번째 API call일 때: 대화 마무리 인삿말
     if (messageNumber === 6) {
-      activeSystemPrompt += `\n\n[중요] 이번 요청은 사용자가 '오늘 이솔과의 대화는 어땠나요?' 또는 '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.' 라는 질문에 대한 대답일 수 있습니다. 이에 걸맞은 따뜻하고 자연스러운 답변을 생성하세요.`;
+      activeSystemPrompt += `\n\n[중요] 이번 요청은 사용자가 '오늘 이솔과의 대화는 어땠나요?' 또는 '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.' 라는 질문에 대한 대답입니다. 대화를 즐겁게 마무리하고, 사용자에게 따뜻한 인삿말과 함께 답변을 생성하세요. 예를 들어 'COEX에서 즐거운 시간 보내고 또 만나요~!' 같은 마무리 인삿말을 포함하여 답변을 마무리하세요.`;
     }
     
     // 실시간 로깅: 질문 입력 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
@@ -1310,20 +1323,8 @@ export async function POST(request: NextRequest) {
       // 일단 경고만 출력하고 현재 응답을 사용
     }
 
-    // 5번째 답변일 때 본문 하단에 질문 문장 추가
-    if (messageNumber === 5) {
-      console.log(`[Chat] ⭐ 5th response detected! Adding feedback question.`);
-      const questionOptions = [
-        '오늘 이솔과의 대화는 어땠나요?',
-        '오늘 코엑스에서 기억에 남는 점이 있는지 궁금해요.'
-      ];
-      // 랜덤으로 하나 선택
-      const selectedQuestion = questionOptions[Math.floor(Math.random() * questionOptions.length)];
-      const originalAnswer = cleanedAnswer;
-      cleanedAnswer = `${cleanedAnswer}\n\n${selectedQuestion}`;
-      console.log(`[Chat] ✅ Feedback question added. Original length: ${originalAnswer.length}, New length: ${cleanedAnswer.length}`);
-      console.log(`[Chat] Selected question: "${selectedQuestion}"`);
-    }
+    // 5번째 답변일 때는 별도 Container로 처리하므로 여기서는 질문 추가하지 않음
+    // (프론트엔드에서 별도 Container로 표시)
 
     // 실시간 로깅: AI 답변 수신 시 즉시 저장 (동기적으로 처리하여 row 찾기 문제 방지)
     // savedRowIndex를 사용하여 정확한 row에 저장

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnv } from '@/lib/utils';
 
+// Google Sheets 함수 import
+import { getTokenTotal, updateTokenTotal } from '../chat/route';
+
 // ENV 로드
 const APP_ID = getEnv("APP_ID", "testapp");
 
@@ -22,7 +25,7 @@ const CLOVA_MODEL = getEnv("CLOVA_MODEL", "HCX-005");
  * CLOVA Chat Completions API를 사용하여 사용자 입력에서 키워드를 추출하고
  * '~~를 찾고 있어요' 형식의 thinkingText 생성
  */
-async function generateThinkingTextWithClova(userInput: string): Promise<string> {
+async function generateThinkingTextWithClova(userInput: string): Promise<{ text: string; tokens: { input: number; output: number; total: number } }> {
   const url = `${CLOVA_BASE}/v3/chat-completions/${CLOVA_MODEL}`;
   
   const systemPrompt = `사용자의 입력 텍스트에서 중요한 키워드를 추출하여 '~~를 찾고 있어요' 또는 '~~을 찾고 있어요' 형식의 자연스러운 문장을 생성해주세요.
@@ -93,6 +96,13 @@ async function generateThinkingTextWithClova(userInput: string): Promise<string>
   }
 
   const json = await res.json();
+  
+  // 토큰 사용량 추출
+  const usage = json?.result?.usage || json?.usage || {};
+  const thinkingInput = Number(usage.promptTokens ?? 0);
+  const thinkingOutput = Number(usage.completionTokens ?? 0);
+  const thinkingTotal = Number(usage.totalTokens ?? thinkingInput + thinkingOutput);
+  
   const thinkingText = json?.result?.message?.content?.[0]?.text || 
                       json?.choices?.[0]?.message?.content || 
                       "";
@@ -106,13 +116,22 @@ async function generateThinkingTextWithClova(userInput: string): Promise<string>
   // 따옴표 제거
   cleanedText = cleanedText.replace(/^["']|["']$/g, '').trim();
 
-  return cleanedText || "알아보고 있어요"; // 실패 시 기본값
+  return {
+    text: cleanedText || "알아보고 있어요", // 실패 시 기본값
+    tokens: {
+      input: thinkingInput,
+      output: thinkingOutput,
+      total: thinkingTotal,
+    },
+  };
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const userInput = (body?.userInput || "").trim();
+    const sessionId = body?.sessionId || null;
+    const rowIndex = body?.rowIndex || null;
 
     if (!userInput) {
       return NextResponse.json(
@@ -127,15 +146,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ thinkingText: fallbackText });
     }
 
-    const thinkingText = await generateThinkingTextWithClova(userInput);
-    return NextResponse.json({ thinkingText });
+    const result = await generateThinkingTextWithClova(userInput);
+    const thinkingText = result.text;
+    const tokens = result.tokens;
+
+    // Google Sheets에 토큰 저장 (sessionId와 rowIndex가 있는 경우)
+    if (sessionId && rowIndex && tokens.total > 0) {
+      try {
+        const existingTokenTotal = await getTokenTotal(sessionId, rowIndex);
+        const newTokenTotal = existingTokenTotal + tokens.total;
+        await updateTokenTotal(sessionId, newTokenTotal, rowIndex);
+        console.log(`[Generate Thinking Text] Token saved: ${tokens.total} tokens (total: ${newTokenTotal}) for session ${sessionId}`);
+      } catch (error) {
+        console.error('[Generate Thinking Text] Failed to save token to Google Sheets:', error);
+        // 에러가 발생해도 메인 응답은 반환
+      }
+    }
+
+    return NextResponse.json({ 
+      thinkingText,
+      tokens: tokens.total > 0 ? tokens : undefined, // 토큰이 있을 때만 반환
+    });
   } catch (error: any) {
     console.error("Generate thinking text error:", error);
     // 에러 발생 시에도 fallback 텍스트 반환
-    const body = await request.json().catch(() => ({}));
-    const userInput = (body?.userInput || "").trim();
-    const fallbackText = generateFallbackThinkingText(userInput);
-    return NextResponse.json({ thinkingText: fallbackText });
+    try {
+      const body = await request.json().catch(() => ({}));
+      const userInput = (body?.userInput || "").trim();
+      const fallbackText = generateFallbackThinkingText(userInput);
+      return NextResponse.json({ thinkingText: fallbackText });
+    } catch {
+      return NextResponse.json({ thinkingText: "알아보고 있어요" });
+    }
   }
 }
 

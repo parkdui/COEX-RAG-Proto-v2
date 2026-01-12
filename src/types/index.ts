@@ -43,6 +43,7 @@ export interface ChatBubbleProps {
   glassStyleVariant?: 'v1' | 'v2';
   isRecording?: boolean;
   isFirstAnswer?: boolean; // 첫 번째 답변인지 여부
+  onFeedback?: (feedback: 'negative' | 'positive') => void; // 피드백 콜백
 }
 
 export interface AudioConstraints {

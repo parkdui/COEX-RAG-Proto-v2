@@ -95,23 +95,38 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     : 0;
   const opacity = Math.min(fadeInElapsed / fadeInDuration, 1);
   
-  // 이동 애니메이션: bottom 96px -> '이솔이 듣고 있어요' 텍스트 아래 2rem 위치
+  // 이동 애니메이션: bottom 96px -> '이솔이 듣고 있어요' 텍스트 아래 30px 위치
   // easing 함수: ease-out
   const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
   const easedProgress = easeOut(animationProgress);
   
-  // 초기 위치: bottom 96px (120px에서 20% 위로 올림)
-  // 최종 위치: '이솔이 듣고 있어요' 텍스트 아래 32px
-  // '이솔이 듣고 있어요' 텍스트는 marginTop: 20vh, 텍스트 높이 약 23px
-  // 텍스트 bottom = 20vh + 23px
-  // sound wave top = 텍스트 bottom + 32px = 20vh + 23px + 32px = 20vh + 55px
+  // 초기 위치: bottom 96px
+  // 최종 위치: '이솔이 듣고 있어요' 텍스트 아래 30px
+  // '이솔이 듣고 있어요' 텍스트 구조:
+  // - 상위 div: marginTop: 20vh
+  // - assistant-glass-wrapper: margin: '0 auto 0px auto', paddingBottom: '4px'
+  // - assistant-glass-content: padding '7px 16px' (isThinking일 때)
+  // - 텍스트: fontSize 18px, lineHeight 130% = 23.4px
   const initialBottom = 96; // px
   const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const textTopVh = 20; // '이솔이 듣고 있어요' 텍스트의 marginTop: 20vh
-  const textTopPx = (textTopVh / 100) * screenHeight; // 20vh를 px로 변환
-  const textHeight = 23; // 텍스트 높이 (fontSize 18px * lineHeight 130%)
-  const gapPx = 32; // 32px 간격 (텍스트와 sound wave 사이)
-  const finalTopPx = textTopPx + textHeight + gapPx; // 최종 위치: 20vh + 23px + 32px
+  const containerTopVh = 20; // 상위 div의 marginTop: 20vh
+  const containerTopPx = (containerTopVh / 100) * screenHeight; // 20vh를 px로 변환
+  
+  // assistant-glass-wrapper의 paddingBottom: 4px
+  const wrapperPaddingBottom = 4;
+  
+  // isThinking일 때 assistant-glass-content의 padding: '7px 16px'
+  const contentTopPadding = 7; // 상단 padding
+  const textHeight = 18 * 1.3; // fontSize 18px * lineHeight 130% = 23.4px
+  const contentBottomPadding = 7; // 하단 padding
+  
+  // 텍스트 컨테이너의 실제 bottom 위치
+  // container top + wrapper paddingBottom + content top padding + text height + content bottom padding
+  const containerBottomPx = containerTopPx + wrapperPaddingBottom + contentTopPadding + textHeight + contentBottomPadding;
+  
+  const gapPx = 30; // 30px 간격 (텍스트 컨테이너 bottom과 sound wave top 사이)
+  // sound wave의 top 위치 = 컨테이너 bottom + 30px
+  const finalTopPx = containerBottomPx + gapPx;
   const translateY = easedProgress * (-(screenHeight - initialBottom - finalTopPx)); // px 단위
 
   return (

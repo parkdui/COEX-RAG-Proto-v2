@@ -2,6 +2,40 @@
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { ChatBubble } from '@/components/ChatBubble';
+
+// ChatBubble의 스타일을 재사용하기 위한 상수들
+const assistantGlassWrapperStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 'min(360px, 92vw)',
+  margin: '0 auto 0px auto',
+  pointerEvents: 'none',
+  position: 'relative',
+  zIndex: 10,
+  paddingBottom: '4px',
+};
+
+const assistantGlassContentStyleV2: React.CSSProperties = {
+  display: 'grid',
+  gap: 'clamp(18px, 3.8vw, 26px)',
+  padding: 'clamp(26px, 5.6vw, 34px) clamp(20px, 5vw, 28px) clamp(24px, 5.6vw, 34px)',
+  borderRadius: 'clamp(32px, 10vw, 48px)',
+  background: 'linear-gradient(180deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.00) 16.666%, rgba(255,255,255,0.12) 30%, rgba(255,255,255,0.38) 66%, rgba(255,255,255,0.70) 100%)',
+  border: '0.5px solid rgba(255,255,255,0.20)',
+  boxShadow:
+    '0 8px 12px rgba(22, 42, 58, 0.10), inset 0 0.5px 0 rgba(255,255,255,0.18), inset 0 -12px 36px rgba(255,255,255,0.05)',
+  backdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
+  WebkitBackdropFilter: 'blur(40px) saturate(0.9) brightness(1.04) contrast(0.96)',
+  filter: 'saturate(0.92)',
+  textAlign: 'center',
+  color: '#1f2640',
+  position: 'relative',
+  overflow: 'hidden',
+  pointerEvents: 'auto',
+};
+
+const getAssistantGlassContentStyle = (variant: 'v1' | 'v2' = 'v2'): React.CSSProperties => {
+  return variant === 'v2' ? assistantGlassContentStyleV2 : assistantGlassContentStyleV2;
+};
 import { Message } from '@/types';
 import { createAssistantMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
@@ -10,15 +44,17 @@ import Logo from '@/components/ui/Logo';
 import ThinkingBlob from '@/components/ui/ThinkingBlob';
 import AudioWaveVisualizer from '@/components/ui/AudioWaveVisualizer';
 import { CanvasBackground, CanvasPhase } from '@/components/ui/BlobBackgroundV2Canvas';
+import GradualBlur from '@/components/ui/GradualBlur';
 import useCoexTTS from '@/hooks/useCoexTTS';
 import { useChatState } from './hooks/useChatState';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
 import { apiRequests } from './utils/apiRequests';
-import { fixedQAData, getQuestionsForOption, findQAByQuestion, CHIP_VARIANTS, ONBOARDING_TO_CHIP_MAP, buildQAForChip, CHIP_PARAPHRASING } from './constants/fixedQAData';
+import { fixedQAData, getQuestionsForOption, findQAByQuestion, CHIP_VARIANTS, ONBOARDING_TO_CHIP_MAP, buildQAForChip, CHIP_PARAPHRASING, extractParaphrasingFromQuestion } from './constants/fixedQAData';
 import { RecommendationChips } from './components/RecommendationChips';
 import { KeywordCircles } from './components/KeywordCircles';
 import { EndMessageScreen, FinalMessageScreen, KeywordDetailScreen } from './components/EndScreens';
 import { isInfoRequestQuestion, getFallbackSummary } from './utils/questionUtils';
+import { throttle, debounce } from '@/lib/performanceUtils';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
 
@@ -64,12 +100,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const [customThinkingText, setCustomThinkingText] = useState<string | undefined>(undefined);
   const [answerContainerPaddingBottom, setAnswerContainerPaddingBottom] = useState<string>('20%');
   const [lastUserMessageText, setLastUserMessageText] = useState<string | null>(null);
+  const [scrollOpacity, setScrollOpacity] = useState(1);
+  const [feedbackPreference, setFeedbackPreference] = useState<'negative' | 'positive' | null>(null);
   const chipAIdxRef = useRef(0);
   const chipBIdxRef = useRef(1);
   const nextChipIdxRef = useRef(2);
   const chipsWrapRef = useRef<HTMLDivElement>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
   const placeholderContainerRef = useRef<HTMLDivElement>(null);
+  const fifthAnswerAlertShownRef = useRef(false);
 
   const GreetingTypewriter = typewriterComponentMap[typewriterVariant];
   
@@ -189,15 +228,44 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     // selectedOnboardingOption에 따라 필터링된 질문들 가져오기
     const questionData = getQuestionsForOption(selectedOnboardingOption);
     
-    // 질문 텍스트만 추출
-    const questions = questionData.map(q => q.question);
-    
     // 선택된 추천 제외
-    const availableQuestions = questions.filter(q => !selectedRecommendations.has(q));
+    const availableQuestions = questionData.filter(q => !selectedRecommendations.has(q.question));
     // 선택된 추천이 너무 많으면 다시 사용 가능하도록
-    const questionsToUse = availableQuestions.length >= 3 ? availableQuestions : questions;
+    const questionsToUse = availableQuestions.length >= 3 ? availableQuestions : questionData;
+    
+    // 3개 chips가 모두 다른 paraphrasing을 사용하도록 보장
     const shuffled = [...questionsToUse].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 3);
+    const selected: typeof questionData = [];
+    const usedParaphrasings = new Set<string>();
+    
+    for (const q of shuffled) {
+      // 질문 텍스트에서 paraphrasing 추출
+      const paraphrasing = extractParaphrasingFromQuestion(q.question, q.topic.questionTemplate, q.chipKey);
+      if (paraphrasing && !usedParaphrasings.has(paraphrasing)) {
+        selected.push(q);
+        usedParaphrasings.add(paraphrasing);
+        if (selected.length >= 3) break;
+      } else if (!paraphrasing) {
+        // paraphrasing을 추출할 수 없는 경우에도 추가 (fallback)
+        // 하지만 이미 사용된 paraphrasing과 중복되지 않도록 확인
+        if (selected.length < 3) {
+          selected.push(q);
+          if (selected.length >= 3) break;
+        }
+      }
+    }
+    
+    // 3개를 못 채운 경우 나머지 추가 (paraphrasing 중복 허용)
+    if (selected.length < 3) {
+      for (const q of shuffled) {
+        if (!selected.some(s => s.question === q.question)) {
+          selected.push(q);
+          if (selected.length >= 3) break;
+        }
+      }
+    }
+    
+    return selected.slice(0, 3).map(q => q.question);
   }, [selectedRecommendations, selectedOnboardingOption]);
 
   const randomRecommendations = useMemo(() => getRandomRecommendations(), [getRandomRecommendations]);
@@ -259,17 +327,17 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
     calculatePaddingBottom();
 
-    // 화면 크기 변경 시에도 재계산
-    const handleResize = () => {
+    // 화면 크기 변경 시에도 재계산 (throttle 적용으로 성능 최적화)
+    const throttledHandleResize = throttle(() => {
       calculatePaddingBottom();
-    };
+    }, 200);
 
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('resize', throttledHandleResize, { passive: true });
+    window.addEventListener('orientationchange', throttledHandleResize, { passive: true });
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('resize', throttledHandleResize);
+      window.removeEventListener('orientationchange', throttledHandleResize);
     };
   }, [chatState.messages]);
 
@@ -310,13 +378,14 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     // 초기 실행
     updateModalRef();
 
-    // MutationObserver로 DOM 변경 감지 (더 빠른 반응)
-    const observer = new MutationObserver(() => {
-      // 약간의 지연을 두어 DOM이 완전히 렌더링된 후 실행
+    // MutationObserver로 DOM 변경 감지 (debounce 적용으로 성능 최적화)
+    const debouncedUpdateModalRef = debounce(() => {
       requestAnimationFrame(() => {
         updateModalRef();
       });
-    });
+    }, 150);
+    
+    const observer = new MutationObserver(debouncedUpdateModalRef);
 
     if (chatRef.current) {
       observer.observe(chatRef.current, {
@@ -327,10 +396,10 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       });
     }
 
-    // 주기적으로도 확인 (안전장치)
+    // 주기적으로도 확인 (안전장치 - 빈도 감소로 성능 최적화)
     const intervalId = setInterval(() => {
       updateModalRef();
-    }, 200);
+    }, 500);
 
     return () => {
       observer.disconnect();
@@ -441,7 +510,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     tick();
     setupObserver();
 
-    // modalRef가 변경될 때마다 다시 observe (주기적으로 확인)
+    // modalRef가 변경될 때마다 다시 observe (주기적으로 확인 - 빈도 감소로 성능 최적화)
     const checkModalRef = setInterval(() => {
       if (modalRef.current && ro) {
         try {
@@ -450,7 +519,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           // 이미 observe 중일 수 있음, 무시
         }
       }
-    }, 100);
+    }, 300);
 
     window.addEventListener('resize', tick, { passive: true });
     window.addEventListener('orientationchange', tick, { passive: true });
@@ -534,7 +603,11 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       const response = await fetch('/api/generate-thinking-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userInput: userInput.trim() }),
+        body: JSON.stringify({ 
+          userInput: userInput.trim(),
+          sessionId: chatState.sessionId || null,
+          rowIndex: chatState.rowIndex || null,
+        }),
       });
 
       if (response.ok) {
@@ -552,7 +625,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       console.error('Generate thinking text error:', error);
       setCustomThinkingText(undefined);
     }
-  }, []);
+  }, [chatState.sessionId, chatState.rowIndex]);
 
   const userMessages = useMemo(
     () => chatState.messages.filter((message) => message.role === 'user'),
@@ -575,8 +648,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
       chatState.addMessage(assistantMessage);
       
-      // 답변이 추가되면 사용자 메시지 텍스트 초기화
-      setLastUserMessageText(null);
+      // 답변이 완전히 표시될 때까지 STT 텍스트를 유지하기 위해 여기서는 초기화하지 않음
+      // STT 텍스트는 답변이 완전히 표시된 후(isLoading이 false가 된 후) 초기화됨
 
       // skipTTS가 true이면 TTS 재생하지 않음
       if (!response.skipTTS) {
@@ -735,11 +808,14 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   useEffect(() => {
     const assistantCount = assistantMessages.length;
 
-    if (assistantCount >= 6 && !isConversationEnded && !chatState.isLoading) {
+    // 정확히 6번째 답변일 때만 ending page로 이동
+    if (assistantCount === 6 && !isConversationEnded && !chatState.isLoading) {
+      // 6번째 답변 시 5초 후 자동으로 FinalMessageScreen으로 전환
       const timer = setTimeout(() => {
         setIsConversationEnded(true);
         setShowFifthAnswerWarning(false);
-      }, 1000);
+        setShowFinalMessage(true);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [assistantMessages, isConversationEnded, chatState.isLoading]);
@@ -749,6 +825,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
     if (assistantCount === 5 && !chatState.isLoading && !isConversationEnded && assistantCount < 6) {
       setShowFifthAnswerWarning(true);
+      // 상단 div만 표시 (alert는 표시하지 않음)
+      fifthAnswerAlertShownRef.current = true;
       const timer = setTimeout(() => {
         setShowFifthAnswerWarning(false);
       }, 5000);
@@ -777,6 +855,40 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     };
   }, [chatState.setSystemPrompt]);
 
+  // 스크롤 위치에 따라 블러 opacity 조정 (throttle 적용으로 성능 최적화)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!chatRef.current) return;
+      
+      const scrollTop = chatRef.current.scrollTop;
+      const fadeStart = 0;
+      const fadeEnd = 200; // 200px 스크롤하면 완전히 사라짐
+      
+      if (scrollTop <= fadeStart) {
+        setScrollOpacity(1);
+      } else if (scrollTop >= fadeEnd) {
+        setScrollOpacity(0);
+      } else {
+        // 0 ~ 200px 사이에서 선형적으로 fade out
+        const opacity = 1 - (scrollTop - fadeStart) / (fadeEnd - fadeStart);
+        setScrollOpacity(Math.max(0, Math.min(1, opacity)));
+      }
+    };
+
+    // throttle 적용: 16ms 간격으로 실행 (약 60fps)
+    const throttledHandleScroll = throttle(handleScroll, 16);
+
+    const scrollContainer = chatRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', throttledHandleScroll, { passive: true });
+      handleScroll(); // 초기값 설정
+      
+      return () => {
+        scrollContainer.removeEventListener('scroll', throttledHandleScroll);
+      };
+    }
+  }, []);
+
   const processAudio = useCallback(async (audioBlob: Blob) => {
     voiceState.setIsProcessingVoice(true);
     
@@ -800,9 +912,30 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         voiceState.setIsProcessingVoice(false);
         chatState.setIsLoading(true);
         try {
-          const historyToSend = chatState.chatHistory.slice(-4); // 최근 2턴 (토큰 절감 + 맥락 유지)
-          const nextMessageNumber = chatState.messageNumber + 1;
-          const chatData = await apiRequests.sendChatRequest(result.text, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
+          // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
+          const recentHistory = chatState.chatHistory.slice(-2);
+          const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
+          const keywords = lastAssistantMessage?.content || '';
+          
+      // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
+      const questionWithContext = keywords ? `${keywords} ${result.text}`.trim() : result.text;
+      
+      const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
+      const nextMessageNumber = chatState.messageNumber + 1;
+      
+      // 5번째 또는 6번째 질문인지 확인
+      const currentAssistantCount = assistantMessages.length;
+      let modifiedSystemPrompt = chatState.systemPrompt;
+      
+      if (currentAssistantCount === 4) {
+        // 5번째 질문: 추가 답변 유도 말 금지
+        modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 이번 답변에서는 '더 말씀해주세요', '무엇이 더 궁금하신가요?' 등 또 다른 질문을 요구하는 문장은 절대 포함되어선 안 됨. 간결하게 답변만 제공할 것.`;
+      } else if (currentAssistantCount === 5) {
+        // 6번째 질문: 마무리 인삿말 포함
+        modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 사용자에게 오늘 대화가 어땠는지 만족도를 묻는 것이므로, 이에 대한 답변을 생성할 것. 훈훈하고 따뜻한 끝마침 인삿말로 마무리할 것. 2-3개 문장의 간결한 문장이어야 함.`;
+      }
+      
+      const chatData = await apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
 
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
@@ -1006,8 +1139,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
     const question = chatState.inputValue.trim(); // inputValue를 변수에 저장 (setInputValue 전에)
     
-    // 사용자 메시지 저장 (텍스트 입력 시에도 '생각 중이에요' 화면에서 표시하기 위해)
-    setLastUserMessageText(question);
+    // 텍스트 입력 시에는 '생각 중이에요' 화면에 사용자 메시지를 표시하지 않음 (음성 입력만 표시)
+    setLastUserMessageText(null);
     
     // thinkingText 생성 (사용자 입력 텍스트에서)
     generateThinkingText(question);
@@ -1018,9 +1151,30 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     chatState.setIsLoading(true);
 
     try {
-      const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
+      // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
+      const recentHistory = chatState.chatHistory.slice(-2);
+      const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
+      const keywords = lastAssistantMessage?.content || '';
+      
+      // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
+      const questionWithContext = keywords ? `${keywords} ${question}`.trim() : question;
+      
+      const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
       const nextMessageNumber = chatState.messageNumber + 1;
-      const data = await apiRequests.sendChatRequest(question, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber);
+      
+      // 5번째 또는 6번째 질문인지 확인
+      const currentAssistantCount = assistantMessages.length;
+      let modifiedSystemPrompt = chatState.systemPrompt;
+      
+      if (currentAssistantCount === 4) {
+        // 5번째 질문: 추가 답변 유도 말 금지
+        modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 이번 답변에서는 '더 말씀해주세요', '무엇이 더 궁금하신가요?' 등 또 다른 질문을 요구하는 문장은 절대 포함되어선 안 됨. 간결하게 답변만 제공할 것.`;
+      } else if (currentAssistantCount === 5) {
+        // 6번째 질문: 마무리 인삿말 포함
+        modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 사용자에게 오늘 대화가 어땠는지 만족도를 묻는 것이므로, 이에 대한 답변을 생성할 것. 훈훈하고 따뜻한 끝마침 인삿말로 마무리할 것. 2-3개 문장의 간결한 문장이어야 함.`;
+      }
+      
+      const data = await apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
@@ -1049,6 +1203,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       chatState.setIsLoading(false);
       // 답변이 완료되면 커스텀 thinking 텍스트 초기화
       setCustomThinkingText(undefined);
+      // 답변이 완전히 표시된 후 STT 텍스트 초기화 (thinkingText가 사라진 후)
+      // 텍스트 입력 시에는 이미 null로 설정되어 있으므로 추가 처리 불필요
     }
   }, [
     chatState.addErrorMessage,
@@ -1266,6 +1422,20 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         let name = nameMatch[1];
         // 괄호와 그 안의 내용 제거 (예: "이비티(ebt)" -> "이비티", "핫쵸(Hotcho)" -> "핫쵸")
         name = name.replace(/\s*\([^)]*\)/g, '').trim();
+        
+        // "메가박스 코엑스" -> "메가박스", "코엑스 아쿠아리움" -> "아쿠아리움" 형태로 간소화
+        // 공백으로 분리하여 첫 번째 단어가 "코엑스"면 마지막 단어 사용, 아니면 첫 번째 단어 사용
+        const parts = name.split(/\s+/);
+        if (parts.length > 1) {
+          // "코엑스"로 시작하면 마지막 단어 사용 (예: "코엑스 아쿠아리움" -> "아쿠아리움")
+          // 아니면 첫 번째 단어 사용 (예: "메가박스 코엑스" -> "메가박스")
+          if (parts[0] === '코엑스') {
+            name = parts[parts.length - 1];
+          } else {
+            name = parts[0];
+          }
+        }
+        
         if (name) {
           placeNames.push(name);
         }
@@ -1277,14 +1447,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }
     
     // chip 텍스트 포함하여 통합 텍스트 생성
-    const chipPrefix = chipText ? `${chipText} 오셨다면 ` : '';
+    // 형식: "다함께 갈 수 있는 곳으로 메가박스나 아쿠아리움을 추천드려요"
+    const chipPrefix = chipText ? `${chipText} 갈 수 있는 곳으로 ` : '';
     
     if (placeNames.length === 1) {
-      return `${chipPrefix}${placeNames[0]}를 추천해요`;
+      return `${chipPrefix}${placeNames[0]}를 추천드려요`;
     } else {
-      // "피어커피 또는 테라로사를 추천해요" 형식
-      const placesText = placeNames.slice(0, -1).join(', ') + ' 또는 ' + placeNames[placeNames.length - 1];
-      return `${chipPrefix}${placesText}을 추천해요`;
+      // "메가박스나 아쿠아리움을 추천드려요" 형식
+      const placesText = placeNames.slice(0, -1).join(', ') + '나 ' + placeNames[placeNames.length - 1];
+      return `${chipPrefix}${placesText}을 추천드려요`;
     }
   }, []);
 
@@ -1312,36 +1483,42 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     const matchedQAData = findQAByQuestion(recommendation, selectedOnboardingOption);
     
     if (matchedQAData && matchedQAData.qa.answers.length > 0) {
-      // 첫 scene인지 확인 (메시지가 1개인 경우 - 방금 추가한 user message만 있음)
-      const isFirstScene = chatState.messages.length === 1;
+      // 첫 scene인지 확인 (assistant 메시지가 없는 경우 - 첫 번째 질문)
+      // chatState.messages를 직접 확인하여 더 정확하게 판단
+      const currentAssistantCount = chatState.messages.filter(msg => msg.role === 'assistant').length;
+      const isFirstScene = currentAssistantCount === 0;
       
       // fixedQA의 thinkingText 사용 (있으면)
       if (matchedQAData.topic.thinkingText) {
-        // chip 적용을 위해 CHIP_PARAPHRASING 사용
-        const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
-        const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
-        const thinkingText = matchedQAData.topic.thinkingText.replaceAll("{chip}", selectedParaphrasing);
-        setCustomThinkingText(thinkingText);
-      } else if (isFirstScene) {
-        // thinkingText가 없고 첫 scene인 경우에만 기본 텍스트 사용
-        const thinkingText = `${recommendation}을 생각 중이에요`;
+        // 질문 텍스트에서 사용된 paraphrasingOptions 추출
+        const selectedParaphrasing = extractParaphrasingFromQuestion(recommendation, matchedQAData.topic.questionTemplate, matchedQAData.chipKey);
+        // 추출 실패 시 기본 방법 사용
+        const finalParaphrasing = selectedParaphrasing || (() => {
+          const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
+          const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          return paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+        })();
+        const thinkingText = matchedQAData.topic.thinkingText.replaceAll("{chip}", finalParaphrasing);
         setCustomThinkingText(thinkingText);
       } else {
-        // 이후 질문에서는 기본 텍스트 사용
-        setCustomThinkingText(undefined);
+        // thinkingText가 없으면 generateThinkingText 호출
+        generateThinkingText(recommendation);
       }
       
-      // 첫 scene인 경우 통합 TTS 텍스트 생성
+      // 첫 scene이고 답변이 2개 이상인 경우에만 통합 TTS 텍스트 생성
       let combinedTTSText = '';
       if (isFirstScene && matchedQAData.qa.answers.length > 1) {
         // 새로운 구조에 맞게 answers 변환
         const answersForTTS = matchedQAData.qa.answers.map(a => ({ text: a.text }));
-        // chip 텍스트 추출 (paraphrasing이 이미 적용된 상태)
-        const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
-        const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const selectedParaphrasing = paraphrasingOptions[topicIndex % paraphrasingOptions.length];
-        combinedTTSText = createCombinedTTSText(answersForTTS, selectedParaphrasing);
+        // 질문 텍스트에서 사용된 paraphrasingOptions 추출
+        const selectedParaphrasing = extractParaphrasingFromQuestion(recommendation, matchedQAData.topic.questionTemplate, matchedQAData.chipKey);
+        // 추출 실패 시 기본 방법 사용
+        const finalParaphrasing = selectedParaphrasing || (() => {
+          const paraphrasingOptions = CHIP_PARAPHRASING[matchedQAData.chipKey];
+          const topicIndex = matchedQAData.topic.topicId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          return paraphrasingOptions[topicIndex % paraphrasingOptions.length];
+        })();
+        combinedTTSText = createCombinedTTSText(answersForTTS, finalParaphrasing);
       }
       
       // 모든 answers를 순차적으로 표시
@@ -1398,24 +1575,49 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           await new Promise(resolve => setTimeout(resolve, 500));
         }
         
-        // 첫 scene이고 첫 번째 답변인 경우 통합 TTS 텍스트 사용
-        // 두 번째 답변부터는 TTS 재생하지 않음 (skipTTS 플래그 사용)
-        // 첫 번째 답변에서 combinedTTSText가 없으면 TTS 스킵 (중복 재생 방지)
-        const isFirstAnswerWithCombinedTTS = isFirstScene && i === 0 && combinedTTSText;
-        const shouldSkipTTS = (isFirstScene && i > 0) || (isFirstScene && i === 0 && !combinedTTSText);
-        const ttsTextForFirst = isFirstAnswerWithCombinedTTS ? combinedTTSText : undefined;
-        
-        await pushAssistantMessage({
-          answer: answerText,
-          tokens: undefined,
-          hits: undefined,
-          defaultAnswer: answerText,
-          thumbnailUrl: answerImage, // 이미지 경로 전달
-          siteUrl: answerObj.url, // URL 전달 (새 데이터 구조에서)
-          linkText: answerObj.linkText, // 링크 텍스트 전달
-          ttsText: ttsTextForFirst, // 첫 번째 답변에만 통합 TTS 텍스트 전달
-          skipTTS: shouldSkipTTS, // 두 번째 답변부터, 또는 combinedTTSText가 없으면 TTS 스킵
-        });
+        // 첫 scene이고 답변이 2개 이상인 경우: 첫 번째 답변에서만 통합 TTS 재생, 나머지는 스킵
+        if (isFirstScene && matchedQAData.qa.answers.length > 1 && combinedTTSText) {
+          if (i === 0) {
+            // 첫 번째 답변: 통합 TTS 텍스트 사용
+            await pushAssistantMessage({
+              answer: answerText,
+              tokens: undefined,
+              hits: undefined,
+              defaultAnswer: answerText,
+              thumbnailUrl: answerImage,
+              siteUrl: answerObj.url,
+              linkText: answerObj.linkText,
+              ttsText: combinedTTSText, // 통합 TTS 텍스트만 사용 (반드시 있어야 함)
+              skipTTS: false, // TTS 재생
+            });
+          } else {
+            // 두 번째 답변부터: TTS 명시적으로 스킵
+            await pushAssistantMessage({
+              answer: answerText,
+              tokens: undefined,
+              hits: undefined,
+              defaultAnswer: answerText,
+              thumbnailUrl: answerImage,
+              siteUrl: answerObj.url,
+              linkText: answerObj.linkText,
+              ttsText: undefined,
+              skipTTS: true, // TTS 스킵 (명시적으로 true)
+            });
+          }
+        } else {
+          // 첫 scene이 아니거나 답변이 1개이거나 combinedTTSText가 없는 경우: 기본 동작 (각 답변마다 TTS 재생)
+          await pushAssistantMessage({
+            answer: answerText,
+            tokens: undefined,
+            hits: undefined,
+            defaultAnswer: answerText,
+            thumbnailUrl: answerImage,
+            siteUrl: answerObj.url,
+            linkText: answerObj.linkText,
+            ttsText: undefined,
+            skipTTS: false, // TTS 재생
+          });
+        }
         
         // 각 답변이 추가된 후 최상단으로 스크롤
         setTimeout(() => {
@@ -1427,13 +1629,36 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       // 답변이 완료되면 커스텀 thinking 텍스트 초기화 (첫 번째 질문 이후에는 기본 텍스트 사용)
       setCustomThinkingText(undefined);
     } else {
+      // matchedQAData를 찾지 못한 경우 generateThinkingText 호출
+      generateThinkingText(recommendation);
+      
       try {
-        const historyToSend = chatState.chatHistory.slice(-2); // 최근 1턴만 (토큰 절감)
+        // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
+        const recentHistory = chatState.chatHistory.slice(-2);
+        const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
+        const keywords = lastAssistantMessage?.content || '';
+        
+        // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
+        const questionWithContext = keywords ? `${keywords} ${recommendation}`.trim() : recommendation;
+        
+        const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
         const nextMessageNumber = chatState.messageNumber + 1;
+        
+        // 5번째 또는 6번째 질문인지 확인
+        const currentAssistantCount = assistantMessages.length;
+        let modifiedSystemPrompt = chatState.systemPrompt;
+        
+        if (currentAssistantCount === 4) {
+          // 5번째 질문: 추가 답변 유도 말 금지
+          modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 이번 답변에서는 '더 말씀해주세요', '무엇이 더 궁금하신가요?' 등 또 다른 질문을 요구하는 문장은 절대 포함되어선 안 됨. 간결하게 답변만 제공할 것.`;
+        } else if (currentAssistantCount === 5) {
+          // 6번째 질문: 마무리 인삿말 포함
+          modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 사용자에게 오늘 대화가 어땠는지 만족도를 묻는 것이므로, 이에 대한 답변을 생성할 것. 훈훈하고 따뜻한 끝마침 인삿말로 마무리할 것. 2-3개 문장의 간결한 문장이어야 함.`;
+        }
         
         // API 요청과 최소 대기 시간을 병렬로 실행
         const [data] = await Promise.all([
-          apiRequests.sendChatRequest(recommendation, chatState.systemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber),
+          apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference),
           minWaitTime
         ]);
 
@@ -1459,15 +1684,19 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           chatState.setIsLoading(false);
           // 답변이 완료되면 커스텀 thinking 텍스트 초기화
           setCustomThinkingText(undefined);
+          // 답변이 완전히 표시된 후 STT 텍스트 초기화 (thinkingText가 사라진 후)
+          setLastUserMessageText(null);
         }
       } catch (error) {
         console.error('메시지 전송 실패:', error);
         chatState.addErrorMessage('서버와의 통신에 실패했습니다.');
         chatState.setIsLoading(false);
         setCustomThinkingText(undefined);
+        // 에러 발생 시에도 STT 텍스트 초기화
+        setLastUserMessageText(null);
       }
     }
-  }, [chatState, isConversationEnded, pushAssistantMessage, scrollToTop, selectedOnboardingOption]);
+  }, [chatState, isConversationEnded, pushAssistantMessage, scrollToTop, selectedOnboardingOption, generateThinkingText, assistantMessages.length, createCombinedTTSText]);
 
   const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
     if (isConversationEnded) return null;
@@ -1652,7 +1881,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       )}
 
       <main className="relative flex-1 flex flex-col min-h-0 pt-20" style={{ background: 'transparent', paddingBottom: 0 }}>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" style={{ position: 'relative' }}>
           <div ref={chatRef} className="h-full overflow-y-auto overflow-x-visible px-4 pb-4 space-y-4 overscroll-contain" style={{ minHeight: '100vh', paddingBottom: 'calc(1rem + 60px)' }}>
             {chatState.messages.length === 0 && !chatState.isLoading && !voiceState.isRecording && !voiceState.isProcessingVoice && (
               <div className="flex flex-col items-center justify-start min-h-full text-center" style={{ paddingTop: '80px' }}>
@@ -1787,7 +2016,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                         />
                       </div>
                       
-                      {!selectedKeyword && !showFinalMessage && (
+                      {!selectedKeyword && !showFinalMessage && assistantMessages.length < 6 && (
                         <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-8 pt-4 bg-gradient-to-t from-white/90 to-transparent backdrop-blur-sm safe-bottom">
                           <button
                             onClick={handleEndButton}
@@ -1825,6 +2054,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           paddingBottom: '20%', // 하단 여백을 20%로 변경
                           display: 'flex',
                           flexDirection: 'column',
+                          alignItems: 'center',
+                          marginTop: '20vh', // '이솔이 듣고 있어요' 위치
                           gap: '2px', // 간격을 2px로 더 줄임
                         }}
                       >
@@ -1850,12 +2081,19 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                         }}
                       >
                         {chatState.isLoading ? (
-                          <>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              marginTop: '20vh', // '생각 중이에요'와 '이솔이 듣고 있어요' 동일한 위치
+                            }}
+                          >
                             {/* 사용자 메시지 표시 (STT 처리 후 또는 텍스트 입력 후 '생각 중이에요'로 바뀔 때) */}
                             {lastUserMessageText && (
                               <div
                                 style={{
-                                  marginBottom: '32px', // '생각 중이에요'보다 32px 위에 위치
+                                  marginBottom: '24px', // '생각 중이에요'보다 24px 위에 위치
                                   color: 'rgb(0, 0, 0)',
                                   textAlign: 'center',
                                   fontFamily: 'Pretendard Variable',
@@ -1885,7 +2123,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                               isRecording={false}
                               thinkingText={customThinkingText}
                             />
-                          </>
+                          </div>
                         ) : (
                           <>
                             {(() => {
@@ -1906,21 +2144,92 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                                 ? messages.slice(lastUserMessageIndex + 1).filter(msg => msg.role === 'assistant')
                                 : messages.filter(msg => msg.role === 'assistant');
                               
+                              // 5번째 답변인지 확인
+                              const isFifthAnswerScene = assistantMessages.length === 5 && 
+                                recentAssistantMessages.length === 1 &&
+                                recentAssistantMessages[0] === assistantMessages[assistantMessages.length - 1];
+                              
+                              // 6번째 답변인지 확인
+                              const isSixthAnswerScene = assistantMessages.length === 6 && 
+                                recentAssistantMessages.length === 1 &&
+                                recentAssistantMessages[0] === assistantMessages[assistantMessages.length - 1];
+                              
+                              if (isFifthAnswerScene) {
+                                // 5번째 답변: AI 답변 + 별도 Container (마무리 안내)
+                                return (
+                                  <>
+                                    {recentAssistantMessages.map((message, index) => {
+                                      const animationDelay = index * 500;
+                                      return (
+                                        <div
+                                          key={`${message.role}-${index}-${message.content.substring(0, 20)}`}
+                                          style={{
+                                            opacity: 0,
+                                            animation: `fadeInUp 0.5s ease-out ${animationDelay}ms forwards`,
+                                          }}
+                                        >
+                                          <ChatBubble 
+                                            message={message} 
+                                            isThinking={false}
+                                            onPlayTTS={playFull}
+                                            isPlayingTTS={isPlayingTTS}
+                                            isGlobalLoading={chatState.isLoading}
+                                            typewriterVariant={typewriterVariant}
+                                            isFirstAnswer={false}
+                                            onFeedback={(feedback) => {
+                                              setFeedbackPreference(feedback);
+                                            }}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                    {/* 5번째 답변 후 별도 Container */}
+                                    <div
+                                      key="fifth-answer-container"
+                                      style={{
+                                        opacity: 0,
+                                        animation: `fadeInUp 0.5s ease-out 500ms forwards`,
+                                        marginTop: '16px',
+                                      }}
+                                    >
+                                      <ChatBubble 
+                                        message={{ 
+                                          role: 'assistant', 
+                                          content: '이제 마무리할 시간이에요\n\n오늘 이솔과의 대화는 어땠나요?',
+                                          segments: [
+                                            { text: '이제 마무리할 시간이에요', type: 'closing', index: 0 },
+                                            { text: '오늘 이솔과의 대화는 어땠나요?', type: 'closing', index: 1 }
+                                          ]
+                                        }} 
+                                        isThinking={false}
+                                        onPlayTTS={playFull}
+                                        isPlayingTTS={isPlayingTTS}
+                                        isGlobalLoading={false}
+                                        typewriterVariant={typewriterVariant}
+                                        isFirstAnswer={false}
+                                        onFeedback={(feedback) => {
+                                          setFeedbackPreference(feedback);
+                                        }}
+                                      />
+                                    </div>
+                                  </>
+                                );
+                              }
+                              
                               return recentAssistantMessages.map((message, index) => {
                                 // 각 답변 컨테이너에 순차적 애니메이션 적용
                                 const animationDelay = index * 500; // 0.5초씩 지연
                                 
-                                // 첫 번째 scene에서 출력된 답변들인지 확인
-                                // 첫 번째 scene에서는 답변이 2개 출력되므로, 둘 다 피드백 UI 표시
-                                // 조건:
-                                // 1. recentAssistantMessages의 첫 번째 메시지가 전체 대화의 첫 번째 assistant 메시지
-                                // 2. 첫 번째 scene의 답변들 (index 0, 1)에만 피드백 UI 표시
-                                // 3. 첫 번째 scene인 경우 보통 2개 답변이 출력됨
+                                // 피드백 UI를 표시할 답변인지 확인
+                                // 1. 첫 번째 scene의 답변들 (index 0, 1)
                                 const isFirstSceneAnswers = assistantMessages.length > 0 && 
                                   assistantMessages[0] === recentAssistantMessages[0] &&
                                   index < 2 && // 첫 번째 scene의 답변은 최대 2개 (index 0, 1)
                                   recentAssistantMessages.length >= 1 && // 최소 1개 이상
                                   recentAssistantMessages.length <= 2; // 첫 번째 scene인 경우 보통 2개 답변
+                                
+                                // 6번째 답변인지 확인
+                                const isSixthAnswer = isSixthAnswerScene && index === 0;
                                 
                                 return (
                                   <div
@@ -1928,6 +2237,12 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                                     style={{
                                       opacity: 0,
                                       animation: `fadeInUp 0.5s ease-out ${animationDelay}ms forwards`,
+                                      ...(isSixthAnswer ? {
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        minHeight: '50vh',
+                                      } : {}),
                                     }}
                                   >
                                     <ChatBubble 
@@ -1938,6 +2253,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                                       isGlobalLoading={chatState.isLoading}
                                       typewriterVariant={typewriterVariant}
                                       isFirstAnswer={isFirstSceneAnswers}
+                                      onFeedback={(feedback) => {
+                                        setFeedbackPreference(feedback);
+                                      }}
                                     />
                                   </div>
                                 );
@@ -1953,6 +2271,32 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
             )}
           </div>
         </div>
+        
+        {/* 상단 그라데이션 블러 효과 (스크롤에 따라 점차 사라짐) - 숨김 처리 */}
+        {/* <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            opacity: scrollOpacity,
+            transition: 'opacity 0.1s ease-out',
+            pointerEvents: 'none',
+          }}
+        >
+          <GradualBlur
+            target="page"
+            position="top"
+            height="4rem"
+            strength={2}
+            divCount={5}
+            curve="bezier"
+            exponential={true}
+            opacity={1}
+            bgColor="linear-gradient(180deg, rgba(230, 220, 255, 0.5) 0%, rgba(220, 210, 255, 0.35) 40%, rgba(210, 200, 245, 0.2) 70%, transparent 100%)"
+          />
+        </div> */}
       </main>
 
       {!showSummary && !showEndMessage && !showFinalMessage && (
@@ -2254,7 +2598,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           inset: 0;
           pointer-events: none;
           z-index: -1;
-          opacity: 0;
+          opacity: 1; /* 항상 보이도록 opacity를 1로 설정 */
           /* 항상 왼쪽이 더 진해지도록 "좌측 음영" 레이어를 추가 */
           background:
             linear-gradient(90deg,
@@ -2294,7 +2638,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           /* 회색빛 방지: 채도는 한 단계 더 올리고, 명도는 유지 */
           filter: saturate(1.22) brightness(1.03);
           animation:
-            v10PinkPulse 9s ease-in-out infinite,
             v10PulseTintCycle 20s ease-in-out infinite,
             v10BottomDrift 6.5s ease-in-out infinite;
           will-change: opacity, filter, background-position;
@@ -2328,11 +2671,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           pointer-events: none !important;
         }
         
-        @keyframes v10PinkPulse {
-          0%, 100% { opacity: 0; }
-          45%, 55% { opacity: 0.58; }
-        }
-
         /* 하단 눌림 레이어(곡선/대각선)만 아주 미세하게 좌우로 드리프트 */
         @keyframes v10BottomDrift {
           0%, 100% {

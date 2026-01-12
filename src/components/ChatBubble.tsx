@@ -246,15 +246,18 @@ const siteLinkWrapperStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   borderRadius: '99px',
-  background: '#ffffff',
-  border: '1px solid rgba(255,255,255,0.42)',
-  boxShadow: '0 2px 2px rgba(22, 42, 58, 0.05), inset 0 1px 0 rgba(255,255,255,0.1)',
+  background: 'linear-gradient(135deg, rgba(80, 60, 90, 0.2) 0%, rgba(70, 50, 80, 0.15) 100%)',
+  border: '1px solid rgba(100, 70, 110, 0.25)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 6px rgba(0, 0, 0, 0.15)',
   textDecoration: 'none',
+  backdropFilter: 'blur(16px) saturate(1.4)',
+  WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+  mixBlendMode: 'overlay',
   cursor: 'pointer',
 } as const;
 
 const siteLinkTextStyle: React.CSSProperties = {
-  color: '#000',
+  color: '#ffffff',
   textAlign: 'center',
   fontFamily: 'Pretendard Variable',
   fontSize: '12px',
@@ -262,11 +265,13 @@ const siteLinkTextStyle: React.CSSProperties = {
   fontWeight: 500,
   lineHeight: '150%',
   letterSpacing: '-0.36px',
+  textShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
 } as const;
 
 const siteLinkIconStyle: React.CSSProperties = {
   width: '16px',
   height: '16px',
+  filter: 'brightness(0) invert(1)',
 } as const;
 
 const AssistantGlassStyles = () => (
@@ -825,113 +830,170 @@ const FeedbackComponent: React.FC<{
   isVisible: boolean;
 }> = ({ onFeedback, isVisible }) => {
   const [selectedFeedback, setSelectedFeedback] = useState<'negative' | 'positive' | null>(null);
+  const [showFeedbackText, setShowFeedbackText] = useState(false);
 
   const handleFeedbackClick = (feedback: 'negative' | 'positive') => {
     if (selectedFeedback) return; // 이미 선택된 경우 무시
     setSelectedFeedback(feedback);
-    onFeedback(feedback);
+    
+    // fade-out 애니메이션 후 피드백 텍스트 표시
+    setTimeout(() => {
+      setShowFeedbackText(true);
+      onFeedback(feedback);
+    }, 400); // fade-out duration과 맞춤
   };
 
   if (!isVisible) return null;
 
+  const feedbackMessages = {
+    negative: '아, 아쉬우셨군요.\n다음부터는 이솔이 다른 주제를 답변해볼게요!',
+    positive: '이런 답변을 원하시는군요.\n좋아요, 이솔이 비슷한 답변을 생각해볼게요!',
+  };
+
   return (
     <div
-      className="mt-4 flex items-center justify-center gap-3"
+      className="mt-4"
       style={{
         opacity: isVisible ? 1 : 0,
         transition: 'opacity 0.4s ease-in-out',
       }}
     >
-      {/* '추천이 적절했나요?' 텍스트 */}
-      <div
-        style={{
-          color: 'rgba(112, 60, 161, 0.70)',
-          fontFamily: 'Pretendard Variable',
-          fontSize: '14px',
-          fontStyle: 'normal',
-          fontWeight: 500,
-          lineHeight: '140%',
-          letterSpacing: '-0.56px',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        추천이 적절했나요?
-      </div>
-
-      {/* 버튼 2개 */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-        }}
-      >
-        <button
-          onClick={() => handleFeedbackClick('negative')}
-          disabled={selectedFeedback !== null}
+      {!showFeedbackText ? (
+        // 초기 상태: '추천이 적절했나요?' 텍스트 + 버튼 2개
+        <div
           style={{
-            borderRadius: '24px',
-            border: '1px solid #D2D2FC',
-            background: selectedFeedback === 'negative'
-              ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
-              : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
-            boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
-            padding: '6px 16px',
-            cursor: selectedFeedback !== null ? 'default' : 'pointer',
-            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            opacity: selectedFeedback === null ? 1 : 0,
+            transition: 'opacity 0.4s ease-in-out',
           }}
         >
-          <span
+          {/* '추천이 적절했나요?' 텍스트 */}
+          <div
             style={{
+              color: 'rgba(112, 60, 161, 0.70)',
               fontFamily: 'Pretendard Variable',
-              fontSize: '13px',
+              fontSize: '14px',
               fontStyle: 'normal',
               fontWeight: 500,
               lineHeight: '140%',
-              letterSpacing: '-0.6px',
-              background: 'linear-gradient(97deg, #000 42.46%, #DACDFC 94.61%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              letterSpacing: '-0.56px',
+              whiteSpace: 'nowrap',
             }}
           >
-            조금 아쉬워요
-          </span>
-        </button>
+            추천이 적절했나요?
+          </div>
 
-        <button
-          onClick={() => handleFeedbackClick('positive')}
-          disabled={selectedFeedback !== null}
+          {/* 버튼 2개 */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+            }}
+          >
+            <button
+              onClick={() => handleFeedbackClick('negative')}
+              disabled={selectedFeedback !== null}
+              style={{
+                borderRadius: '24px',
+                border: '1px solid #D2D2FC',
+                background: selectedFeedback === 'negative'
+                  ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
+                  : 'linear-gradient(131deg, rgba(255, 255, 255, 0.25) 13.16%, rgba(230, 210, 255, 0.55) 50%, rgba(223, 223, 255, 0.65) 71.01%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                backdropFilter: 'blur(16px) saturate(1.4)',
+                WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+                padding: '8px 16px',
+                cursor: selectedFeedback !== null ? 'default' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '13px',
+                  fontStyle: 'normal',
+                  fontWeight: 500,
+                  lineHeight: '140%',
+                  letterSpacing: '-0.6px',
+                  color: 'rgba(112, 60, 161, 0.70)',
+                }}
+              >
+                조금 아쉬워요
+              </span>
+            </button>
+
+            <button
+              onClick={() => handleFeedbackClick('positive')}
+              disabled={selectedFeedback !== null}
+              style={{
+                borderRadius: '24px',
+                border: '1px solid #D2D2FC',
+                background: selectedFeedback === 'positive'
+                  ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
+                  : 'linear-gradient(131deg, rgba(255, 255, 255, 0.25) 13.16%, rgba(230, 210, 255, 0.55) 50%, rgba(223, 223, 255, 0.65) 71.01%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                backdropFilter: 'blur(16px) saturate(1.4)',
+                WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+                padding: '8px 16px',
+                cursor: selectedFeedback !== null ? 'default' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: '13px',
+                  fontStyle: 'normal',
+                  fontWeight: 500,
+                  lineHeight: '140%',
+                  letterSpacing: '-0.6px',
+                  color: 'rgba(112, 60, 161, 0.70)',
+                }}
+              >
+                잘 맞아요
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        // 피드백 선택 후: 피드백 메시지 텍스트
+        <div
           style={{
-            borderRadius: '24px',
-            border: '1px solid #D2D2FC',
-            background: selectedFeedback === 'positive'
-              ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
-              : 'linear-gradient(131deg, rgba(255, 255, 255, 0.20) 13.16%, rgba(223, 223, 255, 0.68) 71.01%)',
-            boxShadow: '0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
-            padding: '6px 16px',
-            cursor: selectedFeedback !== null ? 'default' : 'pointer',
-            transition: 'all 0.2s ease',
+            opacity: 0,
+            animation: 'fadeIn 0.4s ease-in-out forwards',
+            textAlign: 'left',
           }}
         >
-          <span
+          <div
             style={{
+              color: 'rgba(112, 60, 161, 0.70)',
               fontFamily: 'Pretendard Variable',
-              fontSize: '13px',
+              fontSize: '14px',
               fontStyle: 'normal',
               fontWeight: 500,
               lineHeight: '140%',
-              letterSpacing: '-0.6px',
-              background: 'linear-gradient(97deg, #000 42.46%, #DACDFC 94.61%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              letterSpacing: '-0.56px',
+              whiteSpace: 'pre-line',
             }}
           >
-            잘 맞아요
-          </span>
-        </button>
-      </div>
+            {selectedFeedback && feedbackMessages[selectedFeedback]}
+          </div>
+        </div>
+      )}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 };
@@ -1053,7 +1115,8 @@ const SegmentedMessageComponent: React.FC<{
   typewriterVariant: TypewriterVariant;
   glassStyleVariant?: GlassStyleVariant;
   isFirstAnswer?: boolean;
-}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2', isFirstAnswer = false }) => {
+  onFeedback?: (feedback: 'negative' | 'positive') => void;
+}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2', isFirstAnswer = false, onFeedback }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
 
@@ -1382,8 +1445,9 @@ const SegmentedMessageComponent: React.FC<{
                 {isFirstAnswer && (
                   <Feedback 
                     onFeedback={(feedback) => {
-                      console.log('Feedback received:', feedback);
-                      // TODO: 피드백 처리 로직 추가
+                      if (onFeedback) {
+                        onFeedback(feedback);
+                      }
                     }}
                     isVisible={shouldShowSite && isSiteVisible}
                   />
@@ -1457,6 +1521,7 @@ const SingleMessageComponent: React.FC<{
   isRecording?: boolean;
   thinkingText?: string; // 커스텀 thinking 텍스트
   isFirstAnswer?: boolean;
+  onFeedback?: (feedback: 'negative' | 'positive') => void;
 }> = ({
   message,
   isThinking,
@@ -1468,6 +1533,7 @@ const SingleMessageComponent: React.FC<{
   glassStyleVariant = 'v2',
   isRecording = false,
   isFirstAnswer = false,
+  onFeedback,
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
@@ -1716,7 +1782,7 @@ const SingleMessageComponent: React.FC<{
               ...((isThinking || isRecording) ? {
                 width: 'auto',
                 minWidth: '120px',
-                marginTop: '20vh', // '생각 중이에요'와 '이솔이 듣고 있어요' 동일한 위치
+                marginTop: '0', // marginTop 제거 (상위 컨테이너에서 위치 조정)
                 // auto width에서는 transition 제거 (텍스트를 감쌀 수 있도록)
               } : (!isThinking && message.content && message.content.length > 0 ? {
                 width: loadingWidth,
@@ -1732,13 +1798,40 @@ const SingleMessageComponent: React.FC<{
                 fontSize: '18px',
                 fontWeight: 600,
                 lineHeight: '130%',
-                whiteSpace: 'nowrap',
+                whiteSpace: (() => {
+                  const text = isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요');
+                  return text.length > 10 ? 'pre-line' : 'nowrap';
+                })(),
                 textAlign: 'center',
                 display: 'block',
                 width: '100%',
+                wordBreak: 'keep-all',
+                overflowWrap: 'break-word',
+                maxHeight: 'calc(1.3em * 2)', // 최대 2줄 (lineHeight 130%)
+                overflow: 'hidden',
               }}
             >
-              {isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요')}
+              {(() => {
+                const text = isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요');
+                if (text.length <= 10) {
+                  return text;
+                }
+                
+                // 10자 초과 시 단어 기준으로 줄바꿈 (최대 2줄)
+                const words = text.split(/\s+/).filter(w => w.length > 0);
+                if (words.length === 0) return text;
+                
+                // 단어가 1개면 그대로 반환
+                if (words.length === 1) return text;
+                
+                // 단어를 적절히 2줄로 나누기 (절반 지점 기준)
+                const midPoint = Math.ceil(words.length / 2);
+                const line1 = words.slice(0, midPoint).join(' ');
+                const line2 = words.slice(midPoint).join(' ');
+                
+                // 최대 2줄까지만 표시
+                return `${line1}\n${line2}`;
+              })()}
             </span>
           ) : (
             <>
@@ -1867,8 +1960,9 @@ const SingleMessageComponent: React.FC<{
                     {isFirstAnswer && (
                       <Feedback 
                         onFeedback={(feedback) => {
-                          console.log('Feedback received:', feedback);
-                          // TODO: 피드백 처리 로직 추가
+                          if (onFeedback) {
+                            onFeedback(feedback);
+                          }
                         }}
                         isVisible={shouldShowSite && isSiteVisible}
                       />
@@ -1917,7 +2011,8 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
   glassStyleVariant = 'v2',
   isRecording = false,
   thinkingText,
-  isFirstAnswer = false
+  isFirstAnswer = false,
+  onFeedback
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -1929,6 +2024,7 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
         typewriterVariant={typewriterVariant}
         glassStyleVariant={glassStyleVariant}
         isFirstAnswer={isFirstAnswer}
+        onFeedback={onFeedback}
       />
     );
   }
@@ -1946,6 +2042,7 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
       isRecording={isRecording}
       thinkingText={thinkingText}
       isFirstAnswer={isFirstAnswer}
+      onFeedback={onFeedback}
     />
   );
 };
