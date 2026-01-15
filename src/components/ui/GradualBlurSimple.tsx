@@ -1,5 +1,4 @@
 import React from 'react';
-import { range } from 'mathjs';
 
 const GradualBlurSimple = ({ 
   height = '4rem', 
@@ -15,7 +14,7 @@ const GradualBlurSimple = ({
       pointerEvents: 'none',
       zIndex: 1000,
     }}>
-      {range(0, step, false).toArray().map((i) => (
+      {Array.from({ length: step }, (_, i) => i).map((i) => (
         <div
           key={i}
           style={{
