@@ -242,36 +242,36 @@ const KEYWORD_MATCH_REGEX = /''(.*?)''|'([^']+)'|""(.*?)""|\*\*(.*?)\*\*/;
 
 const siteLinkWrapperStyle: React.CSSProperties = {
   display: 'inline-flex',
-  padding: '6px 12px',
+  padding: '8px 16px',
   alignItems: 'center',
   gap: '6px',
-  borderRadius: '99px',
-  background: 'linear-gradient(135deg, rgba(80, 60, 90, 0.2) 0%, rgba(70, 50, 80, 0.15) 100%)',
-  border: '1px solid rgba(100, 70, 110, 0.25)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 6px rgba(0, 0, 0, 0.15)',
+  borderRadius: '24px',
+  background: 'linear-gradient(131deg, rgba(255, 255, 255, 0.25) 13.16%, rgba(230, 210, 255, 0.55) 50%, rgba(223, 223, 255, 0.65) 71.01%)',
+  border: '1px solid #D2D2FC',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
   textDecoration: 'none',
   backdropFilter: 'blur(16px) saturate(1.4)',
   WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
-  mixBlendMode: 'overlay',
   cursor: 'pointer',
+  transition: 'all 0.2s ease',
 } as const;
 
 const siteLinkTextStyle: React.CSSProperties = {
-  color: '#ffffff',
+  color: 'rgba(112, 60, 161, 0.70)',
   textAlign: 'center',
   fontFamily: 'Pretendard Variable',
-  fontSize: '12px',
+  fontSize: '13px',
   fontStyle: 'normal',
   fontWeight: 500,
-  lineHeight: '150%',
-  letterSpacing: '-0.36px',
-  textShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
+  lineHeight: '140%',
+  letterSpacing: '-0.6px',
 } as const;
 
 const siteLinkIconStyle: React.CSSProperties = {
   width: '16px',
   height: '16px',
-  filter: 'brightness(0) invert(1)',
+  filter: 'none',
+  opacity: 0.7,
 } as const;
 
 const AssistantGlassStyles = () => (
@@ -556,8 +556,11 @@ const removeLastSentence = (text: string) => {
 };
 
 /**
- * 헤드라인 텍스트에서 15글자 미만 줄을 방지하는 함수
- * CSS 자동 줄바꿈을 시뮬레이션하고, 너무 짧은 줄이 생기면 앞 줄에서 단어를 이동
+ * 개선된 텍스트 줄바꿈 로직
+ * 1. 기본 줄 길이 유지 (기존 로직 존중) - estimatedCharsPerLine = 20 유지
+ * 2. 단어 단위 줄바꿈 적용 (단어가 잘리지 않도록 공백 단위로만 줄바꿈)
+ * 3. 외줄 단어 방지 (마지막 줄에 단어 1개만 남는 경우 방지)
+ * 4. 문맥 우선 순위 (마침표, 쉼표 등에서 우선 줄바꿈)
  * 키워드가 있는 경우 키워드는 반드시 한 줄에 유지
  */
 const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): string => {
@@ -581,16 +584,25 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     }
   }
 
-  // 텍스트를 단어 단위로 분할하되, 키워드 위치 정보도 함께 관리
-  const words: Array<{ word: string; isKeyword: boolean; keywordIndex?: number }> = [];
+  // 텍스트를 단어 단위로 분할하되, 키워드와 문맥 구분자 정보도 함께 관리
+  const words: Array<{ word: string; isKeyword: boolean; keywordIndex?: number; hasContextBreak?: boolean }> = [];
   let lastIndex = 0;
   
   keywordMatches.forEach((keywordMatch, idx) => {
-    // 키워드 이전 텍스트를 단어로 분할
+    // 키워드 이전 텍스트를 단어로 분할 (문맥 구분자 고려)
     const beforeText = text.substring(lastIndex, keywordMatch.start).trim();
     if (beforeText) {
-      beforeText.split(/\s+/).forEach(word => {
-        if (word) words.push({ word, isKeyword: false });
+      // 문맥 구분자를 기준으로 단어 분할
+      const segments = beforeText.split(/([.,!?。，！？]\s*)/);
+      segments.forEach(segment => {
+        if (segment.trim()) {
+          segment.split(/\s+/).forEach(word => {
+            if (word) {
+              const hasBreak = /[.,!?。，！？]/.test(word);
+              words.push({ word, isKeyword: false, hasContextBreak: hasBreak });
+            }
+          });
+        }
       });
     }
     
@@ -599,11 +611,19 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     lastIndex = keywordMatch.end;
   });
   
-  // 키워드 이후 텍스트를 단어로 분할
+  // 키워드 이후 텍스트를 단어로 분할 (문맥 구분자 고려)
   const afterText = text.substring(lastIndex).trim();
   if (afterText) {
-    afterText.split(/\s+/).forEach(word => {
-      if (word) words.push({ word, isKeyword: false });
+    const segments = afterText.split(/([.,!?。，！？]\s*)/);
+    segments.forEach(segment => {
+      if (segment.trim()) {
+        segment.split(/\s+/).forEach(word => {
+          if (word) {
+            const hasBreak = /[.,!?。，！？]/.test(word);
+            words.push({ word, isKeyword: false, hasContextBreak: hasBreak });
+          }
+        });
+      }
     });
   }
 
@@ -611,25 +631,24 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     return text;
   }
 
-  // 줄바꿈을 계산하기 위한 기준
+  // 줄바꿈을 계산하기 위한 기준 (기존 로직 존중)
   // assistantHeadlineTextStyle의 fontSize는 18px, width는 86% (대략 280px)
   // 한글 기준으로 대략 18px 폰트에서 컨테이너 너비 약 280px = 약 15-16글자 정도
   const estimatedCharsPerLine = 20;
+  const thresholdChars = 22; // 임계값 기준 정렬 (20~25자 중간값)
   
   const lines: string[] = [];
   let currentLine = '';
   let currentLineContainsKeyword = false;
   
-  // 초기 줄바꿈 계산 (키워드는 반드시 한 줄에 유지)
+  // 1단계: 초기 줄바꿈 계산 (단어 단위, 문맥 우선)
   for (let i = 0; i < words.length; i++) {
     const wordInfo = words[i];
     const word = wordInfo.word;
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     
-    // 키워드인 경우: 현재 줄이 비어있거나, 키워드가 한 줄에 들어갈 수 있으면 추가
+    // 키워드인 경우: 반드시 한 줄에 유지
     if (wordInfo.isKeyword) {
-      // 키워드는 반드시 한 줄에 있어야 함
-      // 현재 줄에 다른 내용이 있고 키워드를 추가하면 줄이 너무 길어지면 새 줄 시작
       if (currentLine && testLine.length > estimatedCharsPerLine) {
         lines.push(currentLine);
         currentLine = word;
@@ -639,11 +658,21 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
         currentLineContainsKeyword = true;
       }
     } else {
-      // 일반 단어인 경우
-      // 현재 줄에 키워드가 있으면, 키워드 이후에도 한 줄에 넣을 수 있는지 확인
+      // 문맥 구분자가 있는 경우: 임계값 근처에서 우선 줄바꿈 (문맥 우선 순위)
+      if (wordInfo.hasContextBreak && currentLine) {
+        const currentLength = currentLine.length;
+        // 임계값 근처(±3자)에서 문맥 구분자가 있으면 줄바꿈
+        if (currentLength >= thresholdChars - 3 && currentLength <= thresholdChars + 3) {
+          lines.push(testLine);
+          currentLine = '';
+          currentLineContainsKeyword = false;
+          continue;
+        }
+      }
+      
+      // 일반 단어인 경우: 단어 단위 줄바꿈 (단어가 잘리지 않도록)
       if (currentLineContainsKeyword) {
         // 키워드가 포함된 줄은 더 신중하게 처리
-        // 키워드가 포함된 줄이 너무 길어지면 새 줄로 이동
         if (testLine.length > estimatedCharsPerLine && currentLine) {
           lines.push(currentLine);
           currentLine = word;
@@ -652,7 +681,7 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
           currentLine = testLine;
         }
       } else {
-        // 일반 줄바꿈 로직
+        // 일반 줄바꿈 로직: 단어가 잘리지 않도록 공백 단위로만 줄바꿈
         if (testLine.length > estimatedCharsPerLine && currentLine) {
           lines.push(currentLine);
           currentLine = word;
@@ -669,13 +698,33 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
     lines.push(currentLine);
   }
 
-  // 모든 줄이 15글자 이상이 되도록 조정 (마지막 줄 포함)
-  // 키워드가 포함된 줄도 조정 가능 (단, 키워드 자체는 분할하지 않음)
+  // 2단계: 외줄 단어 방지 (마지막 줄에 단어 1개만 남는 경우)
+  if (lines.length > 1) {
+    const lastLineWords = lines[lines.length - 1].split(/\s+/).filter(w => w.length > 0);
+    const secondLastLineWords = lines[lines.length - 2].split(/\s+/).filter(w => w.length > 0);
+    
+    // 마지막 줄에 단어가 1개만 있고, 앞 줄에 단어가 2개 이상인 경우
+    if (lastLineWords.length === 1 && secondLastLineWords.length >= 2) {
+      const lastWord = lastLineWords[0];
+      const isLastWordKeyword = keywordMatches.some(km => lastWord === km.keyword);
+      
+      // 키워드가 아닌 경우에만 앞 줄의 마지막 단어와 함께 아래로 내림
+      if (!isLastWordKeyword) {
+        const secondLastWord = secondLastLineWords.pop();
+        if (secondLastWord) {
+          lines[lines.length - 2] = secondLastLineWords.join(' ');
+          lines[lines.length - 1] = `${secondLastWord} ${lastWord}`;
+        }
+      }
+    }
+  }
+
+  // 3단계: 시각적 균형 보정 (너무 짧은 줄이 생기지 않도록)
   for (let i = lines.length - 1; i >= 0; i--) {
     const lineLength = lines[i].replace(/\s/g, '').length; // 공백 제외한 실제 글자 수
     
+    // 너무 짧은 줄(최소 길이 미만)이 있고, 앞 줄이 있는 경우
     if (lineLength < minLineLength && i > 0) {
-      // 앞 줄에서 단어를 가져와서 현재 줄을 채움
       const prevLineWords = lines[i - 1].split(/\s+/).filter(w => w.length > 0);
       const currentLineWords = lines[i].split(/\s+/).filter(w => w.length > 0);
       
@@ -683,8 +732,7 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
       const lastPrevWord = prevLineWords[prevLineWords.length - 1];
       const isLastPrevWordKeyword = keywordMatches.some(km => lastPrevWord === km.keyword);
       
-      // 앞 줄의 마지막 단어를 현재 줄 앞에 추가 (키워드가 아닌 경우만)
-      // 키워드가 포함된 줄도 조정 가능하지만, 키워드 자체는 분할하지 않음
+      // 앞 줄에 단어가 2개 이상이고, 마지막 단어가 키워드가 아닌 경우
       if (prevLineWords.length > 1 && !isLastPrevWordKeyword) {
         const lastWord = prevLineWords.pop();
         if (lastWord) {
@@ -694,9 +742,6 @@ const adjustHeadlineLineBreaks = (text: string, minLineLength: number = 20): str
       }
     }
   }
-
-  // 텍스트가 잘리지 않도록 모든 줄을 표시 (2줄 이상도 허용)
-  // 문장이 중간에 잘리지 않도록 모든 줄을 유지
 
   // 줄바꿈 문자로 조인하여 반환
   // white-space: pre-wrap이 이를 유지하여 렌더링
@@ -831,6 +876,7 @@ const FeedbackComponent: React.FC<{
 }> = ({ onFeedback, isVisible }) => {
   const [selectedFeedback, setSelectedFeedback] = useState<'negative' | 'positive' | null>(null);
   const [showFeedbackText, setShowFeedbackText] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
 
   const handleFeedbackClick = (feedback: 'negative' | 'positive') => {
     if (selectedFeedback) return; // 이미 선택된 경우 무시
@@ -840,7 +886,19 @@ const FeedbackComponent: React.FC<{
     setTimeout(() => {
       setShowFeedbackText(true);
       onFeedback(feedback);
+      
+      // '잘 맞아요'를 클릭한 경우 추가 버튼 표시
+      if (feedback === 'positive') {
+        setTimeout(() => {
+          setShowContinueButton(true);
+        }, 400);
+      }
     }, 400); // fade-out duration과 맞춤
+  };
+
+  const handleContinueRecommendation = () => {
+    // TODO: 계속 추천 기능 구현
+    console.log('계속 추천 요청');
   };
 
   if (!isVisible) return null;
@@ -899,11 +957,11 @@ const FeedbackComponent: React.FC<{
               disabled={selectedFeedback !== null}
               style={{
                 borderRadius: '24px',
-                border: '1px solid #D2D2FC',
+                border: '1px solid rgba(200, 180, 230, 0.5)',
                 background: selectedFeedback === 'negative'
-                  ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
-                  : 'linear-gradient(131deg, rgba(255, 255, 255, 0.25) 13.16%, rgba(230, 210, 255, 0.55) 50%, rgba(223, 223, 255, 0.65) 71.01%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                  ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(230, 210, 255, 0.7) 50%, rgba(220, 200, 250, 0.6) 100%)'
+                  : 'linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(230, 210, 255, 0.6) 50%, rgba(220, 200, 250, 0.5) 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
                 backdropFilter: 'blur(16px) saturate(1.4)',
                 WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
                 padding: '8px 16px',
@@ -931,11 +989,11 @@ const FeedbackComponent: React.FC<{
               disabled={selectedFeedback !== null}
               style={{
                 borderRadius: '24px',
-                border: '1px solid #D2D2FC',
+                border: '1px solid rgba(200, 180, 230, 0.5)',
                 background: selectedFeedback === 'positive'
-                  ? 'linear-gradient(131deg, rgba(255, 255, 255, 0.30) 13.16%, rgba(223, 223, 255, 0.78) 71.01%)'
-                  : 'linear-gradient(131deg, rgba(255, 255, 255, 0.25) 13.16%, rgba(230, 210, 255, 0.55) 50%, rgba(223, 223, 255, 0.65) 71.01%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                  ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(230, 210, 255, 0.7) 50%, rgba(220, 200, 250, 0.6) 100%)'
+                  : 'linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(230, 210, 255, 0.6) 50%, rgba(220, 200, 250, 0.5) 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
                 backdropFilter: 'blur(16px) saturate(1.4)',
                 WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
                 padding: '8px 16px',
@@ -982,6 +1040,52 @@ const FeedbackComponent: React.FC<{
           >
             {selectedFeedback && feedbackMessages[selectedFeedback]}
           </div>
+          
+          {/* '잘 맞아요' 클릭 시 추가 버튼 표시 */}
+          {showContinueButton && selectedFeedback === 'positive' && (
+            <div
+              style={{
+                marginTop: '12px',
+                opacity: 0,
+                animation: 'fadeIn 0.4s ease-in-out forwards',
+              }}
+            >
+              <button
+                onClick={handleContinueRecommendation}
+                style={{
+                  borderRadius: '24px',
+                  border: '1px solid rgba(200, 180, 230, 0.4)',
+                  background: 'rgba(240, 230, 255, 0.45)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                  backdropFilter: 'blur(16px) saturate(1.4)',
+                  WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(240, 230, 255, 0.6)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(240, 230, 255, 0.45)';
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Pretendard Variable',
+                    fontSize: '13px',
+                    fontStyle: 'normal',
+                    fontWeight: 500,
+                    lineHeight: '140%',
+                    letterSpacing: '-0.6px',
+                    color: 'rgba(112, 60, 161, 0.70)',
+                  }}
+                >
+                  이런 방향으로 계속 추천
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       )}
       <style jsx>{`

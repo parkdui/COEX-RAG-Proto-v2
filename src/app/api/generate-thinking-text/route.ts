@@ -96,6 +96,7 @@ async function generateThinkingTextWithClova(userInput: string): Promise<{ text:
   }
 
   const json = await res.json();
+  console.log('[generateThinkingTextWithClova] CLOVA API 응답:', JSON.stringify(json, null, 2));
   
   // 토큰 사용량 추출
   const usage = json?.result?.usage || json?.usage || {};
@@ -103,9 +104,31 @@ async function generateThinkingTextWithClova(userInput: string): Promise<{ text:
   const thinkingOutput = Number(usage.completionTokens ?? 0);
   const thinkingTotal = Number(usage.totalTokens ?? thinkingInput + thinkingOutput);
   
-  const thinkingText = json?.result?.message?.content?.[0]?.text || 
-                      json?.choices?.[0]?.message?.content || 
-                      "";
+  // 다양한 응답 구조 지원
+  let thinkingText = "";
+  
+  // HCX-005 모델 응답 구조 확인
+  if (json?.result?.message?.content) {
+    // 배열인 경우
+    if (Array.isArray(json.result.message.content)) {
+      thinkingText = json.result.message.content[0]?.text || json.result.message.content[0] || "";
+    } else {
+      // 문자열인 경우
+      thinkingText = json.result.message.content || "";
+    }
+  } else if (json?.choices?.[0]?.message?.content) {
+    // 다른 응답 구조
+    if (Array.isArray(json.choices[0].message.content)) {
+      thinkingText = json.choices[0].message.content[0]?.text || json.choices[0].message.content[0] || "";
+    } else {
+      thinkingText = json.choices[0].message.content || "";
+    }
+  } else if (json?.result?.message) {
+    // 직접 메시지 객체
+    thinkingText = json.result.message || "";
+  }
+  
+  console.log('[generateThinkingTextWithClova] 추출된 thinkingText:', thinkingText);
 
   // 응답 정리
   let cleanedText = thinkingText.trim();
@@ -115,6 +138,11 @@ async function generateThinkingTextWithClova(userInput: string): Promise<{ text:
   
   // 따옴표 제거
   cleanedText = cleanedText.replace(/^["']|["']$/g, '').trim();
+  
+  // 줄바꿈 제거
+  cleanedText = cleanedText.replace(/\n/g, ' ').trim();
+
+  console.log('[generateThinkingTextWithClova] 정리된 thinkingText:', cleanedText);
 
   return {
     text: cleanedText || "알아보고 있어요", // 실패 시 기본값
@@ -127,13 +155,20 @@ async function generateThinkingTextWithClova(userInput: string): Promise<{ text:
 }
 
 export async function POST(request: NextRequest) {
+  let userInput = "";
+  let sessionId = null;
+  let rowIndex = null;
+
   try {
     const body = await request.json();
-    const userInput = (body?.userInput || "").trim();
-    const sessionId = body?.sessionId || null;
-    const rowIndex = body?.rowIndex || null;
+    userInput = (body?.userInput || "").trim();
+    sessionId = body?.sessionId || null;
+    rowIndex = body?.rowIndex || null;
+
+    console.log('[generate-thinking-text] 요청 받음:', { userInput, hasClovaKey: !!CLOVA_KEY });
 
     if (!userInput) {
+      console.warn('[generate-thinking-text] userInput이 없음');
       return NextResponse.json(
         { error: "userInput required" },
         { status: 400 }
@@ -142,13 +177,17 @@ export async function POST(request: NextRequest) {
 
     if (!CLOVA_KEY) {
       // CLOVA API 키가 없으면 간단한 fallback 로직 사용
+      console.log('[generate-thinking-text] CLOVA_KEY 없음, fallback 사용');
       const fallbackText = generateFallbackThinkingText(userInput);
+      console.log('[generate-thinking-text] fallback 결과:', fallbackText);
       return NextResponse.json({ thinkingText: fallbackText });
     }
 
+    console.log('[generate-thinking-text] CLOVA API 호출 시작');
     const result = await generateThinkingTextWithClova(userInput);
     const thinkingText = result.text;
     const tokens = result.tokens;
+    console.log('[generate-thinking-text] CLOVA API 결과:', { thinkingText, tokens });
 
     // Google Sheets에 토큰 저장 (sessionId와 rowIndex가 있는 경우)
     if (sessionId && rowIndex && tokens.total > 0) {
@@ -168,14 +207,15 @@ export async function POST(request: NextRequest) {
       tokens: tokens.total > 0 ? tokens : undefined, // 토큰이 있을 때만 반환
     });
   } catch (error: any) {
-    console.error("Generate thinking text error:", error);
+    console.error("[generate-thinking-text] 에러 발생:", error);
     // 에러 발생 시에도 fallback 텍스트 반환
-    try {
-      const body = await request.json().catch(() => ({}));
-      const userInput = (body?.userInput || "").trim();
+    if (userInput) {
+      console.log('[generate-thinking-text] 에러 후 fallback 시도:', userInput);
       const fallbackText = generateFallbackThinkingText(userInput);
+      console.log('[generate-thinking-text] 에러 후 fallback 결과:', fallbackText);
       return NextResponse.json({ thinkingText: fallbackText });
-    } catch {
+    } else {
+      console.error("[generate-thinking-text] userInput도 없음, 기본값 반환");
       return NextResponse.json({ thinkingText: "알아보고 있어요" });
     }
   }
@@ -185,27 +225,32 @@ export async function POST(request: NextRequest) {
  * CLOVA API가 없을 때 사용하는 간단한 fallback 함수
  */
 function generateFallbackThinkingText(userInput: string): string {
+  console.log('[generateFallbackThinkingText] 입력:', userInput);
+  
   // 키워드 패턴 매칭
   const patterns = [
-    { keywords: ['식당', '맛집', '레스토랑', '음식점'], text: '식당을 찾고 있어요' },
-    { keywords: ['카페', '커피'], text: '카페를 찾고 있어요' },
-    { keywords: ['쇼핑', '쇼핑몰'], text: '쇼핑할 수 있는 곳을 찾고 있어요' },
-    { keywords: ['영화', '영화관'], text: '영화관을 찾고 있어요' },
-    { keywords: ['휴식', '쉬', '휴게'], text: '휴식할 수 있는 곳을 찾고 있어요' },
-    { keywords: ['친구'], text: '친구랑 함께 갈 수 있는 곳을 찾고 있어요' },
-    { keywords: ['연인', '데이트'], text: '데이트할 수 있는 곳을 찾고 있어요' },
-    { keywords: ['가족'], text: '가족과 함께 갈 수 있는 곳을 찾고 있어요' },
-    { keywords: ['혼자'], text: '혼자 가기 좋은 곳을 찾고 있어요' },
-    { keywords: ['구경', '관람'], text: '구경할 수 있는 곳을 찾고 있어요' },
+    { keywords: ['식당', '맛집', '레스토랑', '음식점', '식당을', '맛집을', '레스토랑을', '음식점을'], text: '식당을 찾고 있어요' },
+    { keywords: ['카페', '커피', '카페를', '커피를'], text: '카페를 찾고 있어요' },
+    { keywords: ['쇼핑', '쇼핑몰', '쇼핑을'], text: '쇼핑할 수 있는 곳을 찾고 있어요' },
+    { keywords: ['영화', '영화관', '영화를', '영화관을'], text: '영화관을 찾고 있어요' },
+    { keywords: ['휴식', '쉬', '휴게', '쉴'], text: '휴식할 수 있는 곳을 찾고 있어요' },
+    { keywords: ['친구', '친구랑', '친구와'], text: '친구랑 함께 갈 수 있는 곳을 찾고 있어요' },
+    { keywords: ['연인', '데이트', '데이트를'], text: '데이트할 수 있는 곳을 찾고 있어요' },
+    { keywords: ['가족', '가족과', '가족과'], text: '가족과 함께 갈 수 있는 곳을 찾고 있어요' },
+    { keywords: ['혼자', '혼자서'], text: '혼자 가기 좋은 곳을 찾고 있어요' },
+    { keywords: ['구경', '관람', '구경할', '관람할'], text: '구경할 수 있는 곳을 찾고 있어요' },
   ];
 
-  // 키워드 매칭
+  // 키워드 매칭 (대소문자 구분 없이)
+  const lowerInput = userInput.toLowerCase();
   for (const pattern of patterns) {
-    if (pattern.keywords.some(keyword => userInput.includes(keyword))) {
+    if (pattern.keywords.some(keyword => lowerInput.includes(keyword.toLowerCase()))) {
+      console.log('[generateFallbackThinkingText] 매칭됨:', pattern.text);
       return pattern.text;
     }
   }
 
   // 매칭되지 않으면 기본값
+  console.log('[generateFallbackThinkingText] 매칭 실패, 기본값 반환');
   return '알아보고 있어요';
 }

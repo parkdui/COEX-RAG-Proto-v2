@@ -45,6 +45,7 @@ import ThinkingBlob from '@/components/ui/ThinkingBlob';
 import AudioWaveVisualizer from '@/components/ui/AudioWaveVisualizer';
 import { CanvasBackground, CanvasPhase } from '@/components/ui/BlobBackgroundV2Canvas';
 import GradualBlur from '@/components/ui/GradualBlur';
+import GradualBlurSimple from '@/components/ui/GradualBlurSimple';
 import useCoexTTS from '@/hooks/useCoexTTS';
 import { useChatState } from './hooks/useChatState';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
@@ -72,6 +73,7 @@ interface MainPageV1Props {
 export default function MainPageV1({ showBlob = true, selectedOnboardingOption = null }: MainPageV1Props = { showBlob: true }) {
   const chatRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLElement | null>(null); // Test2Scene.js처럼 마지막 assistant-glass-wrapper를 추적
+  const answerContainerRef = useRef<HTMLDivElement>(null); // 답변 container를 감싸는 div
   const chatState = useChatState();
   const voiceState = useVoiceRecording();
   const { isPlayingTTS, playFull, prepareAuto } = useCoexTTS();
@@ -100,7 +102,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const [customThinkingText, setCustomThinkingText] = useState<string | undefined>(undefined);
   const [answerContainerPaddingBottom, setAnswerContainerPaddingBottom] = useState<string>('20%');
   const [lastUserMessageText, setLastUserMessageText] = useState<string | null>(null);
-  const [scrollOpacity, setScrollOpacity] = useState(1);
+  const [scrollOpacity, setScrollOpacity] = useState(0);
   const [feedbackPreference, setFeedbackPreference] = useState<'negative' | 'positive' | null>(null);
   const chipAIdxRef = useRef(0);
   const chipBIdxRef = useRef(1);
@@ -599,30 +601,40 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       return;
     }
 
+    const trimmedInput = userInput.trim();
+    console.log('[generateThinkingText] 시작:', trimmedInput);
+
     try {
       const response = await fetch('/api/generate-thinking-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          userInput: userInput.trim(),
+          userInput: trimmedInput,
           sessionId: chatState.sessionId || null,
           rowIndex: chatState.rowIndex || null,
         }),
       });
 
+      console.log('[generateThinkingText] API 응답 상태:', response.status, response.ok);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('[generateThinkingText] API 응답 데이터:', data);
         const thinkingText = data.thinkingText;
         if (thinkingText) {
+          console.log('[generateThinkingText] thinkingText 설정:', thinkingText);
           setCustomThinkingText(thinkingText);
         } else {
+          console.warn('[generateThinkingText] thinkingText가 없음, undefined로 설정');
           setCustomThinkingText(undefined);
         }
       } else {
+        const errorText = await response.text().catch(() => '');
+        console.error('[generateThinkingText] API 호출 실패:', response.status, errorText);
         setCustomThinkingText(undefined);
       }
     } catch (error) {
-      console.error('Generate thinking text error:', error);
+      console.error('[generateThinkingText] 에러 발생:', error);
       setCustomThinkingText(undefined);
     }
   }, [chatState.sessionId, chatState.rowIndex]);
@@ -647,6 +659,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       });
 
       chatState.addMessage(assistantMessage);
+      
+      // 답변이 추가될 때 스크롤을 맨 위로 초기화 (즉시 실행)
+      requestAnimationFrame(() => {
+        if (chatRef.current) {
+          chatRef.current.scrollTop = 0;
+          // scrollOpacity도 초기화
+          setScrollOpacity(0);
+        }
+      });
       
       // 답변이 완전히 표시될 때까지 STT 텍스트를 유지하기 위해 여기서는 초기화하지 않음
       // STT 텍스트는 답변이 완전히 표시된 후(isLoading이 false가 된 후) 초기화됨
@@ -701,44 +722,13 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }
   }, []);
 
-  useEffect(() => {
-    // 메시지가 추가될 때 center로 스크롤
-    if (chatState.messages.length > 0) {
-      setTimeout(() => {
-        scrollToCenter();
-      }, 100);
-    }
-  }, [chatState.messages, scrollToCenter]);
-
-  useEffect(() => {
-    if (!chatState.isLoading) return;
-
-    const intervalId = setInterval(() => {
-      scrollToCenter();
-    }, 500);
-
-    return () => clearInterval(intervalId);
-  }, [chatState.isLoading, scrollToCenter]);
-
-  // AI 답변이 처음 나타날 때 중앙으로 스크롤
-  useEffect(() => {
-    const hasAssistantMessage = chatState.messages.some(msg => msg.role === 'assistant');
-    if (hasAssistantMessage && chatRef.current) {
-      // AI 답변이 나타날 때 중앙으로 스크롤
-      setTimeout(() => {
-        scrollToCenter();
-      }, 150);
-    }
-  }, [chatState.messages.filter(msg => msg.role === 'assistant').length, scrollToCenter]);
-
-  // 초기 로드 시 center로 스크롤
+  // 스크롤을 항상 상단으로 유지 (답변이 추가될 때마다)
   useEffect(() => {
     if (chatRef.current && chatState.messages.length > 0) {
-      setTimeout(() => {
-        scrollToCenter();
-      }, 300);
+      // 답변이 추가될 때마다 상단으로 스크롤
+      chatRef.current.scrollTop = 0;
     }
-  }, []);
+  }, [chatState.messages.length]);
 
   // AI 답변이 완료되면 input value 비우기
   useEffect(() => {
@@ -855,24 +845,30 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     };
   }, [chatState.setSystemPrompt]);
 
-  // 스크롤 위치에 따라 블러 opacity 조정 (throttle 적용으로 성능 최적화)
+  // 스크롤 위치에 따라 블러 opacity 조정 (answerContainerRef의 상단이 chatRef viewport 상단을 넘어갈 때)
   useEffect(() => {
     const handleScroll = () => {
-      if (!chatRef.current) return;
+      if (!chatRef.current || !answerContainerRef.current) return;
       
       const scrollTop = chatRef.current.scrollTop;
-      const fadeStart = 0;
-      const fadeEnd = 200; // 200px 스크롤하면 완전히 사라짐
+      const containerRect = chatRef.current.getBoundingClientRect();
+      const answerRect = answerContainerRef.current.getBoundingClientRect();
       
-      if (scrollTop <= fadeStart) {
-        setScrollOpacity(1);
-      } else if (scrollTop >= fadeEnd) {
-        setScrollOpacity(0);
-      } else {
-        // 0 ~ 200px 사이에서 선형적으로 fade out
-        const opacity = 1 - (scrollTop - fadeStart) / (fadeEnd - fadeStart);
-        setScrollOpacity(Math.max(0, Math.min(1, opacity)));
+      // answerContainerRef의 상단이 chatRef의 viewport 상단을 넘어간 정도 계산
+      const offsetTop = answerRect.top - containerRect.top;
+      
+      // 스크롤 50px 지점부터 서서히 나타나다가 150px에서 완전히 보임
+      // answerContainerRef의 상단이 chatRef viewport 상단을 넘어가기 시작할 때 블러 표시
+      let newOpacity = 0;
+      if (offsetTop < 0) {
+        // 상단을 넘어간 정도에 따라 opacity 계산
+        const scrollAmount = Math.abs(offsetTop);
+        if (scrollAmount >= 50) {
+          // 50px ~ 150px 사이에서 0에서 1로 증가
+          newOpacity = Math.min(1, (scrollAmount - 50) / 100);
+        }
       }
+      setScrollOpacity(newOpacity);
     };
 
     // throttle 적용: 16ms 간격으로 실행 (약 60fps)
@@ -1619,10 +1615,10 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           });
         }
         
-        // 각 답변이 추가된 후 최상단으로 스크롤
-        setTimeout(() => {
-          scrollToTop();
-        }, 100);
+        // 각 답변이 추가된 후 최상단으로 스크롤 (pushAssistantMessage 내부에서도 처리되지만 확실하게)
+        if (chatRef.current) {
+          chatRef.current.scrollTop = 0;
+        }
       }
       
       chatState.setIsLoading(false);
@@ -2055,7 +2051,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
-                          marginTop: '20vh', // '이솔이 듣고 있어요' 위치
+                          marginTop: '48%', // '이솔이 듣고 있어요' 위치
                           gap: '2px', // 간격을 2px로 더 줄임
                         }}
                       >
@@ -2070,23 +2066,50 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           isRecording={voiceState.isRecording}
                         />
                       </div>
-                    ) : (chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                    ) : null}
+                    {(chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
                       <div 
+                        ref={answerContainerRef}
                         style={{
                           opacity: 1,
                           paddingBottom: answerContainerPaddingBottom,
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '2px', // 간격을 2px로 더 줄임
+                          position: 'relative',
                         }}
                       >
+                        {/* 답변 container 상단 블러 효과 - answerContainerRef의 상단 경계에 sticky로 고정 */}
+                        {scrollOpacity > 0 && (
+                          <div
+                            style={{
+                              position: 'sticky',
+                              top: 0,
+                              left: '-16px', // px-4 패딩 보정 (16px = 1rem)
+                              right: '-16px', // px-4 패딩 보정
+                              marginLeft: '-16px', // px-4 패딩 보정
+                              marginRight: '-16px', // px-4 패딩 보정
+                              opacity: scrollOpacity,
+                              transition: 'opacity 0.2s ease-out',
+                              pointerEvents: 'none',
+                              zIndex: 10, // 답변 위에 표시되지만 pointerEvents: none으로 클릭 불가
+                              width: 'calc(100% + 32px)', // 좌우 패딩 보정
+                              marginBottom: '-4rem', // 블러 높이만큼 음수 마진으로 답변과 겹치지 않도록
+                            }}
+                          >
+                            <GradualBlurSimple 
+                              height="4rem" 
+                              bgColor="transparent" 
+                            />
+                          </div>
+                        )}
                         {chatState.isLoading ? (
                           <div
                             style={{
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
-                              marginTop: '20vh', // '생각 중이에요'와 '이솔이 듣고 있어요' 동일한 위치
+                              marginTop: '48%', // '생각 중이에요'와 '이솔이 듣고 있어요' 동일한 위치
                             }}
                           >
                             {/* 사용자 메시지 표시 (STT 처리 후 또는 텍스트 입력 후 '생각 중이에요'로 바뀔 때) */}
@@ -2272,31 +2295,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           </div>
         </div>
         
-        {/* 상단 그라데이션 블러 효과 (스크롤에 따라 점차 사라짐) - 숨김 처리 */}
-        {/* <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 100,
-            opacity: scrollOpacity,
-            transition: 'opacity 0.1s ease-out',
-            pointerEvents: 'none',
-          }}
-        >
-          <GradualBlur
-            target="page"
-            position="top"
-            height="4rem"
-            strength={2}
-            divCount={5}
-            curve="bezier"
-            exponential={true}
-            opacity={1}
-            bgColor="linear-gradient(180deg, rgba(230, 220, 255, 0.5) 0%, rgba(220, 210, 255, 0.35) 40%, rgba(210, 200, 245, 0.2) 70%, transparent 100%)"
-          />
-        </div> */}
       </main>
 
       {!showSummary && !showEndMessage && !showFinalMessage && (
@@ -2369,13 +2367,13 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                 placeholder=""
                 disabled={chatState.isLoading || voiceState.isProcessingVoice}
                 style={{
-                  color: '#878181',
+                  color: '#4A4A4A',
                   fontFamily: 'Pretendard Variable',
                   fontSize: '14px',
                   fontStyle: 'normal',
                   fontWeight: 400,
                   lineHeight: '150%',
-                  caretColor: '#FFF',
+                  caretColor: '#4A4A4A',
                 }}
                 className="flex-1 px-4 py-3 bg-transparent focus:outline-none"
                 autoComplete="off"

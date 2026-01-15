@@ -59,9 +59,9 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 '핫쵸(Hotcho)'를 추천해요. 함께 나누어 먹기 좋은 오코노미야키가 시그니처인, 핫한 식당이랍니다!",
-        keywords: ["핫쵸", "Hotcho", "오코노미야키", "식당", "모임"],
-        linkText: "핫쵸 위치 보기",
+          "{chip}라면 'Hotcho'를 추천해요. 함께 나누어 먹기 좋은 오코노미야키가 시그니처인, 핫한 식당이랍니다!",
+        keywords: ["Hotcho", "오코노미야키", "식당", "모임"],
+        linkText: "Hotcho 위치 보기",
         url: "https://map.naver.com/p/entry/place/1674380367",
         image: "/QA_Imgs/1-1.png",
       },
@@ -75,8 +75,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '핫쵸(Hotcho)'를 추천해요. 혼자서도 오코노미야키 한 판 즐기기 좋은 식당이에요.",
-      "{chip} 왔다면 '캘리포니아피자키친'을 추천드려요. 혼자 여유 있게 식사하기 좋아요.",
+      "{chip}라면 'Hotcho'를 추천해요.\n\n트랜디한 일식당으로, 혼자서도\n오코노미야끼를 즐기기에도 좋아요!",
+      "캘리포니아피자키친을 추천드려요!\n\n넓고 쾌적한 공간에서 여유롭게\n양식으로 혼밥하기 좋은 공간이에요!",
     ],
   },
 
@@ -84,28 +84,28 @@ export const fixedQAData: FixedQA[] = [
   {
     topicId: "date",
     questionTemplate: "{chip} 구경하기 좋은 곳을 추천해줘",
-    thinkingText: "{chip} 구경하기 좋은 장소를 찾고 있어요",
+    thinkingText: "{chip} 구경하기 좋은 곳을 찾고 있어요",
     answers: [
       {
         textTemplate:
-          "{chip}라면 '메가박스 코엑스'를 추천드려요. 영화를 보고 나와 근처 식당가와 카페에서 시간을 보내기에도 편한 위치랍니다!",
-        keywords: ["메가박스 코엑스", "영화", "데이트"],
-        linkText: "메가박스 코엑스 정보 보기",
+          "{chip}라면 '메가박스'를 추천드려요. 조용히 앉아 영화에 몰입하고, 영화에 대해\n이야기를 나누기 좋을 것입니다!",
+        keywords: ["메가박스", "영화", "데이트"],
+        linkText: "메가박스 정보 보기",
         url: "https://map.naver.com/p/entry/place/12307868?c=15.00,0,0,0,dh",
         image: "/QA_Imgs/3-1.png",
       },
       {
         textTemplate:
-          "{chip}라면 '코엑스 아쿠아리움'을 추천해요. 테마별 전시관과 신비한 수중 공연이 펼쳐져, 모두에게 특별한 경험이 될 거예요!",
-        keywords: ["코엑스 아쿠아리움", "실내", "데이트"],
-        linkText: "코엑스 아쿠아리움 정보 보기",
+          "{chip}라면 '아쿠아리움'을 추천해요. 테마별 전시관과 신비한 수중 공연이 펼쳐져, 모두에게 특별한 경험이 될 거예요!",
+        keywords: ["아쿠아리움", "실내", "데이트"],
+        linkText: "아쿠아리움 정보 보기",
         url: "https://map.naver.com/p/entry/place/11606845",
         image: "/QA_Imgs/3-2.png",
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '메가박스 코엑스'를 추천드려요. 돌비 시네마 같은 첨단 상영관이 많아 혼자 영화에 집중하기 좋아요.",
-      "{chip} 왔다면 '코엑스 아쿠아리움'을 추천해요. 혼자 천천히 걸어다니며 관람하기 좋아요.",
+      "혼자 즐기기 좋은 메가박스!\n\n쾌적한 곳에서 오롯이 영화에 몰입하기 좋아요.",
+      "혼자 천천히 걸어다니며 관람하기 좋아요.",
     ],
   },
 
@@ -133,8 +133,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '케이타운포유(Ktown4u)'를 추천해요. 혼자 천천히 앨범과 굿즈를 구경하기 좋아요.",
-      "{chip} 왔다면 'K-POP 광장'을 추천해요. 전광판 영상 보고 인증샷만 남기고 이동하기 좋아요.",
+      "혼자 왔다면 'Ktown4u'를 추천해요\n\n혼자 천천히 앨범과 굿즈를 구경하고\nkpop을 제대로 즐기기 좋을 거에요!",
+      "{chip}라면 K-컬처의 에너지를 느낄 수 있는 'K-POP 광장'을 추천해요.\n\n전광판에서 나오는 아이돌 영상도 보고\n인증샷을 남기기에도 좋아요!",
     ],
   },
 
@@ -146,15 +146,15 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 '메가박스 코엑스'를 추천해요. 조용히 앉아 오롯이 영화에 몰입하며 하루를 보내기 좋아요.",
-        keywords: ["메가박스 코엑스", "영화", "휴식"],
-        linkText: "메가박스 코엑스 정보 보기",
+          "{chip}라면 '메가박스'를 추천해요. 조용히 앉아 영화에 몰입하고, 영화에 대해\n이야기를 나누기 좋을 것입니다!",
+        keywords: ["메가박스", "영화", "휴식"],
+        linkText: "메가박스 정보 보기",
         url: "https://naver.me/FSw7y8u8",
         image: "/QA_Imgs/5-1.png",
       },
       {
         textTemplate:
-          "{chip}라면 '영풍문고'를 추천해요. 비교적 조용한 공간에서 책과 문구를 천천히 구경하기 좋아요.",
+          "{chip}라면 '영풍문고'를 추천해요. 책과 문구류를 천천히 구경하며\n조용한 무드로 놀기 좋아요!",
         keywords: ["영풍문고", "서점", "휴식"],
         linkText: "영풍문고 매장 정보 보기",
         url: "https://naver.me/xZVbfno8",
@@ -162,8 +162,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} '메가박스 코엑스'를 추천해요. 조용히 앉아 영화에 몰입하기 좋아요.",
-      "{chip} '영풍문고'를 추천해요. 조용히 책과 문구를 둘러보며 쉬어가기 좋아요.",
+      "혼자 즐기기 좋은 메가박스!\n\n쾌적한 곳에서 오롯이 영화에 몰입하기 좋아요.",
+      "혼자 왔다면 영풍문고는 어떠세요?\n\n책과 문구를 구경하며 쉬어가기\n좋고, 조용한 무드로 즐길 수 있어요",
     ],
   },
 
@@ -191,8 +191,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 스타필드 코엑스몰 지하 1층을 추천해요. 원하는 매장을 빠르게 둘러보기 좋아요.",
-      "{chip} 왔다면 소품샵을 천천히 구경해보세요. 시즌마다 새로운 상품이 많아 구경하는 재미가 있어요.",
+      "혼자 쇼핑하기엔 코엑스몰 지하 1층!\n\n트랜디한 옷가게가 많은 곳으로,\n오직 나만을 위한 쇼핑 시간을 즐겨보세요.",
+      "{chip}라면 '버터(BUTTER)'와 '자주(JAJU)'를 추천해요.\n\n시즌마다 조금씩 달라지는 소품들을\n구경하며 하루를 보내보세요!",
     ],
   },
 
@@ -220,8 +220,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '테라로사'를 추천해요. 비교적 조용해서 작업이나 독서하기 좋아요.",
-      "{chip} 왔다면 '피어커피'를 추천해요. 혼자 방문해 집중하기 좋은 분위기예요.",
+      "{chip} 왔다면 '테라로사'를 추천해요.\n\n비교적 조용해서 작업이나 독서하기 좋아요.",
+      "{chip} 왔다면 '피어커피'를 추천해요.\n\n혼자 방문해 집중하기 좋은 분위기예요.",
     ],
   },
 
@@ -249,8 +249,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '하동관'을 추천해요. 담백한 곰탕을 조용히 즐기기 좋아요.",
-      "{chip} 왔다면 '솥내음'을 추천해요. 혼자 속 편안한 솥밥 한 끼 하기 좋아요.",
+      "{chip} 왔다면 '하동관'을 추천해요.\n\n담백한 곰탕을 조용히 즐기기 좋아요.",
+      "{chip} 왔다면 '솥내음'을 추천해요.\n\n혼자 속 편안한 솥밥 한 끼 하기 좋아요.",
     ],
   },
 
@@ -262,7 +262,7 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 '별마당 도서관'은 꼭 들러볼 만해요. 함께 사진 찍기 좋고 잠시 쉬어가기도 좋은 공간이랍니다.",
+          "{chip}라면 '별마당 도서관'! 함께 사진 찍고 쉬어가기도 좋은 공간으로,\n시기마다 열리는 행사를 즐기기에도 좋아요",
         keywords: ["별마당 도서관"],
         linkText: "별마당 도서관 정보 보기",
         url: "https://naver.me/5E3Z4o2K",
@@ -270,16 +270,16 @@ export const fixedQAData: FixedQA[] = [
       },
       {
         textTemplate:
-          "{chip}라면 코엑스 입구 LED 스크린을 추천해요. 미디어 아트와 광고 등 화려한 영상미를 감상하며 인증샷 남기기 좋아요!",
-        keywords: ["LED 스크린"],
-        linkText: "LED 스크린 위치 보기",
+          "{chip}라면 '외벽 미디어'를 추천해요. 미디어 아트와 광고 등 화려한 영상미를 감상하며 인증샷 남기기 좋아요!",
+        keywords: ["외벽 미디어"],
+        linkText: "외벽 미디어 위치 보기",
         url: "https://naver.me/GrqDfsRd",
         image: "/QA_Imgs/9-2.png",
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '별마당 도서관'을 추천드려요. 넓은 공간에서 잠깐 쉬어가기 좋아요.",
-      "{chip} 왔다면 LED 스크린을 잠깐 구경해보세요. 화려한 영상미 덕분에 인증샷 남기기 좋아요.",
+      "{chip}라면 '별마당 도서관'!\n\n함께 사진 찍고 쉬어가기도 좋은 공간으로,\n시기마다 열리는 행사를 즐기기에도 좋아요",
+      "{chip}라면 '외벽 미디어'를 추천해요.\n\n화려한 미디어 아트를 구경하며\n셀피로 인증샷을 찍어보시는건 어때요?",
     ],
   },
 
@@ -291,7 +291,7 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 중식당 '무탄'을 추천해요. SNS에서 화제가 된 독특한 메뉴를 맛볼 수 있어요.",
+          "{chip}라면 중식당 '무탄'을 추천해요. 트러플 짜장면 같이 SNS에서 화제가 된 독특한 메뉴들을 맛보실 수 있을 것입니다.",
         keywords: ["무탄", "중식"],
         linkText: "무탄 매장 정보 보기",
         url: "https://naver.me/Gz19jeev",
@@ -307,8 +307,8 @@ export const fixedQAData: FixedQA[] = [
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '무탄'에서 혼자 식사하기 좋아요.",
-      "{chip} 왔다면 '이비티(ebt)'에서 차분히 식사하기 좋아요.",
+      "혼자왔다면 무탄은 어떠세요?\n\n트랜디한 퓨전 중식당으로,\n유행중인 다양한 단품요리를 즐겨보세요",
+      "{chip}라면 '이비티(ebt)'를 추천해요.\n\n감각적인 플레이팅과 인테리어로 트렌디한\n단품메뉴를 즐겨보세요!",
     ],
   },
 
@@ -320,24 +320,24 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 코엑스 옆에 있는 '봉은사'를 추천해요. 도심 속 사찰이라 잠깐 여유롭게 쉬어가기 좋아요.",
+          "{chip}라면 코엑스 옆에 있는 '봉은사'를 추천해요. 도심 속 사찰에서 잠깐 여유로운 시간을 보내는 것은 어떠신가요?",
         keywords: ["봉은사", "산책", "휴식"],
         linkText: "봉은사 위치 보기",
-        url: "https://naver.me/FJ6WzI93",
+        url: "https://map.naver.com/p/entry/place/11564024",
         image: "/QA_Imgs/11-1.png"
       },
       {
         textTemplate:
-          "{chip}라면 코엑스 외벽 미디어 파사드를 추천해요. 시간대마다 다른 미디어 아트와 K-POP 광고 등을 구경할 수 있어요.",
+          "{chip}라면 외벽 미디어를 추천해요. 시간대마다 다른 미디어 아트와 K-POP 광고 등을 구경할 수 있어요.",
         keywords: ["미디어 파사드", "야경"],
         linkText: "미디어 파사드 위치 보기",
-        url: "https://naver.me/GrqDfsRd",
+        url: "https://map.naver.com/p/entry/place/1149591458",
         image: "/QA_Imgs/9-2.png"
       },
     ],
     soloTextTemplates: [
-      "{chip} 왔다면 '봉은사'를 추천해요. 혼자 여유롭게 걸으며 산책하고 구경하기 좋아요.",
-      "{chip} 왔다면 미디어 파사드를 잠깐 구경해보세요. 시간대마다 다른 미디어 아트를 볼 수 있어요.",
+      "{chip}라면 코엑스 옆에 있는 '봉은사'를 추천해요.\n\n홀로 평안함을 느끼며 여유로운\n산책을 즐기고 구경하기 좋아요",
+      "혼자 왔다면 미디어 파사드를\n구경하고 오는건 어떠실까요?\n\n코엑스의 상징 중 하나로, 시간때마다\n다른 미디어 아트를 구경할 수 있어요!",
     ],
   },
 ];

@@ -11,13 +11,11 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
   const [heights, setHeights] = useState<number[]>([8, 8, 8, 8]);
   const animationFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
-  const [animationProgress, setAnimationProgress] = useState(0);
   const animationStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isActive) {
       setHeights([8, 8, 8, 8]);
-      setAnimationProgress(0);
       animationStartTimeRef.current = null;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -29,7 +27,6 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     // isActive가 true가 되면 애니메이션 시작
     animationStartTimeRef.current = Date.now();
     startTimeRef.current = Date.now();
-    setAnimationProgress(0);
 
     const animate = () => {
       if (!isActive) {
@@ -61,14 +58,6 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
       
       setHeights(newHeights);
       
-      // 위치 이동 애니메이션 진행도 업데이트
-      if (animationStartTimeRef.current) {
-        const animationElapsed = (Date.now() - animationStartTimeRef.current) / 1000;
-        const moveDuration = 0.6; // 이동 애니메이션 0.6초
-        const progress = Math.min(animationElapsed / moveDuration, 1);
-        setAnimationProgress(progress);
-      }
-      
       if (isActive) {
         animationFrameRef.current = requestAnimationFrame(animate);
       }
@@ -94,48 +83,13 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
     ? Math.min((Date.now() - animationStartTimeRef.current) / 1000, fadeInDuration) 
     : 0;
   const opacity = Math.min(fadeInElapsed / fadeInDuration, 1);
-  
-  // 이동 애니메이션: bottom 96px -> '이솔이 듣고 있어요' 텍스트 아래 30px 위치
-  // easing 함수: ease-out
-  const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-  const easedProgress = easeOut(animationProgress);
-  
-  // 초기 위치: bottom 96px
-  // 최종 위치: '이솔이 듣고 있어요' 텍스트 아래 30px
-  // '이솔이 듣고 있어요' 텍스트 구조:
-  // - 상위 div: marginTop: 20vh
-  // - assistant-glass-wrapper: margin: '0 auto 0px auto', paddingBottom: '4px'
-  // - assistant-glass-content: padding '7px 16px' (isThinking일 때)
-  // - 텍스트: fontSize 18px, lineHeight 130% = 23.4px
-  const initialBottom = 96; // px
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const containerTopVh = 20; // 상위 div의 marginTop: 20vh
-  const containerTopPx = (containerTopVh / 100) * screenHeight; // 20vh를 px로 변환
-  
-  // assistant-glass-wrapper의 paddingBottom: 4px
-  const wrapperPaddingBottom = 4;
-  
-  // isThinking일 때 assistant-glass-content의 padding: '7px 16px'
-  const contentTopPadding = 7; // 상단 padding
-  const textHeight = 18 * 1.3; // fontSize 18px * lineHeight 130% = 23.4px
-  const contentBottomPadding = 7; // 하단 padding
-  
-  // 텍스트 컨테이너의 실제 bottom 위치
-  // container top + wrapper paddingBottom + content top padding + text height + content bottom padding
-  const containerBottomPx = containerTopPx + wrapperPaddingBottom + contentTopPadding + textHeight + contentBottomPadding;
-  
-  const gapPx = 30; // 30px 간격 (텍스트 컨테이너 bottom과 sound wave top 사이)
-  // sound wave의 top 위치 = 컨테이너 bottom + 30px
-  const finalTopPx = containerBottomPx + gapPx;
-  const translateY = easedProgress * (-(screenHeight - initialBottom - finalTopPx)); // px 단위
 
   return (
     <div
       className="fixed left-1/2 z-50 pointer-events-none"
       style={{
-        bottom: animationProgress >= 1 ? 'auto' : `${initialBottom}px`,
-        top: animationProgress >= 1 ? `${finalTopPx}px` : 'auto',
-        transform: `translateX(-50%) translateY(${animationProgress < 1 ? `${translateY}px` : '0'})`,
+        top: '40%',
+        transform: 'translateX(-50%)',
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
@@ -143,7 +97,7 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
         background: 'transparent',
         borderRadius: '24px',
         opacity: opacity,
-        transition: animationProgress >= 1 ? 'opacity 0.3s ease-in-out' : 'none',
+        transition: 'opacity 0.3s ease-in-out',
       }}
     >
       {heights.map((height, index) => (
@@ -152,7 +106,7 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
           style={{
             width: '4px',
             height: `${height}px`,
-            background: '#4E5363', // dark gray, no gradient
+            background: '#155e75', // '이솔이 듣고 있어요' 텍스트와 동일한 색상 (text-cyan-800)
             borderRadius: '2px',
             transition: 'none', // 애니메이션은 requestAnimationFrame으로 처리
             minHeight: '8px',
