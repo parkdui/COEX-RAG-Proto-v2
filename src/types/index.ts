@@ -21,6 +21,19 @@ export interface TextSegment {
   index: number;
 }
 
+export type QuestionCategory = 
+  | '음식점'
+  | '카페'
+  | '옷가게'
+  | '엑티비티'
+  | '휴식'
+  | '관람'
+  | '컨퍼런스'
+  | '행사/이벤트'
+  | '전시'
+  | '편의 시설'
+  | null;
+
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -31,6 +44,7 @@ export interface Message {
   thumbnailUrl?: string;
   siteUrl?: string;
   linkText?: string; // 사이트 링크 버튼에 표시될 텍스트
+  questionCategory?: QuestionCategory; // 질문 카테고리 (assistant 메시지에만 사용)
 }
 
 export interface ChatBubbleProps {
