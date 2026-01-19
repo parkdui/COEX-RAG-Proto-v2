@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import LandingPage from './LandingPage';
-import LandingPageV2 from './LandingPageV2';
-import OnboardingPage from './OnboardingPage';
-import MainPage from './MainPage';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import BlobBackground from './ui/BlobBackground';
+import { useSoundManager } from '@/hooks/useSoundManager';
+
+// 동적 import로 페이지 컴포넌트들을 지연 로드 (초기 번들 크기 감소)
+const LandingPage = lazy(() => import('./LandingPage'));
+const LandingPageV2 = lazy(() => import('./LandingPageV2'));
+const OnboardingPage = lazy(() => import('./OnboardingPage'));
+const MainPage = lazy(() => import('./MainPage'));
 
 type PageType = 'landing' | 'onboarding' | 'main' | 'blocked';
 
@@ -27,16 +30,25 @@ export default function AppFlow() {
   const [selectedOnboardingOption, setSelectedOnboardingOption] = useState<string | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const leaveHandlerRef = useRef<(() => void) | null>(null);
+  // 사전 로드 제거: 필요할 때만 로드 (지연 로드)
+  // MainPage로 전환될 때만 사운드 매니저 초기화 (초기 로딩 최적화)
+  const { playSound } = useSoundManager();
 
-  const handleLandingComplete = (selectedOption: string) => {
+  const handleLandingComplete = useCallback((selectedOption: string) => {
     setSelectedOnboardingOption(selectedOption);
-    setIsTransitioning(true);
+    // blob 애니메이션이 보이도록 fade 효과 제거
+    setIsTransitioning(false);
+    // 4. LandingPage -> MainPage 전환 시 화면 전환 사운드 재생
+    playSound('SCREEN_TRANSITION', {
+      onError: () => {
+        // 재생 실패해도 조용히 처리
+      },
+    }).catch(() => {
+      // 재생 실패해도 조용히 처리
+    });
+    // blob 애니메이션은 이미 버튼 클릭 시 시작되었으므로 여기서는 페이지만 전환
     setCurrentPage('main');
-    // MainPage가 마운트된 후 fade-in 애니메이션 시작
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 50);
-  };
+  }, [playSound]);
 
   const handleBlobAnimationStart = () => {
     setBlobAnimating(true);
@@ -57,9 +69,9 @@ export default function AppFlow() {
         if (!isMounted) return;
         setIsCheckingAccess(true);
         
-        // 타임아웃 설정 (3초로 단축 - 더 빠른 fallback)
+        // 타임아웃 설정 (1.5초로 단축 - 더 빠른 fallback)
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Request timeout')), 3000);
+          setTimeout(() => reject(new Error('Request timeout')), 1500);
         });
         
         const fetchPromise = fetch('/api/enter', {
@@ -106,7 +118,7 @@ export default function AppFlow() {
       }
     };
 
-    // 안전장치: 5초 후에도 로딩 중이면 강제로 LandingPage 표시
+    // 안전장치: 2초 후에도 로딩 중이면 강제로 LandingPage 표시 (더 빠른 fallback)
     safetyTimeout = setTimeout(() => {
       if (isMounted) {
         setIsCheckingAccess(false);
@@ -117,7 +129,7 @@ export default function AppFlow() {
           message: undefined
         });
       }
-    }, 5000);
+    }, 2000);
 
     checkAccess();
 
@@ -294,32 +306,36 @@ export default function AppFlow() {
       case 'landing':
         return (
           <div className="relative" style={{ zIndex: 10 }}>
-            <LandingPageV2 
-              onComplete={handleLandingComplete} 
-              showBlob={false} 
-            />
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">로딩 중...</div></div>}>
+              <LandingPageV2 
+                onComplete={handleLandingComplete} 
+                showBlob={false} 
+              />
+            </Suspense>
           </div>
         );
       case 'main':
         return (
           <div 
-            className="transition-opacity duration-500 relative"
+            className="relative"
             style={{ 
               zIndex: 10,
-              opacity: isTransitioning ? 0 : 1,
-              animation: isTransitioning ? 'none' : 'fadeIn 0.6s ease-in-out'
             }}
           >
-            <MainPage showBlob={true} selectedOnboardingOption={selectedOnboardingOption} />
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">로딩 중...</div></div>}>
+              <MainPage showBlob={true} selectedOnboardingOption={selectedOnboardingOption} />
+            </Suspense>
           </div>
         );
       default:
         return (
           <div className="relative" style={{ zIndex: 10 }}>
-            <LandingPageV2 
-              onComplete={handleLandingComplete} 
-              showBlob={false} 
-            />
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">로딩 중...</div></div>}>
+              <LandingPageV2 
+                onComplete={handleLandingComplete} 
+                showBlob={false} 
+              />
+            </Suspense>
           </div>
         );
       }

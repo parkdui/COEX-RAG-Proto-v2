@@ -175,7 +175,7 @@ export const fixedQAData: FixedQA[] = [
     answers: [
       {
         textTemplate:
-          "{chip}라면 스타필드 코엑스몰 지하 1층을 방문해보세요. 글로벌 SPA 브랜드부터 힙한 패션까지 다양한 패션 트렌드를 경험할 수 있어요.",
+          "{chip}라면 스타필드 코엑스몰\n지하 1층을 방문해보세요. 글로벌 SPA 브랜드부터 힙한 패션까지 다양한 패션 트렌드를 경험할 수 있어요.",
         keywords: ["코엑스몰", "쇼핑"],
         linkText: "코엑스몰 층별 안내 보기",
         url: "https://naver.me/x7rxx3sd",
@@ -183,7 +183,7 @@ export const fixedQAData: FixedQA[] = [
       },
       {
         textTemplate:
-          "{chip}라면 '버터(BUTTER)'와 '자주(JAJU)'를 추천해요. 시즌마다 변화하는 아이디어 상품들이 가득해 구경하는 재미가 쏠쏠해요!",
+          "{chip}라면 '버터(BUTTER)'와\n'자주(JAJU)'를 추천해요. 시즌마다 변화하는 아이디어 상품들이 가득해 구경하는 재미가 쏠쏠해요!",
         keywords: ["버터", "자주", "소품"],
         linkText: "버터·자주 매장 정보 보기",
         url: "https://naver.me/GmVhBnj9",

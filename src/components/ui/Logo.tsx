@@ -20,7 +20,7 @@ export default function Logo({ className = '' }: LogoProps) {
         top: '32px',
         left: '50%',
         transform: 'translateX(-50%)',
-        zIndex: 30,
+        zIndex: 1001, // blur div보다 높게 설정하여 가려지지 않도록
         boxSizing: 'border-box',
         display: 'flex',
         alignItems: 'center',

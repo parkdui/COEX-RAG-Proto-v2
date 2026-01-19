@@ -12,30 +12,48 @@ interface RequestTTSOptions {
 }
 
 export async function requestTTS(text: string, options: RequestTTSOptions = {}): Promise<Blob> {
-  const request: TTSRequest = {
+  // Siren TTS API 사용 (기존 CLOVA Voice 대체)
+  const request = {
     text,
-    speaker: 'vyuna',
-    speed: '-1', // 기본 속도(0)보다 1.2배 빠르게 (약 20% 증가)
-    pitch: '3',
-    volume: '0',
-    alpha: '1',
-    format: 'mp3'
+    speaker: 'xsori', // Siren TTS 기본 화자
+    speed: -1,        // 1.11배 빠르게 (기존 CLOVA의 '-1'과 유사한 효과)
+    volume: 0,        // 보통 크기
+    alpha: 0,         // 기본 음색
+    format: 'mp3'     // 오디오 포맷
   };
 
-  const response = await fetch('/api/tts', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-    signal: options.signal,
-  });
+  const startTime = Date.now();
+  console.log('[TTS] Request started:', { textLength: text.length, text: text.substring(0, 50) + '...' });
 
-  if (!response.ok) {
-    throw new Error(`TTS API failed: ${response.status}`);
+  try {
+    const response = await fetch('/api/tts-siren', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+      signal: options.signal,
+    });
+
+    const elapsedTime = Date.now() - startTime;
+    console.log('[TTS] Response received:', { status: response.status, elapsedTime: `${elapsedTime}ms` });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[TTS] API error:', { status: response.status, errorText });
+      throw new Error(`TTS API failed: ${response.status} ${errorText}`);
+    }
+
+    const blob = await response.blob();
+    const totalTime = Date.now() - startTime;
+    console.log('[TTS] Blob received:', { blobSize: blob.size, totalTime: `${totalTime}ms` });
+
+    return blob;
+  } catch (error) {
+    const elapsedTime = Date.now() - startTime;
+    console.error('[TTS] Request failed:', { error, elapsedTime: `${elapsedTime}ms` });
+    throw error;
   }
-
-  return response.blob();
 }
 
 /**
@@ -80,6 +98,9 @@ export class AudioManager {
       handlers?.onError?.(event);
       console.error('TTS audio playback failed');
     };
+
+    // 오디오 재생 전 0.3초 대기
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     // 오디오 재생
     try {

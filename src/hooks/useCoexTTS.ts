@@ -19,7 +19,8 @@ const recommendationKeywords = [
   '권해드려요',
 ];
 
-const TTS_TIMEOUT_MS = 12_000;
+// Siren TTS API는 응답이 더 오래 걸릴 수 있으므로 타임아웃을 늘림
+const TTS_TIMEOUT_MS = 30_000; // 30초로 증가 (기존 12초)
 
 const withTimeout = async <T,>(
   executor: (signal: AbortSignal) => Promise<T>,

@@ -7,6 +7,7 @@ import { ChatBubbleProps } from '@/types';
 import { getSegmentStyleClass, getSegmentIcon } from '@/lib/textSplitter';
 import { SplitWords, TypingEffect, SplitText, Typewriter, ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3 } from '@/components/ui';
 import AnimatedOutlineStroke from '@/components/ui/AnimatedOutlineStroke';
+import { getCategoryImage } from '@/lib/categoryImages';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
 type GlassStyleVariant = 'v1' | 'v2';
@@ -1246,8 +1247,27 @@ const SegmentedMessageComponent: React.FC<{
 
   const { imageUrl, shouldShowImage } = useMemo(() => {
     const url = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
-    return { imageUrl: url, shouldShowImage: url.length > 0 };
-  }, [message.thumbnailUrl]);
+    const hasThumbnail = url.length > 0;
+    const hasCategory = message.questionCategory !== null && message.questionCategory !== undefined;
+    
+    // thumbnailUrl이 있으면 우선 사용, 없으면 카테고리 이미지 사용
+    const categoryImageUrl = getCategoryImage(message.questionCategory);
+    const finalImageUrl = hasThumbnail ? url : (categoryImageUrl || '');
+    
+    const result = { 
+      imageUrl: finalImageUrl, 
+      shouldShowImage: hasThumbnail || hasCategory 
+    };
+    console.log('[ChatBubble] 이미지 표시 조건:', {
+      hasThumbnail,
+      hasCategory,
+      questionCategory: message.questionCategory,
+      categoryImageUrl,
+      finalImageUrl: result.imageUrl,
+      shouldShowImage: result.shouldShowImage
+    });
+    return result;
+  }, [message.thumbnailUrl, message.questionCategory]);
 
   const { siteUrl, shouldShowSite } = useMemo(() => {
     const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
@@ -1295,8 +1315,11 @@ const SegmentedMessageComponent: React.FC<{
       const showCursor = !isComplete;
       const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
-      const imageShouldRender =
-        shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+      // 카테고리가 있으면 항상 표시, 없으면 타입라이터 애니메이션 완료 후 표시
+      const hasCategory = message.questionCategory !== null && message.questionCategory !== undefined;
+      const imageShouldRender = shouldShowImage && (
+        hasCategory || (displayedHighlight && displayedHighlight.length === targetHighlightLength)
+      );
 
       // 헤드라인 텍스트에 15글자 미만 줄 방지 로직 적용 (키워드는 한 줄에 유지)
       if (displayedHighlight) {
@@ -1352,23 +1375,99 @@ const SegmentedMessageComponent: React.FC<{
                     overflow: 'hidden',
                     position: 'relative',
                     background: '#f3f4f6',
+                    // 카테고리가 있으면 바로 표시, 없으면 애니메이션 적용
                     transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
                     transformOrigin: 'top',
                     opacity: imageShouldRender ? 1 : 0,
-                    transition: 'transform 0.6s ease-in-out, opacity 0.6s ease-in-out',
+                    transition: hasCategory ? 'none' : 'transform 0.6s ease-in-out, opacity 0.6s ease-in-out',
                   }}
                 >
-                  <img
-                    src={imageUrl}
-                    alt="이벤트 썸네일"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
-                  {shouldShowSite && (
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt="이벤트 썸네일"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    // 카테고리별 더미 이미지 (정보 요구 질문에 대한 답변 Container용)
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        minHeight: 'min(60vh, 400px)',
+                        maxHeight: '70vh',
+                        background: 'linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 50%, #e0e7ff 100%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        padding: '24px',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* 배경 패턴 */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          opacity: 0.1,
+                          backgroundImage: 'radial-gradient(circle at 2px 2px, #6366f1 1px, transparent 0)',
+                          backgroundSize: '24px 24px',
+                        }}
+                      />
+                      {/* 카테고리 아이콘 영역 */}
+                      <div
+                        style={{
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '32px',
+                          color: '#ffffff',
+                          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                          position: 'relative',
+                          zIndex: 1,
+                        }}
+                      >
+                        📍
+                      </div>
+                      {/* 카테고리 텍스트 */}
+                      <div
+                        style={{
+                          fontSize: '18px',
+                          fontWeight: 600,
+                          color: '#4b5563',
+                          fontFamily: 'Pretendard Variable',
+                          textAlign: 'center',
+                          position: 'relative',
+                          zIndex: 1,
+                        }}
+                      >
+                        {message.questionCategory ? (
+                          <>
+                            <div style={{ marginBottom: '4px' }}>카테고리</div>
+                            <div style={{ color: '#6366f1', fontSize: '20px' }}>{message.questionCategory}</div>
+                          </>
+                        ) : (
+                          <div>이미지 준비 중</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {shouldShowSite && imageUrl && (
                     <div
                       style={{
                         position: 'absolute',
@@ -1426,7 +1525,7 @@ const SegmentedMessageComponent: React.FC<{
         </div>
       );
     },
-    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText]
+    [displayText, firstSegmentHighlight, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText, message.questionCategory]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
@@ -1490,16 +1589,35 @@ const SegmentedMessageComponent: React.FC<{
                             background: '#f3f4f6',
                           }}
                         >
-                          <img
-                            src={imageUrl}
-                            alt="이벤트 썸네일"
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                            }}
-                          />
-                          {shouldShowSite && (
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt="이벤트 썸네일"
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            // 카테고리별 더미 이미지 (siteUrl 없음)
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                background: '#f3f4f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#9ca3af',
+                                fontSize: '14px',
+                                fontFamily: 'Pretendard Variable',
+                              }}
+                            >
+                              {message.questionCategory || '이미지'}
+                            </div>
+                          )}
+                          {shouldShowSite && imageUrl && (
                             <div
                               style={{
                                 position: 'absolute',
@@ -1672,8 +1790,27 @@ const SingleMessageComponent: React.FC<{
 
   const { imageUrl, shouldShowImage } = useMemo(() => {
     const url = typeof message.thumbnailUrl === 'string' ? message.thumbnailUrl.trim() : '';
-    return { imageUrl: url, shouldShowImage: url.length > 0 };
-  }, [message.thumbnailUrl]);
+    const hasThumbnail = url.length > 0;
+    const hasCategory = message.questionCategory !== null && message.questionCategory !== undefined;
+    
+    // thumbnailUrl이 있으면 우선 사용, 없으면 카테고리 이미지 사용
+    const categoryImageUrl = getCategoryImage(message.questionCategory);
+    const finalImageUrl = hasThumbnail ? url : (categoryImageUrl || '');
+    
+    const result = { 
+      imageUrl: finalImageUrl, 
+      shouldShowImage: hasThumbnail || hasCategory 
+    };
+    console.log('[ChatBubble] 이미지 표시 조건:', {
+      hasThumbnail,
+      hasCategory,
+      questionCategory: message.questionCategory,
+      categoryImageUrl,
+      finalImageUrl: result.imageUrl,
+      shouldShowImage: result.shouldShowImage
+    });
+    return result;
+  }, [message.thumbnailUrl, message.questionCategory]);
 
   const { siteUrl, shouldShowSite } = useMemo(() => {
     const url = typeof message.siteUrl === 'string' ? message.siteUrl.trim() : '';
@@ -1739,8 +1876,11 @@ const SingleMessageComponent: React.FC<{
       const showCursor = !isComplete;
       const firstDotSize = computeDotSize(assistantHeadlineTextStyle.fontSize);
       const textDotSize = computeDotSize(assistantPrimaryTextStyle.fontSize);
-      const imageShouldRender =
-        shouldShowImage && displayedHighlight && displayedHighlight.length === targetHighlightLength;
+      // 카테고리가 있으면 항상 표시, 없으면 타입라이터 애니메이션 완료 후 표시
+      const hasCategory = message.questionCategory !== null && message.questionCategory !== undefined;
+      const imageShouldRender = shouldShowImage && (
+        hasCategory || (displayedHighlight && displayedHighlight.length === targetHighlightLength)
+      );
 
       // 헤드라인 텍스트에 15글자 미만 줄 방지 로직 적용 (키워드는 한 줄에 유지)
       if (displayedHighlight) {
@@ -1796,23 +1936,99 @@ const SingleMessageComponent: React.FC<{
                     overflow: 'hidden',
                     position: 'relative',
                     background: '#f3f4f6',
+                    // 카테고리가 있으면 바로 표시, 없으면 애니메이션 적용
                     transform: imageShouldRender ? 'scaleY(1)' : 'scaleY(0)',
                     transformOrigin: 'top',
                     opacity: imageShouldRender ? 1 : 0,
-                    transition: 'transform 0.6s ease-in-out',
+                    transition: hasCategory ? 'none' : 'transform 0.6s ease-in-out',
                   }}
                 >
-                  <img
-                    src={imageUrl}
-                    alt="이벤트 썸네일"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
-                  {shouldShowSite && (
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt="이벤트 썸네일"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    // 카테고리별 더미 이미지 (정보 요구 질문에 대한 답변 Container용)
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        minHeight: 'min(60vh, 400px)',
+                        maxHeight: '70vh',
+                        background: 'linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 50%, #e0e7ff 100%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        padding: '24px',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* 배경 패턴 */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          opacity: 0.1,
+                          backgroundImage: 'radial-gradient(circle at 2px 2px, #6366f1 1px, transparent 0)',
+                          backgroundSize: '24px 24px',
+                        }}
+                      />
+                      {/* 카테고리 아이콘 영역 */}
+                      <div
+                        style={{
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '32px',
+                          color: '#ffffff',
+                          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                          position: 'relative',
+                          zIndex: 1,
+                        }}
+                      >
+                        📍
+                      </div>
+                      {/* 카테고리 텍스트 */}
+                      <div
+                        style={{
+                          fontSize: '18px',
+                          fontWeight: 600,
+                          color: '#4b5563',
+                          fontFamily: 'Pretendard Variable',
+                          textAlign: 'center',
+                          position: 'relative',
+                          zIndex: 1,
+                        }}
+                      >
+                        {message.questionCategory ? (
+                          <>
+                            <div style={{ marginBottom: '4px' }}>카테고리</div>
+                            <div style={{ color: '#6366f1', fontSize: '20px' }}>{message.questionCategory}</div>
+                          </>
+                        ) : (
+                          <div>이미지 준비 중</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {shouldShowSite && imageUrl && (
                     <div
                       style={{
                         position: 'absolute',
@@ -1870,13 +2086,13 @@ const SingleMessageComponent: React.FC<{
         </div>
       );
     },
-    [assistantHighlight, assistantText, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText]
+    [assistantHighlight, assistantText, imageUrl, shouldShowImage, typewriterVariant, siteUrl, shouldShowSite, isSiteVisible, linkText, message.questionCategory]
   );
 
   const TypewriterComponent = typewriterComponents[typewriterVariant];
 
   return (
-    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} mb-4`}>
+    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-center'} ${isRecording ? 'mb-6' : 'mb-4'}`}>
       {message.role === 'assistant' ? (
         <>
           <div 
@@ -2005,16 +2221,35 @@ const SingleMessageComponent: React.FC<{
                             background: '#f3f4f6',
                           }}
                         >
-                          <img
-                            src={imageUrl}
-                            alt="이벤트 썸네일"
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                            }}
-                          />
-                          {shouldShowSite && (
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt="이벤트 썸네일"
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            // 카테고리별 더미 이미지 (siteUrl 없음)
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                background: '#f3f4f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#9ca3af',
+                                fontSize: '14px',
+                                fontFamily: 'Pretendard Variable',
+                              }}
+                            >
+                              {message.questionCategory || '이미지'}
+                            </div>
+                          )}
+                          {shouldShowSite && imageUrl && (
                             <div
                               style={{
                                 position: 'absolute',

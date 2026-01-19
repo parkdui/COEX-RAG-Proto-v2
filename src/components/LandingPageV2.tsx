@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import Typewriter from './ui/Typewriter';
-import BlobBackgroundV2 from './ui/BlobBackgroundV2';
 import VerticalCarouselText from './ui/VerticalCarouselText';
 import { SplitText } from './ui';
-import ThinkingBlob from './ui/ThinkingBlob';
+import { useSoundManager } from '@/hooks/useSoundManager';
+import { getSoundManager } from '@/lib/soundManager';
+
+// 무거운 컴포넌트들을 동적 import로 지연 로드
+const BlobBackgroundV2 = lazy(() => import('./ui/BlobBackgroundV2'));
+const ThinkingBlob = lazy(() => import('./ui/ThinkingBlob'));
 
 interface LandingPageV2Props {
   onComplete: (selectedOption: string) => void;
@@ -25,6 +29,7 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showVideo, setShowVideo] = useState(true);
   const [showBlobBackground, setShowBlobBackground] = useState(false);
+  const [blobAnimating, setBlobAnimating] = useState(false);
   const [videoOpacity, setVideoOpacity] = useState(1);
   const [titleOpacity, setTitleOpacity] = useState(1);
   const [showNewText, setShowNewText] = useState(false);
@@ -36,6 +41,8 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
   const [textAnimationComplete, setTextAnimationComplete] = useState(false);
   const [questionTextOpacity, setQuestionTextOpacity] = useState(1);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // 사전 로드 제거: 필요할 때만 로드 (지연 로드)
+  const { playSound } = useSoundManager();
 
   // v2: 'Sori at COEX' 애니메이션 후 이동 처리
   useEffect(() => {
@@ -105,11 +112,19 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
 
   // 버튼 선택 시 처리
   const handleButtonClick = useCallback((option: string) => {
+    // 3. 버튼 클릭 시 클릭 사운드 재생
+    playSound('CLICK_1', {
+      onError: () => {
+        // 재생 실패해도 조용히 처리
+      },
+    }).catch(() => {
+      // 재생 실패해도 조용히 처리
+    });
     setSelectedOption(option);
     setShowThinkingBlob(true);
     // 기존 텍스트 fade-out
     setQuestionTextOpacity(0);
-  }, []);
+  }, [playSound]);
 
   // 텍스트 애니메이션 완료 시간 계산
   useEffect(() => {
@@ -144,6 +159,7 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
       setShowBlobBackground(true);
     }
   }, []);
+
 
   const handleVideoTimeUpdate = useCallback(() => {
     if (videoRef.current) {
@@ -180,7 +196,9 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
     >
       {/* ThinkingBlob - 선택 후에만 표시 */}
       {showThinkingBlob && (
-        <ThinkingBlob isActive={true} />
+        <Suspense fallback={null}>
+          <ThinkingBlob isActive={true} />
+        </Suspense>
       )}
       {/* 초기 비디오 재생 */}
       {showVideo && (
@@ -218,11 +236,15 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
           onTimeUpdate={handleVideoTimeUpdate}
           onEnded={handleVideoEnded}
         >
-          <source src="/251123_opening_v2.mp4" type="video/mp4" />
+          <source src="/260120_opening_v3.mp4" type="video/mp4" />
         </video>
       )}
       
-      {showBlob && showBlobBackground && <BlobBackgroundV2 />}
+      {showBlob && showBlobBackground && (
+        <Suspense fallback={null}>
+          <BlobBackgroundV2 />
+        </Suspense>
+      )}
 
       <div 
         className="relative flex-1 flex flex-col justify-start px-6 transition-all duration-[3000ms] ease-in-out"
