@@ -44,6 +44,15 @@ export const apiRequests = {
       body: formData,
     });
     return response.json();
+  },
+
+  async classifyQuestion(question: string) {
+    const response = await fetch('/api/classify-question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    return response.json();
   }
 };
 
