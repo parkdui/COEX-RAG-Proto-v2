@@ -2,7 +2,7 @@
  * AI 응답 처리 유틸리티 함수들
  */
 
-import { Message } from '@/types';
+import { Message, QuestionCategory } from '@/types';
 import { splitTextIntoSegments } from '@/lib/textSplitter';
 
 /**
@@ -16,6 +16,7 @@ export function createAssistantMessage(data: {
   thumbnailUrl?: string; // 직접 thumbnailUrl을 전달할 수 있도록 추가
   siteUrl?: string; // 직접 siteUrl을 전달할 수 있도록 추가
   linkText?: string; // 사이트 링크 버튼에 표시될 텍스트
+  questionCategory?: QuestionCategory; // 질문 카테고리
 }): Message {
   const answerText = data.answer || data.defaultAnswer || '(응답 없음)';
   const segments = splitTextIntoSegments(answerText);
@@ -104,6 +105,7 @@ export function createAssistantMessage(data: {
     thumbnailUrl,
     siteUrl,
     linkText: data.linkText, // linkText 전달
+    questionCategory: data.questionCategory, // 질문 카테고리 전달
   };
 }
 
