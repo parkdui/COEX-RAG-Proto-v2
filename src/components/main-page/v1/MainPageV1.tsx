@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ChatBubble } from '@/components/ChatBubble';
 
 // ChatBubble의 스타일을 재사용하기 위한 상수들
@@ -36,16 +36,32 @@ const assistantGlassContentStyleV2: React.CSSProperties = {
 const getAssistantGlassContentStyle = (variant: 'v1' | 'v2' = 'v2'): React.CSSProperties => {
   return variant === 'v2' ? assistantGlassContentStyleV2 : assistantGlassContentStyleV2;
 };
-import { Message } from '@/types';
+import { Message, QuestionCategory } from '@/types';
 import { createAssistantMessage, createUserMessage } from '@/lib/messageUtils';
 import { createWavBlob, getAudioConstraints, checkMicrophonePermission, handleMicrophoneError, checkBrowserSupport } from '@/lib/audioUtils';
 import { ChatTypewriterV1, ChatTypewriterV2, ChatTypewriterV3, SplitText } from '@/components/ui';
 import Logo from '@/components/ui/Logo';
-import ThinkingBlob from '@/components/ui/ThinkingBlob';
 import AudioWaveVisualizer from '@/components/ui/AudioWaveVisualizer';
-import { CanvasBackground, CanvasPhase } from '@/components/ui/BlobBackgroundV2Canvas';
-import GradualBlur from '@/components/ui/GradualBlur';
 import GradualBlurSimple from '@/components/ui/GradualBlurSimple';
+
+// 무거운 Three.js 관련 컴포넌트들을 동적 import로 지연 로드
+const ThinkingBlob = lazy(() => import('@/components/ui/ThinkingBlob'));
+const CanvasBackgroundLazy = lazy(() => 
+  import('@/components/ui/BlobBackgroundV2Canvas').then(module => ({ 
+    default: module.CanvasBackground 
+  }))
+);
+const GradualBlur = lazy(() => import('@/components/ui/GradualBlur'));
+
+// CanvasBackground를 래퍼 컴포넌트로 사용
+const CanvasBackground = (props: Parameters<typeof CanvasBackgroundLazy>[0]) => (
+  <Suspense fallback={null}>
+    <CanvasBackgroundLazy {...props} />
+  </Suspense>
+);
+
+// CanvasPhase는 타입이므로 별도로 import
+import type { CanvasPhase } from '@/components/ui/BlobBackgroundV2Canvas';
 import useCoexTTS from '@/hooks/useCoexTTS';
 import { useChatState } from './hooks/useChatState';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
@@ -56,6 +72,7 @@ import { KeywordCircles } from './components/KeywordCircles';
 import { EndMessageScreen, FinalMessageScreen, KeywordDetailScreen } from './components/EndScreens';
 import { isInfoRequestQuestion, getFallbackSummary } from './utils/questionUtils';
 import { throttle, debounce } from '@/lib/performanceUtils';
+import { useSoundManager } from '@/hooks/useSoundManager';
 
 type TypewriterVariant = 'v1' | 'v2' | 'v3';
 
@@ -77,6 +94,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const chatState = useChatState();
   const voiceState = useVoiceRecording();
   const { isPlayingTTS, playFull, prepareAuto } = useCoexTTS();
+  // 사전 로드 제거: 필요할 때만 로드 (지연 로드)
+  const { playSound, stopAllSounds } = useSoundManager();
+  const thinkingSoundInstanceRef = useRef<number | null>(null);
   const [isConversationEnded, setIsConversationEnded] = useState(false);
   const [showEndMessage, setShowEndMessage] = useState(false); // 개발용: true로 설정하여 바로 확인 가능
   const [showSummary, setShowSummary] = useState(false);
@@ -97,7 +117,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const [chipBIdx, setChipBIdx] = useState(1);
   const [swapNonce, setSwapNonce] = useState(0);
   const [chipsBottomPx, setChipsBottomPx] = useState(0); // Test2Scene.js처럼 0으로 초기화
-  const [blobPhase, setBlobPhase] = useState<CanvasPhase>('idle');
+  const [blobPhase, setBlobPhase] = useState<CanvasPhase>('completed');
   const blobAnimationStartedRef = useRef(false);
   const [customThinkingText, setCustomThinkingText] = useState<string | undefined>(undefined);
   const [answerContainerPaddingBottom, setAnswerContainerPaddingBottom] = useState<string>('20%');
@@ -226,7 +246,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     };
   }, [showSummary, showEndMessage, showFinalMessage, isConversationEnded]);
 
-  const getRandomRecommendations = useCallback(() => {
+  // randomRecommendations를 직접 useMemo로 계산 (함수 래핑 제거로 성능 개선)
+  const randomRecommendations = useMemo(() => {
     // selectedOnboardingOption에 따라 필터링된 질문들 가져오기
     const questionData = getQuestionsForOption(selectedOnboardingOption);
     
@@ -270,8 +291,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     return selected.slice(0, 3).map(q => q.question);
   }, [selectedRecommendations, selectedOnboardingOption]);
 
-  const randomRecommendations = useMemo(() => getRandomRecommendations(), [getRandomRecommendations]);
-
   // Chip indices refs 업데이트
   useEffect(() => {
     chipAIdxRef.current = chipAIdx;
@@ -295,24 +314,26 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     [chatState.messages]
   );
 
+  // 최근 질문(user message) 이후의 assistant 메시지들만 계산
+  const recentAssistantMessages = useMemo(() => {
+    const messages = chatState.messages;
+    let lastUserMessageIndex = -1;
+    
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        lastUserMessageIndex = i;
+        break;
+      }
+    }
+    
+    return lastUserMessageIndex >= 0
+      ? messages.slice(lastUserMessageIndex + 1).filter(msg => msg.role === 'assistant')
+      : messages.filter(msg => msg.role === 'assistant');
+  }, [chatState.messages]);
+
   // 답변 개수와 화면 크기에 따라 paddingBottom 동적 계산
   useEffect(() => {
     const calculatePaddingBottom = () => {
-      // 최근 질문(user message) 이후의 assistant 메시지 개수 계산
-      const messages = chatState.messages;
-      let lastUserMessageIndex = -1;
-      
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].role === 'user') {
-          lastUserMessageIndex = i;
-          break;
-        }
-      }
-      
-      const recentAssistantMessages = lastUserMessageIndex >= 0
-        ? messages.slice(lastUserMessageIndex + 1).filter(msg => msg.role === 'assistant')
-        : messages.filter(msg => msg.role === 'assistant');
-      
       const answerCount = recentAssistantMessages.length;
       
       // iPhone에서 두 번째 답변이 잘리지 않도록 답변 개수에 따라 paddingBottom 조정
@@ -336,12 +357,12 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
     window.addEventListener('resize', throttledHandleResize, { passive: true });
     window.addEventListener('orientationchange', throttledHandleResize, { passive: true });
-
+    
     return () => {
       window.removeEventListener('resize', throttledHandleResize);
       window.removeEventListener('orientationchange', throttledHandleResize);
     };
-  }, [chatState.messages]);
+  }, [recentAssistantMessages.length]);
 
   // 마지막 assistant-glass-wrapper를 찾아서 modalRef에 저장 (Test2Scene.js와 동일)
   useLayoutEffect(() => {
@@ -645,7 +666,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   );
 
   const pushAssistantMessage = useCallback(
-    async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string; thumbnailUrl?: string; siteUrl?: string; linkText?: string; ttsText?: string; skipTTS?: boolean }) => {
+    async (response: { answer?: string; tokens?: any; hits?: any[]; defaultAnswer?: string; thumbnailUrl?: string; siteUrl?: string; linkText?: string; ttsText?: string; skipTTS?: boolean; questionCategory?: QuestionCategory }) => {
       const answerText = response.answer || response.defaultAnswer || '(응답 없음)';
       
       const assistantMessage = createAssistantMessage({
@@ -656,18 +677,13 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         thumbnailUrl: response.thumbnailUrl, // 이미지 경로 전달
         siteUrl: response.siteUrl, // 사이트 URL 전달
         linkText: response.linkText, // 링크 텍스트 전달
+        questionCategory: response.questionCategory, // 질문 카테고리 전달
       });
 
       chatState.addMessage(assistantMessage);
       
-      // 답변이 추가될 때 스크롤을 맨 위로 초기화 (즉시 실행)
-      requestAnimationFrame(() => {
-        if (chatRef.current) {
-          chatRef.current.scrollTop = 0;
-          // scrollOpacity도 초기화
-          setScrollOpacity(0);
-        }
-      });
+      // 답변이 추가될 때 스크롤을 맨 위로 초기화 (DOM 업데이트 후)
+      // useEffect에서 처리하므로 여기서는 제거
       
       // 답변이 완전히 표시될 때까지 STT 텍스트를 유지하기 위해 여기서는 초기화하지 않음
       // STT 텍스트는 답변이 완전히 표시된 후(isLoading이 false가 된 후) 초기화됨
@@ -722,13 +738,45 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }
   }, []);
 
-  // 스크롤을 항상 상단으로 유지 (답변이 추가될 때마다)
+  // 스크롤을 항상 상단으로 유지 (assistant 메시지가 추가될 때마다)
   useEffect(() => {
-    if (chatRef.current && chatState.messages.length > 0) {
-      // 답변이 추가될 때마다 상단으로 스크롤
-      chatRef.current.scrollTop = 0;
+    if (chatRef.current && assistantMessages.length > 0) {
+      // DOM 업데이트가 완료된 후 스크롤 초기화 (이중 requestAnimationFrame으로 확실하게)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (chatRef.current) {
+            chatRef.current.scrollTop = 0;
+            setScrollOpacity(0);
+          }
+        });
+      });
     }
-  }, [chatState.messages.length]);
+  }, [assistantMessages.length]);
+
+  // 답변이 등장할 때 (chatState.messages에 새로운 assistant 메시지가 추가될 때) 스크롤을 최상단으로 초기화
+  const prevAssistantCountRef = useRef(0);
+  useEffect(() => {
+    const currentAssistantCount = chatState.messages.filter((msg) => msg.role === 'assistant').length;
+    
+    // 새로운 assistant 메시지가 추가되었을 때만 스크롤 초기화
+    if (currentAssistantCount > prevAssistantCountRef.current && chatRef.current) {
+      // 즉시 스크롤을 최상단으로 초기화 (smooth 없이)
+      chatRef.current.scrollTop = 0;
+      setScrollOpacity(0);
+      
+      // DOM 업데이트 후에도 다시 확인하여 확실하게 최상단 유지
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (chatRef.current) {
+            chatRef.current.scrollTop = 0;
+            setScrollOpacity(0);
+          }
+        });
+      });
+    }
+    
+    prevAssistantCountRef.current = currentAssistantCount;
+  }, [chatState.messages]);
 
   // AI 답변이 완료되면 input value 비우기
   useEffect(() => {
@@ -758,7 +806,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     }
   }, [chatState.messages.length]);
 
-  // Blob background 애니메이션 트리거: idle -> transitioning -> completed
+  // Blob background 애니메이션 트리거: transitioning -> completed
+  // LandingPage에서 MainPage로 전환될 때 blob이 상단으로 이동하는 애니메이션
   // MainPage 일반 화면에서는 2단계 background(completed 상태)만 유지
   // 한 번만 애니메이션을 실행하여 여러 blob이 겹치는 문제 방지
   useEffect(() => {
@@ -776,21 +825,16 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     // 애니메이션 시작 표시
     blobAnimationStartedRef.current = true;
 
-    // blobPhase를 idle로 리셋하고 애니메이션 시작
-    setBlobPhase('idle');
+    // LandingPage에서 MainPage로 전환될 때 즉시 transitioning 상태로 시작
+    // (blob이 상단으로 이동하는 애니메이션 시작)
+    setBlobPhase('transitioning');
 
-    // 초기 상태에서 transitioning으로 전환 (상단 블롭 확대)
-    const transitioningTimer = setTimeout(() => {
-      setBlobPhase('transitioning');
-    }, 100);
-
-    // transitioning 후 completed로 전환 (하단 블롭이 상단으로 이동, 2단계 상태)
+    // transitioning 후 completed로 전환 (하단 블롭이 상단으로 이동 완료, 2단계 상태)
     const completedTimer = setTimeout(() => {
       setBlobPhase('completed');
     }, 2000); // 2초 후 completed 상태로 전환
 
     return () => {
-      clearTimeout(transitioningTimer);
       clearTimeout(completedTimer);
     };
   }, [showBlob]); // showBlob만 dependency로 사용하여 한 번만 실행
@@ -846,6 +890,21 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   }, [chatState.setSystemPrompt]);
 
   // 스크롤 위치에 따라 블러 opacity 조정 (answerContainerRef의 상단이 chatRef viewport 상단을 넘어갈 때)
+  // thinking 상태 감지: '생각 중이에요', '듣고 있어요' 표시 시 스크롤 최상단으로 이동 및 overflow 금지
+  useEffect(() => {
+    const isThinkingState = voiceState.isRecording || voiceState.isProcessingVoice || chatState.isLoading;
+    
+    if (isThinkingState && chatRef.current) {
+      // 스크롤을 최상단으로 즉시 이동
+      chatRef.current.scrollTop = 0;
+      // overflow-y를 hidden으로 설정하여 스크롤 방지
+      chatRef.current.style.overflowY = 'hidden';
+    } else if (chatRef.current) {
+      // thinking 상태가 아니면 overflow-y를 auto로 복원
+      chatRef.current.style.overflowY = 'auto';
+    }
+  }, [voiceState.isRecording, voiceState.isProcessingVoice, chatState.isLoading]);
+
   useEffect(() => {
     const handleScroll = () => {
       if (!chatRef.current || !answerContainerRef.current) return;
@@ -888,6 +947,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const processAudio = useCallback(async (audioBlob: Blob) => {
     voiceState.setIsProcessingVoice(true);
     
+    // alert 중복 방지를 위한 플래그
+    let hasShownError = false;
+    
     try {
       const result = await apiRequests.sendSTTRequest(audioBlob);
 
@@ -908,6 +970,42 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         voiceState.setIsProcessingVoice(false);
         chatState.setIsLoading(true);
         try {
+          // 정보 요구 질문인지 확인하고 카테고리 분류
+          let questionCategory: QuestionCategory = null;
+          const isInfoRequest = isInfoRequestQuestion(recognizedText);
+          
+          // ========== 카테고리 분류 로그 시작 (음성 입력) ==========
+          console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+          console.log('%c📋 질문 카테고리 분류 (음성 입력)', 'color: #3b82f6; font-size: 14px; font-weight: bold;');
+          console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+          console.log('%c질문:', 'color: #1f2937; font-weight: bold;', recognizedText);
+          console.log('%c정보 요구 질문 여부:', 'color: #059669; font-weight: bold;', isInfoRequest ? '✅ 예' : '❌ 아니오');
+          
+          if (isInfoRequest) {
+            try {
+              console.log('%c분류 API 호출 중...', 'color: #f59e0b; font-weight: bold;');
+              const classificationResult = await apiRequests.classifyQuestion(recognizedText);
+              questionCategory = classificationResult.category || null;
+              
+              // 분류 결과를 명확하게 표시
+              if (questionCategory) {
+                console.log('%c✅ 분류 성공!', 'color: #10b981; font-size: 16px; font-weight: bold;');
+                console.log('%c카테고리:', 'color: #10b981; font-weight: bold;', `"${questionCategory}"`);
+                console.log('%c원본 응답:', 'color: #6b7280;', classificationResult.rawResponse);
+              } else {
+                console.log('%c⚠️ 분류 실패 또는 카테고리 없음', 'color: #f59e0b; font-weight: bold;');
+                console.log('%c원본 응답:', 'color: #6b7280;', classificationResult.rawResponse);
+              }
+            } catch (error) {
+              console.error('%c❌ 질문 분류 API 호출 실패:', 'color: #ef4444; font-weight: bold;', error);
+              // 분류 실패해도 계속 진행
+            }
+          } else {
+            console.log('%cℹ️ 정보 요구 질문이 아니므로 분류하지 않음', 'color: #6b7280; font-weight: bold;');
+          }
+          console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+          // ========== 카테고리 분류 로그 끝 (음성 입력) ==========
+          
           // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
           const recentHistory = chatState.chatHistory.slice(-2);
           const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
@@ -949,6 +1047,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
               tokens: chatData.tokens,
               hits: chatData.hits,
               defaultAnswer: '(응답 없음)',
+              questionCategory: questionCategory, // 질문 카테고리 전달
             });
           }
         } catch (error) {
@@ -960,15 +1059,24 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           setCustomThinkingText(undefined);
         }
       } else {
-        if (result.details && result.details.includes('STT007')) {
-          alert('음성이 너무 짧습니다. 최소 1초 이상 말씀해주세요.');
-        } else {
-          alert('음성 인식에 실패했습니다. 다시 시도해주세요.');
+        // STT 실패 시 alert (한 번만 표시)
+        if (!hasShownError) {
+          hasShownError = true;
+          if (result.details && result.details.includes('STT007')) {
+            alert('음성이 너무 짧습니다. 최소 1초 이상 말씀해주세요.');
+          } else {
+            alert('음성 인식에 실패했습니다. 다시 시도해주세요.');
+          }
         }
+        voiceState.setIsProcessingVoice(false);
       }
     } catch (error) {
       console.error('STT 처리 오류:', error);
-      alert('음성 처리 중 오류가 발생했습니다.');
+      // 에러 발생 시 alert (한 번만 표시)
+      if (!hasShownError) {
+        hasShownError = true;
+        alert('음성 처리 중 오류가 발생했습니다.');
+      }
       // 에러 발생 시에도 isProcessingVoice를 false로 설정
       voiceState.setIsProcessingVoice(false);
     }
@@ -1018,6 +1126,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       let lastSoundTime = Date.now();
       const recordingStartTime = Date.now();
       
+      // stopRecording이 중복 호출되지 않도록 플래그 추가
+      let isStopped = false;
+      
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);
         audioData.push(new Float32Array(inputData));
@@ -1045,7 +1156,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
             const recordingDuration = now - recordingStartTime;
             
             // 최소 1초 이상 녹음되었고, 2초 이상 조용하면 자동 중지
-            if (silenceDuration >= SILENCE_DURATION && recordingDuration >= 1000 && (window as any).stopRecording) {
+            if (silenceDuration >= SILENCE_DURATION && recordingDuration >= 1000 && (window as any).stopRecording && !isStopped) {
               (window as any).stopRecording();
             }
           }
@@ -1056,26 +1167,46 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       processor.connect(audioContext.destination);
       
       const stopRecording = () => {
-        processor.disconnect();
-        source.disconnect();
-        audioContext.close();
-        stream.getTracks().forEach(track => track.stop());
-        
-        // stream 정리
-        voiceState.setAudioStream(null);
-        
-        const totalLength = audioData.reduce((sum, chunk) => sum + chunk.length, 0);
-        const combinedAudio = new Float32Array(totalLength);
-        let offset = 0;
-        
-        for (const chunk of audioData) {
-          combinedAudio.set(chunk, offset);
-          offset += chunk.length;
+        // 이미 중지된 경우 중복 실행 방지
+        if (isStopped) {
+          return;
         }
+        isStopped = true;
         
-        const wavBlob = createWavBlob(combinedAudio, 16000);
-        processAudio(wavBlob);
-        voiceState.setIsRecording(false);
+        try {
+          processor.disconnect();
+          source.disconnect();
+          
+          // AudioContext가 아직 열려있을 때만 닫기
+          if (audioContext.state !== 'closed') {
+            audioContext.close().catch(err => {
+              console.warn('AudioContext close error (ignored):', err);
+            });
+          }
+          
+          stream.getTracks().forEach(track => track.stop());
+          
+          // stream 정리
+          voiceState.setAudioStream(null);
+          
+          const totalLength = audioData.reduce((sum, chunk) => sum + chunk.length, 0);
+          const combinedAudio = new Float32Array(totalLength);
+          let offset = 0;
+          
+          for (const chunk of audioData) {
+            combinedAudio.set(chunk, offset);
+            offset += chunk.length;
+          }
+          
+          const wavBlob = createWavBlob(combinedAudio, 16000);
+          processAudio(wavBlob);
+          voiceState.setIsRecording(false);
+        } catch (error) {
+          console.error('stopRecording 중 오류:', error);
+          // 에러가 발생해도 상태는 정리
+          voiceState.setIsRecording(false);
+          voiceState.setAudioStream(null);
+        }
       };
       
       (window as any).stopRecording = stopRecording;
@@ -1083,15 +1214,25 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       
     } catch (error) {
       console.error('마이크 접근 오류:', error);
+      // 에러 발생 시 상태 정리
+      voiceState.setIsRecording(false);
+      voiceState.setAudioStream(null);
       handleMicrophoneError(error);
     }
   }, [processAudio, voiceState.setIsRecording, voiceState.setAudioStream]);
 
   const stopRecording = useCallback(() => {
     if (voiceState.isRecording && (window as any).stopRecording) {
-      (window as any).stopRecording();
+      try {
+        (window as any).stopRecording();
+      } catch (error) {
+        console.error('stopRecording 호출 중 오류:', error);
+        // 에러가 발생해도 상태는 정리
+        voiceState.setIsRecording(false);
+        voiceState.setAudioStream(null);
+      }
     }
-  }, [voiceState.isRecording]);
+  }, [voiceState.isRecording, voiceState.setIsRecording, voiceState.setAudioStream]);
 
   const handleMicClick = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -1147,6 +1288,42 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     chatState.setIsLoading(true);
 
     try {
+      // 정보 요구 질문인지 확인하고 카테고리 분류
+      let questionCategory: QuestionCategory = null;
+      const isInfoRequest = isInfoRequestQuestion(question);
+      
+      // ========== 카테고리 분류 로그 시작 ==========
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+      console.log('%c📋 질문 카테고리 분류', 'color: #3b82f6; font-size: 14px; font-weight: bold;');
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+      console.log('%c질문:', 'color: #1f2937; font-weight: bold;', question);
+      console.log('%c정보 요구 질문 여부:', 'color: #059669; font-weight: bold;', isInfoRequest ? '✅ 예' : '❌ 아니오');
+      
+      if (isInfoRequest) {
+        try {
+          console.log('%c분류 API 호출 중...', 'color: #f59e0b; font-weight: bold;');
+          const classificationResult = await apiRequests.classifyQuestion(question);
+          questionCategory = classificationResult.category || null;
+          
+          // 분류 결과를 명확하게 표시
+          if (questionCategory) {
+            console.log('%c✅ 분류 성공!', 'color: #10b981; font-size: 16px; font-weight: bold;');
+            console.log('%c카테고리:', 'color: #10b981; font-weight: bold;', `"${questionCategory}"`);
+            console.log('%c원본 응답:', 'color: #6b7280;', classificationResult.rawResponse);
+          } else {
+            console.log('%c⚠️ 분류 실패 또는 카테고리 없음', 'color: #f59e0b; font-weight: bold;');
+            console.log('%c원본 응답:', 'color: #6b7280;', classificationResult.rawResponse);
+          }
+        } catch (error) {
+          console.error('%c❌ 질문 분류 API 호출 실패:', 'color: #ef4444; font-weight: bold;', error);
+          // 분류 실패해도 계속 진행
+        }
+      } else {
+        console.log('%cℹ️ 정보 요구 질문이 아니므로 분류하지 않음', 'color: #6b7280; font-weight: bold;');
+      }
+      console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
+      // ========== 카테고리 분류 로그 끝 ==========
+      
       // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
       const recentHistory = chatState.chatHistory.slice(-2);
       const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
@@ -1190,6 +1367,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           tokens: data.tokens,
           hits: data.hits,
           defaultAnswer: '(응답 없음)',
+          questionCategory: questionCategory, // 질문 카테고리 전달
         });
       }
     } catch (error) {
@@ -1458,6 +1636,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const handleRecommendationClick = useCallback(async (recommendation: string) => {
     if (chatState.isLoading || isConversationEnded) return;
     
+    // 5. 추천 chips 클릭 시 클릭 사운드 재생
+    playSound('CLICK_2', {
+      onError: () => {
+        // 재생 실패해도 조용히 처리
+      },
+    }).catch(() => {
+      // 재생 실패해도 조용히 처리
+    });
+    
     // 질문 제출 시 즉시 스크롤을 맨 위로 순간이동
     if (chatRef.current) {
       chatRef.current.scrollTop = 0;
@@ -1518,7 +1705,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       }
       
       // 모든 answers를 순차적으로 표시
-      let currentMessageNumber = chatState.messageNumber;
+      // 여러 답변이 있어도 하나의 질문-답변 쌍으로 처리하므로 messageNumber는 한 번만 증가
+      const nextMessageNumber = chatState.messageNumber + 1;
       
       // 최소 대기 시간과 함께 첫 번째 답변 표시
       await minWaitTime;
@@ -1529,10 +1717,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         const answerText = answerObj.text;
         const answerImage = answerObj.image;
         
-        // 각 답변마다 messageNumber 증가
-        currentMessageNumber += 1;
-        
-        // 첫 번째 답변에만 로그 저장
+        // 첫 번째 답변에만 로그 저장 (여러 답변이 있어도 하나의 질문-답변 쌍으로 처리)
         if (i === 0) {
           try {
             const now = new Date();
@@ -1542,7 +1727,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
             
             const logResult = await apiRequests.logMessage(
               chatState.sessionId || `session-${Date.now()}`,
-              currentMessageNumber,
+              nextMessageNumber,
               recommendation,
               answerText,
               chatState.rowIndex,
@@ -1561,9 +1746,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
             // 로그 저장 실패해도 메인 플로우는 계속 진행
           }
         }
-        
-        // messageNumber 업데이트
-        chatState.setMessageNumber(currentMessageNumber);
         
         // 각 답변을 메시지로 추가 (첫 번째는 이미 minWaitTime 대기 완료)
         if (i > 0) {
@@ -1620,6 +1802,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           chatRef.current.scrollTop = 0;
         }
       }
+      
+      // 모든 답변 처리 후 messageNumber 업데이트 (여러 답변이 있어도 하나의 질문-답변 쌍으로 처리)
+      chatState.setMessageNumber(nextMessageNumber);
       
       chatState.setIsLoading(false);
       // 답변이 완료되면 커스텀 thinking 텍스트 초기화 (첫 번째 질문 이후에는 기본 텍스트 사용)
@@ -1775,6 +1960,64 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
   const isThinking = chatState.isLoading || voiceState.isProcessingVoice;
 
+  // 6. '생각 중이에요' 화면일 때 THINKING_LONG 반복 재생
+  useEffect(() => {
+    if (isThinking) {
+      // 생각 중일 때 사운드 재생 (반복)
+      playSound('THINKING_LONG', { 
+        loop: true, 
+        volume: 0.6,
+        onError: () => {
+          // 재생 실패해도 조용히 처리
+        },
+      }).then((instanceId) => {
+        if (instanceId !== null) {
+          thinkingSoundInstanceRef.current = instanceId;
+        }
+      }).catch(() => {
+        // 재생 실패해도 조용히 처리
+      });
+    } else {
+      // 생각 중이 아닐 때 사운드 중지
+      if (thinkingSoundInstanceRef.current !== null) {
+        stopAllSounds('THINKING_LONG');
+        thinkingSoundInstanceRef.current = null;
+      }
+    }
+
+    return () => {
+      // 컴포넌트 언마운트 시 사운드 중지
+      if (thinkingSoundInstanceRef.current !== null) {
+        stopAllSounds('THINKING_LONG');
+        thinkingSoundInstanceRef.current = null;
+      }
+    };
+  }, [isThinking, playSound, stopAllSounds]);
+
+  // 7. AI 답변 container가 등장할 때 MODAL_APPEARANCE 사운드 재생
+  const prevIsLoadingRef = useRef(chatState.isLoading);
+  const prevRecentAssistantCountRef = useRef(recentAssistantMessages.length);
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current;
+    const isNowLoading = chatState.isLoading;
+    const prevCount = prevRecentAssistantCountRef.current;
+    const currentCount = recentAssistantMessages.length;
+
+    // isLoading이 true에서 false로 변경되고, 답변이 나타날 때
+    if (wasLoading && !isNowLoading && currentCount > prevCount) {
+      playSound('MODAL_APPEARANCE', {
+        onError: () => {
+          // 재생 실패해도 조용히 처리
+        },
+      }).catch(() => {
+        // 재생 실패해도 조용히 처리
+      });
+    }
+
+    prevIsLoadingRef.current = isNowLoading;
+    prevRecentAssistantCountRef.current = currentCount;
+  }, [chatState.isLoading, recentAssistantMessages.length, playSound]);
+
   // 디버깅: ThinkingBlob 렌더링 조건 확인 (주석처리)
   // useEffect(() => {
   //   const shouldRenderCanvasBackground = showBlob && !showSummary && !isThinking;
@@ -1846,7 +2089,9 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
               background: 'radial-gradient(circle at 30% 25%, #fdf0f6 0%, #fce6ef 45%, #f7d7e4 100%)',
             }}
           />
-          <ThinkingBlob isActive={isThinking} />
+          <Suspense fallback={null}>
+            <ThinkingBlob isActive={isThinking} />
+          </Suspense>
         </>
       )}
       
@@ -2067,7 +2312,19 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                         />
                       </div>
                     ) : null}
-                    {(chatState.isLoading || chatState.messages.filter(msg => msg.role === 'assistant').length > 0) && (
+                    {/* 답변 container 상단 블러 효과 - fixed로 최상단에 고정 (answerContainerRef 밖으로 이동) */}
+                    {/* mic icon 클릭 시 blur도 숨김 */}
+                    {(chatState.isLoading || recentAssistantMessages.length > 0) && 
+                     !voiceState.isRecording && !voiceState.isProcessingVoice && (
+                      <GradualBlurSimple 
+                        height="8rem" 
+                        bgColor="transparent"
+                        opacity={scrollOpacity}
+                      />
+                    )}
+                    {/* mic icon 클릭 시 이전 답변 컨테이너 숨김 */}
+                    {(chatState.isLoading || recentAssistantMessages.length > 0) && 
+                     !voiceState.isRecording && !voiceState.isProcessingVoice && (
                       <div 
                         ref={answerContainerRef}
                         style={{
@@ -2079,30 +2336,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           position: 'relative',
                         }}
                       >
-                        {/* 답변 container 상단 블러 효과 - answerContainerRef의 상단 경계에 sticky로 고정 */}
-                        {scrollOpacity > 0 && (
-                          <div
-                            style={{
-                              position: 'sticky',
-                              top: 0,
-                              left: '-16px', // px-4 패딩 보정 (16px = 1rem)
-                              right: '-16px', // px-4 패딩 보정
-                              marginLeft: '-16px', // px-4 패딩 보정
-                              marginRight: '-16px', // px-4 패딩 보정
-                              opacity: scrollOpacity,
-                              transition: 'opacity 0.2s ease-out',
-                              pointerEvents: 'none',
-                              zIndex: 10, // 답변 위에 표시되지만 pointerEvents: none으로 클릭 불가
-                              width: 'calc(100% + 32px)', // 좌우 패딩 보정
-                              marginBottom: '-4rem', // 블러 높이만큼 음수 마진으로 답변과 겹치지 않도록
-                            }}
-                          >
-                            <GradualBlurSimple 
-                              height="4rem" 
-                              bgColor="transparent" 
-                            />
-                          </div>
-                        )}
                         {chatState.isLoading ? (
                           <div
                             style={{
@@ -2150,23 +2383,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                         ) : (
                           <>
                             {(() => {
-                              // 최근 질문(user message) 이후의 assistant 메시지들만 표시
-                              const messages = chatState.messages;
-                              let lastUserMessageIndex = -1;
-                              
-                              // 마지막 user message의 인덱스 찾기
-                              for (let i = messages.length - 1; i >= 0; i--) {
-                                if (messages[i].role === 'user') {
-                                  lastUserMessageIndex = i;
-                                  break;
-                                }
-                              }
-                              
-                              // 마지막 user message 이후의 assistant 메시지들만 필터링
-                              const recentAssistantMessages = lastUserMessageIndex >= 0
-                                ? messages.slice(lastUserMessageIndex + 1).filter(msg => msg.role === 'assistant')
-                                : messages.filter(msg => msg.role === 'assistant');
-                              
+                              // recentAssistantMessages는 이미 useMemo로 계산됨
                               // 5번째 답변인지 확인
                               const isFifthAnswerScene = assistantMessages.length === 5 && 
                                 recentAssistantMessages.length === 1 &&

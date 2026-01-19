@@ -1123,6 +1123,7 @@ export async function POST(request: NextRequest) {
     console.log(`[Chat] Body messageNumber: ${body?.messageNumber}`);
     console.log(`[Chat] Calculated messageNumber: ${messageNumber}`);
     console.log(`[Chat] History length: ${body?.history?.length || 0}`);
+    console.log(`[Chat] Expected columns: User=${String.fromCharCode(65 + 3 + (messageNumber - 1) * 2)} (index ${3 + (messageNumber - 1) * 2}), AI=${String.fromCharCode(65 + 4 + (messageNumber - 1) * 2)} (index ${4 + (messageNumber - 1) * 2})`);
     console.log(`[Chat] ========================================`);
     
     // System Prompt 읽기 및 날짜 정보 추가
