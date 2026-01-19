@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 
-// Siren TTS API 설정
+// Siren TTS API 설정 
 const SIREN_GW_BASE_URL = 'https://public-stage-siren-gw.io.naver.com';
 const SIREN_GW_PATH = '/tts/makeTTS';
 const X_NAVER_SVCID = 'coex';
