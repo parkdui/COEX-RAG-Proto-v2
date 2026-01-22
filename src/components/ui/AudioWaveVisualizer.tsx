@@ -86,18 +86,20 @@ export default function AudioWaveVisualizer({ stream, isActive }: AudioWaveVisua
 
   return (
     <div
-      className="fixed left-1/2 z-50 pointer-events-none"
+      className="relative z-50 pointer-events-none"
       style={{
-        top: '40%',
-        transform: 'translateX(-50%)',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: '6px',
         padding: '12px 16px',
         background: 'transparent',
         borderRadius: '24px',
         opacity: opacity,
         transition: 'opacity 0.3s ease-in-out',
+        height: '64px', // 고정 높이: 최대 bar 높이(40px) + 상하 padding(24px)
+        minHeight: '64px', // 최소 높이도 동일하게 설정
+        boxSizing: 'border-box', // padding 포함한 높이 계산
       }}
     >
       {heights.map((height, index) => (

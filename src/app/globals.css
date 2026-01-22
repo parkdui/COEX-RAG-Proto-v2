@@ -226,6 +226,79 @@ body {
     color: transparent;
   }
   
+  /* Thinking Text Gradient Animation - cyan-800 기반 흰색 혼합 */
+  @keyframes thinkingGradient {
+    0% {
+      background-position: 200% 50%; /* 왼쪽에서 시작 */
+    }
+    100% {
+      background-position: 0% 50%; /* 오른쪽으로 이동 완료, 다음 사이클 시작점과 seamless 연결 */
+    }
+  }
+  
+  .thinking-gradient-animation {
+    background: linear-gradient(
+      90deg,
+      /* 첫 번째 패턴 - #155e75 구간이 매우 길게 설정 */
+      #155e75 0%,
+      #155e75 30%,
+      #7dd3fc 35%,
+      #ffffff 40%,
+      #7dd3fc 45%,
+      #155e75 50%,
+      /* 중간 #155e75 구간 확대 (50%-70%) */
+      #155e75 50%,
+      #155e75 70%,
+      /* 두 번째 패턴 시작 - seamless 반복 */
+      #7dd3fc 75%,
+      #ffffff 80%,
+      #7dd3fc 85%,
+      #155e75 90%,
+      #155e75 100%
+    );
+    background-size: 200% 100%; /* 한 패턴 크기 */
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: thinkingGradient 5s linear infinite; /* 속도 약간 조정 */
+  }
+  
+  .thinking-gradient-animation-line {
+    display: block;
+    background: linear-gradient(
+      90deg,
+      /* 첫 번째 패턴 - #155e75 구간이 매우 길게 설정 */
+      #155e75 0%,
+      #155e75 30%,
+      #7dd3fc 35%,
+      #ffffff 40%,
+      #7dd3fc 45%,
+      #155e75 50%,
+      /* 중간 #155e75 구간 확대 (50%-70%) */
+      #155e75 50%,
+      #155e75 70%,
+      /* 두 번째 패턴 시작 - seamless 반복 */
+      #7dd3fc 75%,
+      #ffffff 80%,
+      #7dd3fc 85%,
+      #155e75 90%,
+      #155e75 100%
+    );
+    background-size: 200% 100%; /* 한 패턴 크기 */
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: thinkingGradient 5s linear infinite; /* 속도 약간 조정 */
+  }
+  
+  .thinking-gradient-animation * {
+    background: inherit;
+    -webkit-background-clip: inherit;
+    background-clip: inherit;
+    -webkit-text-fill-color: inherit;
+    color: transparent;
+  }
+  
   /* Sori Gradient Wrapper - TextPressure와 호환 */
   .sori-gradient-wrapper {
     display: inline-block;

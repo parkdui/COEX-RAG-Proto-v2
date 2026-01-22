@@ -110,6 +110,27 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
     }
   }, [newTextOpacity]);
 
+  // 버튼 옵션과 mp3 파일 매핑
+  const getMp3FileForOption = (option: string): string | null => {
+    const mapping: Record<string, string> = {
+      '가족과 함께': '1-1.mp3',
+      '연인과 둘이': '2-1.mp3',
+      '친구랑 같이': '3-1.mp3',
+      '혼자서 자유롭게': '4-1.mp3',
+    };
+    return mapping[option] || null;
+  };
+
+  // mp3 파일 재생 함수
+  const playMp3File = useCallback((filename: string) => {
+    const audio = new Audio(`/pre-recordings/${filename}`);
+    audio.volume = 1.0;
+    audio.play().catch((error) => {
+      console.error('MP3 재생 실패:', error);
+    });
+    return audio;
+  }, []);
+
   // 버튼 선택 시 처리
   const handleButtonClick = useCallback((option: string) => {
     // 3. 버튼 클릭 시 클릭 사운드 재생
@@ -120,11 +141,20 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
     }).catch(() => {
       // 재생 실패해도 조용히 처리
     });
+    
     setSelectedOption(option);
     setShowThinkingBlob(true);
     // 기존 텍스트 fade-out
     setQuestionTextOpacity(0);
-  }, [playSound]);
+    
+    // 선택된 옵션에 해당하는 mp3 파일 재생 (0.8초 지연)
+    const mp3File = getMp3FileForOption(option);
+    if (mp3File) {
+      setTimeout(() => {
+        playMp3File(mp3File);
+      }, 800);
+    }
+  }, [playSound, playMp3File]);
 
   // 텍스트 애니메이션 완료 시간 계산
   useEffect(() => {
@@ -139,14 +169,16 @@ export default function LandingPageV2({ onComplete, showBlob = true }: LandingPa
     }
   }, [selectedOption]);
 
-  // 텍스트 애니메이션 완료 후 3초 대기, 그 다음 MainPage로 전환
+  // 텍스트 애니메이션 완료 후 최소 5초 대기 (mp3가 5초 이하일 수 있으므로), 그 다음 MainPage로 전환
   useEffect(() => {
     if (textAnimationComplete && selectedOption) {
+      // 텍스트가 나타난 시점부터 최소 5초가 지나야 함
+      // SplitText 애니메이션이 1.5초 후 완료되므로, 추가로 3.5초 대기하여 총 5초 보장
       const timer = setTimeout(() => {
         setShowThinkingBlob(false);
         setIsTransitioning(true);
         onComplete(selectedOption);
-      }, 3000);
+      }, 3500); // 3초에서 3.5초로 증가하여 최소 5초 보장 (1.5초 애니메이션 + 3.5초 대기 = 5초)
 
       return () => clearTimeout(timer);
     }

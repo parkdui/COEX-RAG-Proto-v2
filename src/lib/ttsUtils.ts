@@ -85,6 +85,12 @@ export class AudioManager {
     const audio = new Audio(audioUrl);
     this.audioRef.current = audio;
 
+    // iPhone Safari 최적화: 오디오 속성 설정
+    audio.preload = 'auto';
+    // iOS에서 인라인 재생 허용 (setAttribute 사용)
+    audio.setAttribute('playsinline', 'true');
+    (audio as any).playsInline = true; // iOS 호환성을 위한 추가 설정
+
     // 오디오 이벤트 리스너
     audio.onended = () => {
       this.isPlaying = false;
@@ -96,18 +102,51 @@ export class AudioManager {
       this.isPlaying = false;
       URL.revokeObjectURL(audioUrl);
       handlers?.onError?.(event);
-      console.error('TTS audio playback failed');
+      console.error('TTS audio playback failed:', event);
     };
 
     // 오디오 재생 전 0.3초 대기
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // 오디오 재생
+    // 오디오 재생 (iPhone Safari 최적화)
     try {
-      await audio.play();
+      // iOS Safari에서 오디오 컨텍스트 활성화 시도
+      if (typeof window !== 'undefined' && 'AudioContext' in window) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const audioContext = new AudioContextClass();
+          if (audioContext.state === 'suspended') {
+            try {
+              await audioContext.resume();
+            } catch (e) {
+              console.warn('AudioContext resume failed:', e);
+            }
+          }
+        }
+      }
+
+      // 오디오 재생 시도
+      const playPromise = audio.play();
+      
+      // Promise가 반환되면 await, 그렇지 않으면 바로 처리
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+      
       this.isPlaying = true;
     } catch (error) {
       this.isPlaying = false;
+      const errorObj = error as Error & { name?: string };
+      
+      // iPhone Safari에서 자동 재생이 차단된 경우 조용히 처리
+      if (errorObj.name === 'NotAllowedError' || errorObj.name === 'NotSupportedError') {
+        console.warn('TTS audio playback blocked by browser policy (likely iOS Safari):', errorObj.name);
+        // 에러를 throw하지 않고 조용히 처리 (사용자 경험 개선)
+        URL.revokeObjectURL(audioUrl);
+        handlers?.onError?.(error);
+        return;
+      }
+      
       URL.revokeObjectURL(audioUrl);
       handlers?.onError?.(error);
       throw error;
