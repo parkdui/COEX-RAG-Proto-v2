@@ -58,6 +58,7 @@ export interface ChatBubbleProps {
   isRecording?: boolean;
   isFirstAnswer?: boolean; // 첫 번째 답변인지 여부
   onFeedback?: (feedback: 'negative' | 'positive') => void; // 피드백 콜백
+  onContinueRecommendation?: () => void; // 계속 추천 버튼 클릭 콜백
 }
 
 export interface AudioConstraints {

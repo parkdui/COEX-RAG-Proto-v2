@@ -317,14 +317,14 @@ function logTokenSummary(tag = "") {
 }
 
 // Google Sheets 로그 저장 함수
-interface ChatLog {
-  timestamp: string;
-  systemPrompt: string;
-  conversation: Array<{
-    userMessage: string;
-    aiMessage: string;
-  }>;
-}
+// interface ChatLog {
+//   timestamp: string;
+//   systemPrompt: string;
+//   conversation: Array<{
+//     userMessage: string;
+//     aiMessage: string;
+//   }>;
+// }
 
 // Google Sheets 인증 및 클라이언트 생성 헬퍼 함수
 export async function getGoogleSheetsClient() {
@@ -1029,6 +1029,7 @@ export async function POST(request: NextRequest) {
     const question = (body?.question || "").trim();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
     const feedbackPreference = body?.feedbackPreference as 'negative' | 'positive' | null | undefined;
+    const history = body?.history || [];
 
     // vectors.json은 정보 요구 질문일 때만 필요하므로, 나중에 필요할 때 로드
     let vectors: any[] = [];
@@ -1262,11 +1263,12 @@ export async function POST(request: NextRequest) {
         : `${truncatedQuestion}` // context가 비어있으면 질문만
       : `${truncatedQuestion}`; // 비정보 질문도 질문만
 
-    // History 최적화: 토큰 절감을 위해 히스토리 완전 제거
-    // System Prompt가 첫 메시지에만 전송되므로, 이후 메시지에서는 히스토리 없이도 충분
-    const optimizedHistory: any[] = [];
-    
-    // 히스토리는 완전히 제거하여 토큰 절감 (대화 품질은 System Prompt로 유지)
+    // History 사용: chatHistory에서 전달받은 이전 대화 (각 assistant는 키워드 2개만 포함)
+    // 토큰 절감을 위해 키워드만 포함하되, 구조화된 history 형식 사용
+    const optimizedHistory = Array.isArray(history) ? history.map((msg: any) => ({
+      role: msg.role,
+      content: msg.content
+    })) : [];
 
     // System Prompt 포함: 날짜 정보와 함께 전송
     const messages = [
@@ -1274,7 +1276,7 @@ export async function POST(request: NextRequest) {
         role: "system",
         content: activeSystemPrompt,
       }] : []), // System Prompt가 있으면 포함
-      ...optimizedHistory, // 히스토리 완전 제거
+      ...optimizedHistory, // 이전 대화 히스토리 (키워드만 포함)
       {
         role: "user",
         content: userMessageContent,

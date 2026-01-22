@@ -1,6 +1,6 @@
 /**
  * 답변에서 아주 소량의 키워드만 추출하는 함수 (정규식 기반, AI API 호출 없이)
- * 토큰 절감을 위해 최대 3-5개의 키워드만 추출하고, 총 길이를 15자 이내로 제한
+ * Quality analysis를 위해 각 대화 턴마다 최대 2개의 키워드만 추출
  */
 
 // 코엑스 관련 주요 장소명 패턴
@@ -17,7 +17,7 @@ const KEYWORD_PATTERNS = [
 /**
  * 텍스트에서 키워드 추출
  * @param text 답변 텍스트
- * @returns 추출된 키워드들 (최대 5개, 총 15자 이내)
+ * @returns 추출된 키워드들 (최대 2개, Quality analysis를 위해 제한)
  */
 export function extractKeywords(text: string): string {
   if (!text || text.trim().length === 0) {
@@ -25,21 +25,20 @@ export function extractKeywords(text: string): string {
   }
 
   const keywords = new Set<string>();
-  let totalLength = 0;
-  const maxKeywords = 5;
-  const maxTotalLength = 15; // 총 길이 제한 (토큰 절감)
+  const maxKeywords = 2; // Quality analysis를 위해 2개로 제한
 
   // 1. 장소명 추출
   for (const pattern of PLACE_PATTERNS) {
     const matches = text.match(pattern);
     if (matches) {
       for (const match of matches) {
-        if (match.length <= 6 && totalLength + match.length <= maxTotalLength && keywords.size < maxKeywords) {
+        if (match.length <= 6 && keywords.size < maxKeywords) {
           keywords.add(match);
-          totalLength += match.length;
+          if (keywords.size >= maxKeywords) break;
         }
       }
     }
+    if (keywords.size >= maxKeywords) break;
   }
 
   // 2. 주요 키워드 추출 (장소명이 부족한 경우)
@@ -48,16 +47,16 @@ export function extractKeywords(text: string): string {
       const matches = text.match(pattern);
       if (matches) {
         for (const match of matches) {
-          if (match.length <= 4 && totalLength + match.length <= maxTotalLength && keywords.size < maxKeywords) {
+          if (match.length <= 4 && keywords.size < maxKeywords) {
             keywords.add(match);
-            totalLength += match.length;
+            if (keywords.size >= maxKeywords) break;
           }
         }
       }
+      if (keywords.size >= maxKeywords) break;
     }
   }
 
-  // 키워드를 쉼표로 구분하여 반환 (최대 15자)
-  const result = Array.from(keywords).slice(0, maxKeywords).join(',');
-  return result.length > maxTotalLength ? result.substring(0, maxTotalLength) : result;
+  // 키워드를 쉼표로 구분하여 반환 (최대 2개)
+  return Array.from(keywords).slice(0, maxKeywords).join(',');
 }

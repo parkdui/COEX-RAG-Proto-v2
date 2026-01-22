@@ -874,7 +874,8 @@ SiteLink.displayName = 'SiteLink';
 const FeedbackComponent: React.FC<{ 
   onFeedback: (feedback: 'negative' | 'positive') => void;
   isVisible: boolean;
-}> = ({ onFeedback, isVisible }) => {
+  onContinueRecommendation?: () => void;
+}> = ({ onFeedback, isVisible, onContinueRecommendation }) => {
   const [selectedFeedback, setSelectedFeedback] = useState<'negative' | 'positive' | null>(null);
   const [showFeedbackText, setShowFeedbackText] = useState(false);
   const [showContinueButton, setShowContinueButton] = useState(false);
@@ -898,15 +899,16 @@ const FeedbackComponent: React.FC<{
   };
 
   const handleContinueRecommendation = () => {
-    // TODO: 계속 추천 기능 구현
-    console.log('계속 추천 요청');
+    if (onContinueRecommendation) {
+      onContinueRecommendation();
+    }
   };
 
   if (!isVisible) return null;
 
   const feedbackMessages = {
     negative: '아, 아쉬우셨군요.\n다음부터는 이솔이 다른 주제를 답변해볼게요!',
-    positive: '이런 답변을 원하시는군요.\n좋아요, 이솔이 비슷한 답변을 생각해볼게요!',
+    positive: '이 방향으로 이솔이 더 생각해볼게요!',
   };
 
   return (
@@ -1029,46 +1031,40 @@ const FeedbackComponent: React.FC<{
         >
           <div
             style={{
-              color: 'rgba(112, 60, 161, 0.70)',
-              fontFamily: 'Pretendard Variable',
-              fontSize: '14px',
-              fontStyle: 'normal',
-              fontWeight: 500,
-              lineHeight: '140%',
-              letterSpacing: '-0.56px',
-              whiteSpace: 'pre-line',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
             }}
           >
-            {selectedFeedback && feedbackMessages[selectedFeedback]}
-          </div>
-          
-          {/* '잘 맞아요' 클릭 시 추가 버튼 표시 */}
-          {showContinueButton && selectedFeedback === 'positive' && (
             <div
               style={{
-                marginTop: '12px',
-                opacity: 0,
-                animation: 'fadeIn 0.4s ease-in-out forwards',
+                color: 'rgba(112, 60, 161, 0.70)',
+                fontFamily: 'Pretendard Variable',
+                fontSize: '14px',
+                fontStyle: 'normal',
+                fontWeight: 500,
+                lineHeight: '140%',
+                letterSpacing: '-0.56px',
               }}
             >
+              {selectedFeedback && feedbackMessages[selectedFeedback]}
+            </div>
+            
+            {/* '잘 맞아요' 클릭 시 추가 버튼 표시 */}
+            {showContinueButton && selectedFeedback === 'positive' && (
               <button
                 onClick={handleContinueRecommendation}
                 style={{
                   borderRadius: '24px',
-                  border: '1px solid rgba(200, 180, 230, 0.4)',
-                  background: 'rgba(240, 230, 255, 0.45)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 9.1px 0 rgba(166, 166, 166, 0.2)',
+                  border: '1px solid rgba(200, 180, 230, 0.5)',
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(230, 210, 255, 0.6) 50%, rgba(220, 200, 250, 0.5) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 9.1px 0 rgba(166, 166, 166, 0.25)',
                   backdropFilter: 'blur(16px) saturate(1.4)',
                   WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
                   padding: '8px 16px',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(240, 230, 255, 0.6)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(240, 230, 255, 0.45)';
                 }}
               >
                 <span
@@ -1082,11 +1078,11 @@ const FeedbackComponent: React.FC<{
                     color: 'rgba(112, 60, 161, 0.70)',
                   }}
                 >
-                  이런 방향으로 계속 추천
+                  계속 추천
                 </span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       <style jsx>{`
@@ -1221,7 +1217,8 @@ const SegmentedMessageComponent: React.FC<{
   glassStyleVariant?: GlassStyleVariant;
   isFirstAnswer?: boolean;
   onFeedback?: (feedback: 'negative' | 'positive') => void;
-}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2', isFirstAnswer = false, onFeedback }) => {
+  onContinueRecommendation?: () => void;
+}> = ({ message, onPlayTTS: _onPlayTTS, isPlayingTTS: _isPlayingTTS, typewriterVariant, glassStyleVariant = 'v2', isFirstAnswer = false, onFeedback, onContinueRecommendation }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
 
@@ -1369,8 +1366,8 @@ const SegmentedMessageComponent: React.FC<{
                 <div
                   style={{
                     width: '100%',
-                    minHeight: 'min(60vh, 400px)',
-                    maxHeight: '70vh',
+                    minHeight: 'min(70vh, 500px)', // iPhone 최적화: 60vh -> 70vh, 400px -> 500px
+                    maxHeight: '80vh', // iPhone 최적화: 70vh -> 80vh
                     borderRadius: '16px',
                     overflow: 'hidden',
                     position: 'relative',
@@ -1399,8 +1396,8 @@ const SegmentedMessageComponent: React.FC<{
                       style={{
                         width: '100%',
                         height: '100%',
-                        minHeight: 'min(60vh, 400px)',
-                        maxHeight: '70vh',
+                        minHeight: 'min(70vh, 500px)', // iPhone 최적화: 60vh -> 70vh, 400px -> 500px
+                        maxHeight: '80vh', // iPhone 최적화: 70vh -> 80vh
                         background: 'linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 50%, #e0e7ff 100%)',
                         display: 'flex',
                         flexDirection: 'column',
@@ -1645,6 +1642,7 @@ const SegmentedMessageComponent: React.FC<{
                       // TODO: 피드백 처리 로직 추가
                     }}
                     isVisible={true}
+                    onContinueRecommendation={onContinueRecommendation}
                   />
                 )}
 
@@ -1672,6 +1670,7 @@ const SegmentedMessageComponent: React.FC<{
                       }
                     }}
                     isVisible={shouldShowSite && isSiteVisible}
+                    onContinueRecommendation={onContinueRecommendation}
                   />
                 )}
 
@@ -1744,6 +1743,7 @@ const SingleMessageComponent: React.FC<{
   thinkingText?: string; // 커스텀 thinking 텍스트
   isFirstAnswer?: boolean;
   onFeedback?: (feedback: 'negative' | 'positive') => void;
+  onContinueRecommendation?: () => void;
 }> = ({
   message,
   isThinking,
@@ -1756,6 +1756,7 @@ const SingleMessageComponent: React.FC<{
   isRecording = false,
   isFirstAnswer = false,
   onFeedback,
+  onContinueRecommendation,
 }) => {
   const [showHighlight, setShowHighlight] = useState(false);
   const [isSiteVisible, setIsSiteVisible] = useState(false);
@@ -1930,8 +1931,8 @@ const SingleMessageComponent: React.FC<{
                 <div
                   style={{
                     width: '100%',
-                    minHeight: 'min(60vh, 400px)',
-                    maxHeight: '70vh',
+                    minHeight: 'min(70vh, 500px)', // iPhone 최적화: 60vh -> 70vh, 400px -> 500px
+                    maxHeight: '80vh', // iPhone 최적화: 70vh -> 80vh
                     borderRadius: '16px',
                     overflow: 'hidden',
                     position: 'relative',
@@ -1960,8 +1961,8 @@ const SingleMessageComponent: React.FC<{
                       style={{
                         width: '100%',
                         height: '100%',
-                        minHeight: 'min(60vh, 400px)',
-                        maxHeight: '70vh',
+                        minHeight: 'min(70vh, 500px)', // iPhone 최적화: 60vh -> 70vh, 400px -> 500px
+                        maxHeight: '80vh', // iPhone 최적화: 70vh -> 80vh
                         background: 'linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 50%, #e0e7ff 100%)',
                         display: 'flex',
                         flexDirection: 'column',
@@ -2112,16 +2113,13 @@ const SingleMessageComponent: React.FC<{
           >
           {(isThinking || isRecording) ? (
             <span
-              className="text-center text-cyan-800 font-semibold font-['Pretendard_Variable']"
+              className={`text-center font-semibold font-['Pretendard_Variable'] ${isThinking && !isRecording ? '' : 'text-cyan-800'}`}
               style={{
                 fontFamily: 'Pretendard Variable',
                 fontSize: '18px',
                 fontWeight: 600,
                 lineHeight: '130%',
-                whiteSpace: (() => {
-                  const text = isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요');
-                  return text.length > 10 ? 'pre-line' : 'nowrap';
-                })(),
+                whiteSpace: 'normal',
                 textAlign: 'center',
                 display: 'block',
                 width: '100%',
@@ -2133,24 +2131,62 @@ const SingleMessageComponent: React.FC<{
             >
               {(() => {
                 const text = isRecording ? '이솔이 듣고 있어요' : (thinkingText || '생각 중이에요');
-                if (text.length <= 10) {
-                  return text;
+                
+                if (isRecording || !isThinking) {
+                  // 녹음 중이거나 thinking이 아닐 때는 기존 로직 유지
+                  if (text.length <= 10) {
+                    return text;
+                  }
+                  
+                  // 10자 초과 시 단어 기준으로 줄바꿈 (최대 2줄)
+                  const words = text.split(/\s+/).filter(w => w.length > 0);
+                  if (words.length === 0) return text;
+                  
+                  // 단어가 1개면 그대로 반환
+                  if (words.length === 1) return text;
+                  
+                  // 단어를 적절히 2줄로 나누기 (절반 지점 기준)
+                  const midPoint = Math.ceil(words.length / 2);
+                  const line1 = words.slice(0, midPoint).join(' ');
+                  const line2 = words.slice(midPoint).join(' ');
+                  
+                  // 최대 2줄까지만 표시
+                  return `${line1}\n${line2}`;
                 }
                 
-                // 10자 초과 시 단어 기준으로 줄바꿈 (최대 2줄)
-                const words = text.split(/\s+/).filter(w => w.length > 0);
-                if (words.length === 0) return text;
+                // thinking일 때: 각 줄마다 순차적으로 그라디언트 애니메이션 적용
+                let lines: string[];
+                if (text.length <= 10) {
+                  lines = [text];
+                } else {
+                  // 10자 초과 시 단어 기준으로 줄바꿈 (최대 2줄)
+                  const words = text.split(/\s+/).filter(w => w.length > 0);
+                  if (words.length === 0) {
+                    lines = [text];
+                  } else if (words.length === 1) {
+                    lines = [text];
+                  } else {
+                    // 단어를 적절히 2줄로 나누기 (절반 지점 기준)
+                    const midPoint = Math.ceil(words.length / 2);
+                    const line1 = words.slice(0, midPoint).join(' ');
+                    const line2 = words.slice(midPoint).join(' ');
+                    lines = [line1, line2];
+                  }
+                }
                 
-                // 단어가 1개면 그대로 반환
-                if (words.length === 1) return text;
-                
-                // 단어를 적절히 2줄로 나누기 (절반 지점 기준)
-                const midPoint = Math.ceil(words.length / 2);
-                const line1 = words.slice(0, midPoint).join(' ');
-                const line2 = words.slice(midPoint).join(' ');
-                
-                // 최대 2줄까지만 표시
-                return `${line1}\n${line2}`;
+                // 각 줄을 별도의 span으로 렌더링하고 순차적으로 애니메이션 delay 적용
+                return lines.map((line, index) => (
+                  <span
+                    key={index}
+                    className="thinking-gradient-animation-line"
+                    style={{
+                      display: 'block',
+                      animationDelay: `${index * 0.8}s`, // 각 줄마다 0.8초씩 지연
+                    }}
+                  >
+                    {line}
+                  </span>
+                ));
               })()}
             </span>
           ) : (
@@ -2277,6 +2313,7 @@ const SingleMessageComponent: React.FC<{
                           // TODO: 피드백 처리 로직 추가
                         }}
                         isVisible={true}
+                        onContinueRecommendation={onContinueRecommendation}
                       />
                     )}
 
@@ -2304,6 +2341,7 @@ const SingleMessageComponent: React.FC<{
                           }
                         }}
                         isVisible={shouldShowSite && isSiteVisible}
+                        onContinueRecommendation={onContinueRecommendation}
                       />
                     )}
 
@@ -2351,7 +2389,8 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
   isRecording = false,
   thinkingText,
   isFirstAnswer = false,
-  onFeedback
+  onFeedback,
+  onContinueRecommendation
 }) => {
   // AI 메시지이고 segments가 있으면 분할된 말풍선들을 렌더링
   if (message.role === 'assistant' && message.segments && message.segments.length > 1) {
@@ -2364,6 +2403,7 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
         glassStyleVariant={glassStyleVariant}
         isFirstAnswer={isFirstAnswer}
         onFeedback={onFeedback}
+        onContinueRecommendation={onContinueRecommendation}
       />
     );
   }
@@ -2382,6 +2422,7 @@ export const ChatBubble: React.FC<ChatBubbleProps & { thinkingText?: string }> =
       thinkingText={thinkingText}
       isFirstAnswer={isFirstAnswer}
       onFeedback={onFeedback}
+      onContinueRecommendation={onContinueRecommendation}
     />
   );
 };

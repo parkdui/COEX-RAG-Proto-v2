@@ -134,6 +134,87 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
   const GreetingTypewriter = typewriterComponentMap[typewriterVariant];
   
+  // 버튼 옵션과 mp3 파일 매핑 (MainPage 전환 시)
+  const getMp3FileForMainPage = (option: string): string | null => {
+    const mapping: Record<string, string> = {
+      '가족과 함께': '1-2.mp3',
+      '연인과 둘이': '2-2.mp3',
+      '친구랑 같이': '3-2.mp3',
+      '혼자서 자유롭게': '4-2.mp3',
+    };
+    return mapping[option] || null;
+  };
+
+  // MainPage mp3 재생 추적을 위한 ref (중복 재생 방지)
+  const mainPageMp3PlayedRef = useRef<string | null>(null);
+  // timeout과 audio를 저장할 ref
+  const mainPageMp3TimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mainPageMp3AudioRef = useRef<HTMLAudioElement | null>(null);
+  // 재생 시작 플래그 (cleanup에서 timeout 취소 방지)
+  const mainPageMp3StartedRef = useRef<boolean>(false);
+
+  // MainPage 마운트 시 mp3 재생 (0.8초 지연, 중복 재생 방지)
+  useEffect(() => {
+    console.log('[MainPage] useEffect 실행됨, selectedOnboardingOption:', selectedOnboardingOption);
+    
+    // selectedOnboardingOption이 있고, 아직 재생하지 않은 경우에만 재생
+    if (!selectedOnboardingOption) {
+      console.log('[MainPage] selectedOnboardingOption이 없어서 스킵');
+      return;
+    }
+
+    // 이미 재생한 옵션이면 스킵
+    if (mainPageMp3PlayedRef.current === selectedOnboardingOption) {
+      console.log('[MainPage] 이미 재생한 옵션이어서 스킵:', selectedOnboardingOption);
+      return;
+    }
+
+    const mp3File = getMp3FileForMainPage(selectedOnboardingOption);
+    if (!mp3File) {
+      console.log('[MainPage] mp3 파일을 찾을 수 없음:', selectedOnboardingOption);
+      return;
+    }
+
+    // 재생 표시를 먼저 설정하여 중복 방지
+    mainPageMp3PlayedRef.current = selectedOnboardingOption;
+    mainPageMp3StartedRef.current = false; // 재생 시작 플래그 초기화
+    
+    console.log('[MainPage] MP3 재생 예정:', mp3File, '옵션:', selectedOnboardingOption);
+    
+    // 0.8초 지연 후 재생
+    mainPageMp3TimeoutRef.current = setTimeout(() => {
+      mainPageMp3StartedRef.current = true; // 재생 시작 플래그 설정
+      console.log('[MainPage] MP3 재생 시작:', mp3File);
+      const audio = new Audio(`/pre-recordings/${mp3File}`);
+      mainPageMp3AudioRef.current = audio; // ref에 저장
+      audio.volume = 1.0;
+      audio.play().then(() => {
+        console.log('[MainPage] MP3 재생 성공:', mp3File);
+      }).catch((error) => {
+        console.error('[MainPage] MP3 재생 실패:', error, '파일:', mp3File);
+        // 재생 실패 시 ref 초기화하여 재시도 가능하도록
+        mainPageMp3PlayedRef.current = null;
+        mainPageMp3AudioRef.current = null;
+        mainPageMp3StartedRef.current = false;
+      });
+      
+      // 재생 완료 후 정리
+      audio.addEventListener('ended', () => {
+        mainPageMp3AudioRef.current = null;
+        mainPageMp3StartedRef.current = false;
+      });
+    }, 800);
+
+    return () => {
+      console.log('[MainPage] useEffect cleanup 실행, 재생 시작 여부:', mainPageMp3StartedRef.current);
+      // React Strict Mode에서 첫 번째 cleanup이 실행되어도 재생은 계속되도록
+      // cleanup에서 timeout을 취소하지 않음 (재생이 시작되면 계속되도록)
+      // 단, 컴포넌트가 완전히 언마운트되는 경우를 대비해 audio만 정리
+      // timeout은 취소하지 않음으로써 재생이 보장됨
+      console.log('[MainPage] cleanup 실행됨 (timeout은 유지하여 재생 보장)');
+    };
+  }, [selectedOnboardingOption]);
+  
   // Circle 진자 운동 애니메이션
   useEffect(() => {
     if (!showSummary || extractedKeywords.length === 0 || isKeywordsAnimatingOut) {
@@ -741,13 +822,29 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   // 스크롤을 항상 상단으로 유지 (assistant 메시지가 추가될 때마다)
   useEffect(() => {
     if (chatRef.current && assistantMessages.length > 0) {
+      // iPhone Safari 최적화: 여러 방법으로 스크롤 초기화
+      const scrollToTop = () => {
+        if (chatRef.current) {
+          // 방법 1: scrollTop 직접 설정
+          chatRef.current.scrollTop = 0;
+          // 방법 2: scrollTo 메서드 사용 (iPhone Safari 호환성)
+          chatRef.current.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          // 방법 3: window.scrollTo도 함께 사용 (전역 스크롤)
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          }
+          setScrollOpacity(0);
+        }
+      };
+      
       // DOM 업데이트가 완료된 후 스크롤 초기화 (이중 requestAnimationFrame으로 확실하게)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (chatRef.current) {
-            chatRef.current.scrollTop = 0;
-            setScrollOpacity(0);
-          }
+          scrollToTop();
+          // iPhone Safari에서 추가로 한 번 더 확인
+          setTimeout(() => {
+            scrollToTop();
+          }, 50);
         });
       });
     }
@@ -760,17 +857,32 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     
     // 새로운 assistant 메시지가 추가되었을 때만 스크롤 초기화
     if (currentAssistantCount > prevAssistantCountRef.current && chatRef.current) {
-      // 즉시 스크롤을 최상단으로 초기화 (smooth 없이)
-      chatRef.current.scrollTop = 0;
-      setScrollOpacity(0);
+      // iPhone Safari 최적화: 여러 방법으로 스크롤 초기화
+      const scrollToTop = () => {
+        if (chatRef.current) {
+          // 방법 1: scrollTop 직접 설정
+          chatRef.current.scrollTop = 0;
+          // 방법 2: scrollTo 메서드 사용 (iPhone Safari 호환성)
+          chatRef.current.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          // 방법 3: window.scrollTo도 함께 사용 (전역 스크롤)
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          }
+          setScrollOpacity(0);
+        }
+      };
+      
+      // 즉시 스크롤을 최상단으로 초기화
+      scrollToTop();
       
       // DOM 업데이트 후에도 다시 확인하여 확실하게 최상단 유지
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (chatRef.current) {
-            chatRef.current.scrollTop = 0;
-            setScrollOpacity(0);
-          }
+          scrollToTop();
+          // iPhone Safari에서 추가로 한 번 더 확인
+          setTimeout(() => {
+            scrollToTop();
+          }, 50);
         });
       });
     }
@@ -843,13 +955,15 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
     const assistantCount = assistantMessages.length;
 
     // 정확히 6번째 답변일 때만 ending page로 이동
+    // 6번째 질문은 가능하므로, 6번째 답변이 완료된 후에만 종료 처리
     if (assistantCount === 6 && !isConversationEnded && !chatState.isLoading) {
-      // 6번째 답변 시 5초 후 자동으로 FinalMessageScreen으로 전환
+      // 6번째 답변 완료 후 8초 후 자동으로 FinalMessageScreen으로 전환
+      // 이 시간 동안은 6번째 질문을 할 수 있음 (이미 완료된 상태)
       const timer = setTimeout(() => {
         setIsConversationEnded(true);
         setShowFifthAnswerWarning(false);
         setShowFinalMessage(true);
-      }, 5000);
+      }, 8000);
       return () => clearTimeout(timer);
     }
   }, [assistantMessages, isConversationEnded, chatState.isLoading]);
@@ -1006,15 +1120,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
           console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
           // ========== 카테고리 분류 로그 끝 (음성 입력) ==========
           
-          // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
-          const recentHistory = chatState.chatHistory.slice(-2);
-          const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
-          const keywords = lastAssistantMessage?.content || '';
-          
-      // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
-      const questionWithContext = keywords ? `${keywords} ${result.text}`.trim() : result.text;
-      
-      const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
+      // chatHistory를 history로 전달 (assistant 메시지는 키워드 2개만 포함)
+      const historyToSend: Message[] = chatState.chatHistory;
       const nextMessageNumber = chatState.messageNumber + 1;
       
       // 5번째 또는 6번째 질문인지 확인
@@ -1029,7 +1136,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 사용자에게 오늘 대화가 어땠는지 만족도를 묻는 것이므로, 이에 대한 답변을 생성할 것. 훈훈하고 따뜻한 끝마침 인삿말로 마무리할 것. 2-3개 문장의 간결한 문장이어야 함.`;
       }
       
-      const chatData = await apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
+      const chatData = await apiRequests.sendChatRequest(result.text, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
 
           if (chatData.error) {
             chatState.addErrorMessage(chatData.error);
@@ -1267,7 +1374,14 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    // 6번째 질문까지 허용: assistantMessages.length === 5일 때도 질문 가능 (6번째 질문)
     if (!chatState.inputValue.trim() || chatState.isLoading || isConversationEnded) return;
+    
+    // 6번째 질문까지 허용 확인 (assistantMessages.length가 5 이하일 때 질문 가능)
+    if (assistantMessages.length >= 6) {
+      // 6번째 답변까지 완료된 경우 더 이상 질문 불가
+      return;
+    }
 
     // 질문 제출 시 즉시 스크롤을 맨 위로 순간이동
     if (chatRef.current) {
@@ -1324,15 +1438,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #3b82f6; font-weight: bold;');
       // ========== 카테고리 분류 로그 끝 ==========
       
-      // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
-      const recentHistory = chatState.chatHistory.slice(-2);
-      const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
-      const keywords = lastAssistantMessage?.content || '';
-      
-      // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
-      const questionWithContext = keywords ? `${keywords} ${question}`.trim() : question;
-      
-      const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
+      // chatHistory를 history로 전달 (assistant 메시지는 키워드 2개만 포함)
+      const historyToSend: Message[] = chatState.chatHistory;
       const nextMessageNumber = chatState.messageNumber + 1;
       
       // 5번째 또는 6번째 질문인지 확인
@@ -1347,7 +1454,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         modifiedSystemPrompt = `${chatState.systemPrompt}\n\n중요: 사용자에게 오늘 대화가 어땠는지 만족도를 묻는 것이므로, 이에 대한 답변을 생성할 것. 훈훈하고 따뜻한 끝마침 인삿말로 마무리할 것. 2-3개 문장의 간결한 문장이어야 함.`;
       }
       
-      const data = await apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
+      const data = await apiRequests.sendChatRequest(question, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference);
 
       if (data.error) {
         chatState.addErrorMessage(data.error);
@@ -1636,6 +1743,11 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
   const handleRecommendationClick = useCallback(async (recommendation: string) => {
     if (chatState.isLoading || isConversationEnded) return;
     
+    // 6번째 질문까지 허용 확인
+    if (assistantMessages.length >= 6) {
+      return;
+    }
+    
     // 5. 추천 chips 클릭 시 클릭 사운드 재생
     playSound('CLICK_2', {
       onError: () => {
@@ -1814,15 +1926,8 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       generateThinkingText(recommendation);
       
       try {
-        // chatHistory에서 최근 assistant 메시지의 키워드를 가져와서 질문에 이어 붙임
-        const recentHistory = chatState.chatHistory.slice(-2);
-        const lastAssistantMessage = recentHistory.filter(msg => msg.role === 'assistant').slice(-1)[0];
-        const keywords = lastAssistantMessage?.content || '';
-        
-        // 키워드가 있으면 질문에 이어 붙임 (토큰 절감을 위해 매우 짧게)
-        const questionWithContext = keywords ? `${keywords} ${recommendation}`.trim() : recommendation;
-        
-        const historyToSend: Message[] = []; // history는 사용하지 않음 (토큰 절감)
+        // chatHistory를 history로 전달 (assistant 메시지는 키워드 2개만 포함)
+        const historyToSend: Message[] = chatState.chatHistory;
         const nextMessageNumber = chatState.messageNumber + 1;
         
         // 5번째 또는 6번째 질문인지 확인
@@ -1839,7 +1944,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         
         // API 요청과 최소 대기 시간을 병렬로 실행
         const [data] = await Promise.all([
-          apiRequests.sendChatRequest(questionWithContext, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference),
+          apiRequests.sendChatRequest(recommendation, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, feedbackPreference),
           minWaitTime
         ]);
 
@@ -1878,6 +1983,93 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
       }
     }
   }, [chatState, isConversationEnded, pushAssistantMessage, scrollToTop, selectedOnboardingOption, generateThinkingText, assistantMessages.length, createCombinedTTSText]);
+
+  const handleContinueRecommendation = useCallback(async () => {
+    if (chatState.isLoading || isConversationEnded) return;
+    
+    // 6번째 질문까지 허용 확인
+    if (assistantMessages.length >= 6) {
+      return;
+    }
+    
+    // 첫 번째 질문과 답변 가져오기
+    const firstUserMessage = chatState.messages.find(msg => msg.role === 'user');
+    const firstAssistantMessage = chatState.messages.find(msg => msg.role === 'assistant');
+    
+    if (!firstUserMessage || !firstAssistantMessage) {
+      console.error('첫 번째 질문 또는 답변을 찾을 수 없습니다.');
+      return;
+    }
+    
+    // 두 번째 질문으로 '이 방향으로 추천' 사용
+    const secondQuestion = '이 방향으로 추천';
+    
+    // 질문 제출 시 즉시 스크롤을 맨 위로 순간이동
+    if (chatRef.current) {
+      chatRef.current.scrollTop = 0;
+    }
+    
+    // 사용자 메시지 추가
+    const userMessage = createUserMessage(secondQuestion);
+    chatState.addMessage(userMessage);
+    
+    // 항상 '생각 중이에요' 화면을 보여주기 위해 isLoading을 true로 설정
+    chatState.setIsLoading(true);
+    
+    // 최소 1.5초 대기 시간을 보장하기 위한 Promise
+    const minWaitTime = new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // thinkingText 생성
+    generateThinkingText(secondQuestion);
+    
+    try {
+      // chatHistory를 history로 전달 (assistant 메시지는 키워드 2개만 포함)
+      const historyToSend: Message[] = chatState.chatHistory;
+      const nextMessageNumber = chatState.messageNumber + 1;
+      
+      // feedbackPreference를 'positive'로 설정하여 비슷한 답변 생성
+      const modifiedSystemPrompt = chatState.systemPrompt;
+      
+      // API 요청과 최소 대기 시간을 병렬로 실행
+      const [data] = await Promise.all([
+        apiRequests.sendChatRequest(secondQuestion, modifiedSystemPrompt, historyToSend, chatState.rowIndex, chatState.sessionId, nextMessageNumber, 'positive'),
+        minWaitTime
+      ]);
+
+      if (data.error) {
+        chatState.addErrorMessage(data.error);
+        chatState.setIsLoading(false);
+      } else {
+        if (data.rowIndex) {
+          chatState.setRowIndex(data.rowIndex);
+        }
+        if (data.sessionId) {
+          chatState.setSessionId(data.sessionId);
+        }
+        chatState.setMessageNumber(nextMessageNumber);
+        
+        await pushAssistantMessage({
+          answer: data.answer,
+          tokens: data.tokens,
+          hits: data.hits,
+          defaultAnswer: '(응답 없음)',
+        });
+        
+        chatState.setIsLoading(false);
+        // 답변이 완료되면 커스텀 thinking 텍스트 초기화
+        setCustomThinkingText(undefined);
+        // 답변이 완전히 표시된 후 STT 텍스트 초기화
+        setLastUserMessageText(null);
+      }
+    } catch (error) {
+      console.error('계속 추천 요청 실패:', error);
+      chatState.addErrorMessage('서버와의 통신에 실패했습니다.');
+      chatState.setIsLoading(false);
+      setCustomThinkingText(undefined);
+      // 에러 발생 시에도 STT 텍스트 초기화
+      setLastUserMessageText(null);
+    }
+  }, [chatState, isConversationEnded, pushAssistantMessage, generateThinkingText, createUserMessage]);
 
   const renderRecommendationChips = useCallback((additionalMarginTop?: number, compact?: boolean, shouldAnimate?: boolean) => {
     if (isConversationEnded) return null;
@@ -2095,8 +2287,6 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
         </>
       )}
       
-      <AudioWaveVisualizer stream={voiceState.audioStream} isActive={voiceState.isRecording} />
-      
       <Logo />
 
       {showFifthAnswerWarning && !showEndMessage && !showSummary && (
@@ -2297,7 +2487,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           flexDirection: 'column',
                           alignItems: 'center',
                           marginTop: '48%', // '이솔이 듣고 있어요' 위치
-                          gap: '2px', // 간격을 2px로 더 줄임
+                          gap: '16px', // ChatBubble과 AudioWaveVisualizer 사이 간격
                         }}
                       >
                         <ChatBubble 
@@ -2310,6 +2500,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                           typewriterVariant={typewriterVariant}
                           isRecording={voiceState.isRecording}
                         />
+                        <AudioWaveVisualizer stream={voiceState.audioStream} isActive={voiceState.isRecording} />
                       </div>
                     ) : null}
                     {/* 답변 container 상단 블러 효과 - fixed로 최상단에 고정 (answerContainerRef 밖으로 이동) */}
@@ -2496,6 +2687,7 @@ export default function MainPageV1({ showBlob = true, selectedOnboardingOption =
                                       onFeedback={(feedback) => {
                                         setFeedbackPreference(feedback);
                                       }}
+                                      onContinueRecommendation={handleContinueRecommendation}
                                     />
                                   </div>
                                 );
